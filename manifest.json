@@ -1,0 +1,8 @@
+{
+  "icon": "https://raw.githubusercontent.com/github/explore/80688e429a7d4d42f4c39f0e122b46765bc264f3/topics/github/github.png",
+  "title": "ECNA_Gestion_Visa",
+  "url": "https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/index.html",
+  "description": "Extension de gestion de visa pour ECNA chez Eiffage Construction",
+  "configCommand": "",
+  "enabled": true
+}
