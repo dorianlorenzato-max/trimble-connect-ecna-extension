@@ -1,28 +1,86 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ECNA Gestion Visa - Extension Trimble Connect</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f0f0f0;
-            color: #333;
-            text-align: center;
-        }
-        h1 {
-            color: #0056b3; /* Bleu Eiffage (exemple) */
-        }
-        p {
-            margin-top: 15px;
-        }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        background-color: #f0f0f0;
+        color: #333;
+        text-align: center;
+      }
+      h1 {
+        color: #0056b3; /* Bleu */
+      }
+      p {
+        margin-top: 15px;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <h1>Bienvenue dans l'extension ECNA Gestion Visa !</h1>
     <p>Cette page est la base de votre extension pour Trimble Connect.</p>
-    <p>Elle n'a pas encore de fonctionnalités, mais c'est un excellent début -message test !</p>
-</body>
+    <p>
+      Elle n'a pas encore de fonctionnalités, mais c'est un excellent début
+      -message test !
+    </p>
+
+    <!-- Script pour l'intégration Trimble Connect -->
+    <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
+    <script>
+      (async function () {
+        try {
+          // Établir la connexion avec l'API de Trimble Connect
+          const API = await TrimbleConnectWorkspace.connect(
+            window.parent,
+            (event, data) => {
+              console.log("Événement Trimble Connect reçu : ", event, data);
+              // Ici, tu peux gérer les événements reçus de Trimble Connect, par exemple quand on clique sur un sous-menu
+              if (
+                event === "extension.command" &&
+                data === "ecna_gestion_visa_clicked"
+              ) {
+                console.log("Le menu ECNA Gestion Visa a été cliqué !");
+                // Tu peux mettre à jour ton interface ici si nécessaire
+              }
+            },
+            30000, // Délai de connexion en millisecondes
+          );
+
+          // Définir la structure du menu principal pour ton extension
+          const mainMenuObject = {
+            title: "ECNA Gestion Visa", // Le texte qui apparaîtra dans l'arborescence
+            icon: "https://raw.githubusercontent.com/github/explore/80688e429a7d4d42f4c39f0e122b46765bc264f3/topics/github/github.png", // L'icône de ton extension (peut être le même que dans le manifest)
+            command: "ecna_gestion_visa_clicked", // Une commande unique associée à ce menu
+            // Si tu souhaites des sous-menus, tu les ajouterais ici dans un tableau 'subMenus'
+            // subMenus: [
+            //     {
+            //         title: "Statut des visas",
+            //         icon: "URL_ICON_SOUS_MENU",
+            //         command: "ecna_visa_status"
+            //     },
+            //     // ... autres sous-menus
+            // ]
+          };
+
+          // Envoyer l'objet menu à Trimble Connect pour l'afficher
+          API.ui.setMenu(mainMenuObject);
+          console.log("Menu 'ECNA Gestion Visa' envoyé à Trimble Connect.");
+
+          // Optionnel : Obtenir des informations sur le projet ou l'utilisateur
+          const projectInfo = await API.project.getCurrentProject();
+          console.log("Projet actuel :", projectInfo.name);
+        } catch (error) {
+          console.error(
+            "Erreur lors de la connexion à l'API Trimble Connect ou de la configuration du menu :",
+            error,
+          );
+        }
+      })();
+    </script>
+  </body>
 </html>
+
