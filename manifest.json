@@ -4,5 +4,5 @@
   "url": "https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/index.html",
   "description": "Extension de gestion de visa pour ECNA chez Eiffage Construction",
   "configCommand": "",
-  "enabled": true
+  "enabled": false
 }
