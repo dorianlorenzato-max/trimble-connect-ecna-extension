@@ -7,13 +7,54 @@
     <style>
       body {
         font-family: Arial, sans-serif;
-        margin: 20px;
+        margin: 0; /* Réinitialise la marge par défaut du body */
         background-color: #f0f0f0;
         color: #333;
         text-align: center;
+        display: flex; /* Utilise flexbox pour la mise en page principale */
+        flex-direction: column; /* Organise les éléments en colonne */
+        height: 100vh; /* Prend toute la hauteur de la vue */
       }
+      /* Style du bandeau horizontal */
+      .header-banner {
+        background-color: #0056b3; /* Bleu Eiffage */
+        padding: 10px 20px;
+        display: flex; /* Utilise flexbox pour organiser les boutons */
+        justify-content: flex-start; /* Aligne les boutons au début (à gauche) */
+        align-items: center; /* Centre verticalement les boutons */
+        gap: 15px; /* Espace entre les boutons */
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Légère ombre pour donner du relief */
+      }
+      /* Style des boutons dans le bandeau */
+      .header-banner button {
+        background-color: #ffffff; /* Fond blanc pour les boutons */
+        color: #0056b3; /* Texte bleu Eiffage */
+        border: none;
+        padding: 10px 15px;
+        border-radius: 5px; /* Bords légèrement arrondis */
+        cursor: pointer;
+        font-size: 1rem;
+        transition:
+          background-color 0.3s ease,
+          color 0.3s ease; /* Transition douce pour l'effet hover */
+      }
+      .header-banner button:hover {
+        background-color: #e0e0e0; /* Changement de couleur au survol */
+        color: #003a72; /* Couleur de texte plus foncée au survol */
+      }
+      /* Style pour le contenu principal */
+      .main-content {
+        flex-grow: 1; /* Prend l'espace restant */
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 1.2rem;
+        color: #666;
+      }
+
       h1 {
-        color: #b30c00; /* Rouge Eiffage */
+        color: #0056b3; /* Bleu Eiffage (exemple) */
       }
       p {
         margin-top: 15px;
@@ -21,11 +62,20 @@
     </style>
   </head>
   <body>
-    <h1>Bienvenue dans l'extension ECNA Gestion Visa !</h1>
-    <p>Cette page est la base de votre extension pour Trimble Connect.</p>
-    <p>
-      Elle n'a pas encore de fonctionnalités, mais c'est début !
-    </p>
+    <!-- Bandeau horizontal avec les boutons -->
+    <div class="header-banner">
+      <button id="dashboardBtn">Tableau de Bord</button>
+      <button id="visasBtn">Visas</button>
+      <button id="configBtn">Configuration</button>
+    </div>
+
+    <!-- Contenu principal de l'extension -->
+    <div class="main-content">
+      <p>
+        Bienvenue sur l'interface de gestion de visa ECNA ! Cliquez sur un
+        bouton ci-dessus pour commencer.
+      </p>
+    </div>
 
     <!-- Script pour l'intégration Trimble Connect -->
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
@@ -52,17 +102,8 @@
           // Définir la structure du menu principal pour ton extension
           const mainMenuObject = {
             title: "ECNA Gestion Visa", // Le texte qui apparaîtra dans l'arborescence
-            icon: "https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/logoEiffage.png", // L'icône de l'extension 
+            icon: "https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/logoEiffage.png", // L'icône de l'extension
             command: "ecna_gestion_visa_clicked", // Une commande unique associée à ce menu
-            // Si tu souhaites des sous-menus, tu les ajouterais ici dans un tableau 'subMenus'
-            // subMenus: [
-            //     {
-            //         title: "Statut des visas",
-            //         icon: "URL_ICON_SOUS_MENU",
-            //         command: "ecna_visa_status"
-            //     },
-            //     // ... autres sous-menus
-            // ]
           };
 
           // Envoyer l'objet menu à Trimble Connect pour l'afficher
@@ -82,4 +123,3 @@
     </script>
   </body>
 </html>
-
