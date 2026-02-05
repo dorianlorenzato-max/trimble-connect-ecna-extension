@@ -1,124 +1,261 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ECNA Gestion Visa - Extension Trimble Connect</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            background-color: #f0f0f0;
-            color: #333;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
-        .header-banner {
-            background-color: #0056b3; /* Bleu Eiffage */
-            padding: 10px 20px;
-            display: flex;
-            justify-content: flex-start;
-            align-items: center;
-            gap: 15px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            flex-shrink: 0; /* Empêche le bandeau de rétrécir */
-        }
-        .header-banner button {
-            background-color: #ffffff;
-            color: #0056b3;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: background-color 0.3s ease, color 0.3s ease;
-        }
-        .header-banner button:hover {
-            background-color: #e0e0e0;
-            color: #003a72;
-        }
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        background-color: #f0f0f0;
+        color: #333;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+      }
+      .header-banner {
+        background-color: #ff0101; /* Rouge Eiffage */
+        padding: 10px 20px;
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+        gap: 15px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        flex-shrink: 0; /* Empêche le bandeau de rétrécir */
+      }
+      .header-banner button {
+        background-color: #ffffff;
+        color: #000000;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 1rem;
+        transition:
+          background-color 0.3s ease,
+          color 0.3s ease;
+      }
+      .header-banner button:hover {
+        background-color: #e0e0e0;
+        color: #003a72;
+      }
 
-        .main-content {
-            flex-grow: 1; /* Prend l'espace restant */
-            padding: 20px;
-            overflow-y: auto; /* Ajoute un défilement si le contenu dépasse */
-            text-align: left; /* Aligne le texte à gauche pour le tableau */
-        }
-        .main-content h1 {
-            color: #0056b3;
-            margin-bottom: 20px;
-            text-align: center;
-        }
+      .main-content {
+        flex-grow: 1; /* Prend l'espace restant */
+        padding: 20px;
+        overflow-y: auto; /* Ajoute un défilement si le contenu dépasse */
+        text-align: left; /* Aligne le texte à gauche pour le tableau */
+      }
+      .main-content h1 {
+        color: #0056b3;
+        margin-bottom: 20px;
+        text-align: center;
+      }
 
-        /* Styles pour le tableau des visas */
-        .visa-table-container {
-            width: 100%;
-            max-width: 1200px; /* Limite la largeur maximale du tableau */
-            margin: 0 auto; /* Centre le tableau */
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            overflow-x: auto; /* Permet le défilement horizontal si le tableau est trop large */
-        }
-        .visa-table {
-            width: 100%;
-            border-collapse: collapse; /* Supprime l'espace entre les bordures de cellules */
-        }
-        .visa-table th, .visa-table td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #ddd;
-            text-align: left;
-        }
-        .visa-table th {
-            background-color: #f8f8f8;
-            font-weight: bold;
-            color: #333;
-            position: sticky; /* Pour garder les en-têtes visibles lors du défilement */
-            top: 0;
-            z-index: 10;
-        }
-        .visa-table tbody tr:hover {
-            background-color: #f1f1f1;
-        }
-        .visa-table th .filter-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .visa-table th .filter-icon {
-            cursor: pointer;
-            margin-left: 8px;
-            color: #666;
-            font-size: 0.9em;
-        }
-        .visa-table th .filter-icon:hover {
-            color: #0056b3;
-        }
+      /* Styles pour le tableau des visas */
+      .visa-table-container {
+        width: 100%;
+        max-width: 1200px; /* Limite la largeur maximale du tableau */
+        margin: 0 auto; /* Centre le tableau */
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        overflow-x: auto; /* Permet le défilement horizontal si le tableau est trop large */
+      }
+      .visa-table {
+        width: 100%;
+        border-collapse: collapse; /* Supprime l'espace entre les bordures de cellules */
+      }
+      .visa-table th,
+      .visa-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #ddd;
+        text-align: left;
+      }
+      .visa-table th {
+        background-color: #f8f8f8;
+        font-weight: bold;
+        color: #333;
+        position: sticky; /* Pour garder les en-têtes visibles lors du défilement */
+        top: 0;
+        z-index: 10;
+      }
+      .visa-table tbody tr:hover {
+        background-color: #f1f1f1;
+      }
+      .visa-table th .filter-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .visa-table th .filter-icon {
+        cursor: pointer;
+        margin-left: 8px;
+        color: #333333;
+        font-size: 0.9em;
+      }
+      .visa-table th .filter-icon:hover {
+        color: #0056b3;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="header-banner">
-        <button id="dashboardBtn">Tableau de Bord</button>
-        <button id="visasBtn">Visas</button>
-        <button id="configBtn">Configuration</button>
+      <button id="dashboardBtn">Tableau de Bord</button>
+      <button id="visasBtn">Visas</button>
+      <button id="configBtn">Configuration</button>
     </div>
 
     <div id="mainContent" class="main-content">
-        <!-- Le contenu sera injecté ici par JavaScript -->
-        <p>Bienvenue sur l'interface de gestion de visa ECNA ! Cliquez sur un bouton ci-dessus pour commencer.</p>
+      <!-- Le contenu sera injecté ici par JavaScript -->
+      <p>Bienvenue sur l'interface de gestion de visa ECNA !</p>
     </div>
 
     <script src="https://components.connect.trimble.com/trimble-connect-workspace-api/index.js"></script>
     <script>
-        (async function() {
-            let triconnectAPI;
-            const mainContentDiv = document.getElementById('mainContent');
+      (async function () {
+        let triconnectAPI;
+        const mainContentDiv = document.getElementById("mainContent");
 
-            // Fonction pour afficher le tableau des visas
-            function displayVisaTable() {
-                mainContentDiv.innerHTML = `
+        // --- DEBUT DE LA SECTION POUR LES DONNEES ET LE TABLEAU DES VISAS ---
+
+        // Fonction utilitaire pour récupérer les informations de l'utilisateur
+        async function getUserNameById(userId) {
+          // TODO: Implémenter l'appel API pour obtenir le nom de l'utilisateur à partir de son ID
+          // La TrimbleConnectWorkspace API pourrait avoir une méthode comme triconnectAPI.project.getProjectMembers()
+          // ou triconnectAPI.user.getUserDetails(userId)
+          // Pour l'instant, on retourne un nom générique ou l'ID si le nom n'est pas trouvé.
+          // Cela nécessitera une itération sur la liste des membres du projet.
+          try {
+            const members = await triconnectAPI.project.getProjectMembers();
+            const user = members.find(
+              (m) => m.id === userId || m.userId === userId,
+            ); // Trimble ID vs Internal ID
+            return user ? user.displayName || user.name : userId; // Utilise displayName ou name si disponible
+          } catch (error) {
+            console.error(
+              "Erreur lors de la récupération du nom de l'utilisateur:",
+              error,
+            );
+            return userId; // Retourne l'ID si une erreur survient
+          }
+        }
+
+        // Fonction utilitaire pour déterminer le "Lot" (groupe) d'un utilisateur
+        async function getUserLot(userId) {
+          // TODO: Implémenter l'appel API pour obtenir les groupes de l'utilisateur
+          // La TrimbleConnectWorkspace API devrait permettre d'accéder aux groupes du projet.
+          // triconnectAPI.project.getProjectGroups() peut retourner les groupes et leurs membres.
+          try {
+            const groups = await triconnectAPI.project.getProjectGroups();
+            for (const group of groups) {
+              // Supposition: Les groupes ont une propriété 'members' qui est un tableau d'IDs ou d'objets utilisateur
+              // Ou bien, il faut itérer sur les membres du projet et voir à quel groupe ils appartiennent.
+              // Cette partie peut être complexe et dépendre de la structure exacte des objets de l'API.
+              if (
+                group.members &&
+                group.members.some(
+                  (member) => member.id === userId || member.userId === userId,
+                )
+              ) {
+                return group.name; // Retourne le nom du premier groupe trouvé
+              }
+            }
+            return "Non assigné"; // Si aucun groupe n'est trouvé
+          } catch (error) {
+            console.error(
+              "Erreur lors de la récupération des groupes de l'utilisateur:",
+              error,
+            );
+            return "Non assigné";
+          }
+        }
+
+        // Fonction pour afficher le tableau des visas avec les données réelles
+        async function displayVisaTable() {
+          mainContentDiv.innerHTML = `
+                    <h1>Chargement des Documents à Visas...</h1>
+                    <div style="text-align:center; padding: 20px;">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/b/b1/Loading_icon.gif" alt="Chargement..." style="width: 50px;">
+                    </div>
+                `; // Affiche un message de chargement
+
+          let visaDocuments = [];
+
+          try {
+            // 1. Récupérer tous les fichiers du projet
+            // L'API Workspace pourrait avoir une méthode comme triconnectAPI.project.getFiles() ou les fichiers pourraient être dans l'objet project
+            // Supposition: triconnectAPI.project.getProjectFiles() ou triconnectAPI.project.getProject().files
+            const projectFiles = await triconnectAPI.project.getProjectFiles(); // Cette méthode est une supposition basée sur les pratiques API.
+
+            // TODO (Étape ultérieure) : Filtrer les fichiers en fonction des dossiers paramétrés
+            // Les ID des dossiers seront définis via la configuration.
+
+            // 2. Filtrer uniquement les fichiers PDF
+            const pdfFiles = projectFiles.filter((file) =>
+              file.name.toLowerCase().endsWith(".pdf"),
+            );
+
+            // 3. Préparer les données pour le tableau
+            for (const file of pdfFiles) {
+              const depositorId = file.lastModifiedUser || file.uploadedBy; // Supposition de propriétés de l'objet fichier
+              const depositorName = depositorId
+                ? await getUserNameById(depositorId)
+                : "Inconnu";
+              const lot = depositorId
+                ? await getUserLot(depositorId)
+                : "Non assigné";
+              const depositDate = file.lastModifiedDate
+                ? new Date(file.lastModifiedDate).toLocaleDateString()
+                : "Date inconnue";
+
+              // TODO: Le statut sera récupéré depuis les métadonnées Trimble du document une fois configuré.
+              const status = "Statut en attente"; // Reste fictif pour l'instant
+
+              visaDocuments.push({
+                name: file.name,
+                lot: lot,
+                depositorName: depositorName,
+                depositDate: depositDate,
+                status: status,
+              });
+            }
+          } catch (error) {
+            console.error(
+              "Erreur lors de la récupération des documents Trimble Connect:",
+              error,
+            );
+            mainContentDiv.innerHTML = `
+                        <h1>Erreur de chargement</h1>
+                        <p>Impossible de récupérer les documents. Veuillez réessayer ou contacter le support.</p>
+                        <p>Détails de l'erreur : ${error.message || error}</p>
+                    `;
+            return; // Arrête l'exécution si une erreur survient
+          }
+
+          // Afficher le tableau une fois les données récupérées
+          let tableRows = visaDocuments
+            .map(
+              (doc) => `
+                    <tr>
+                        <td>${doc.name || ""}</td>
+                        <td>${doc.lot || ""}</td>
+                        <td>${doc.depositorName || ""}</td>
+                        <td>${doc.depositDate || ""}</td>
+                        <td>${doc.status || ""}</td>
+                    </tr>
+                `,
+            )
+            .join("");
+
+          // Si aucun document n'est trouvé
+          if (visaDocuments.length === 0) {
+            tableRows = `<tr><td colspan="5" style="text-align:center;">Aucun document PDF trouvé dans le projet.</td></tr>`;
+          }
+
+          mainContentDiv.innerHTML = `
                     <h1>Suivi des Documents à Visas</h1>
                     <div class="visa-table-container">
                         <table class="visa-table">
@@ -157,90 +294,68 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <!-- Données fictives pour le moment, seulement des PDF -->
-                                <tr>
-                                    <td>Plan Masse RDC - A0.pdf</td>
-                                    <td>Gros Œuvre</td>
-                                    <td>J. Dupont</td>
-                                    <td>2024-01-15</td>
-                                    <td>En attente de revue</td>
-                                </tr>
-                                <tr>
-                                    <td>Cahier des Charges Techniques - V2.pdf</td>
-                                    <td>Second Œuvre</td>
-                                    <td>M. Dubois</td>
-                                    <td>2024-01-20</td>
-                                    <td>Validé avec réserves</td>
-                                </tr>
-                                <tr>
-                                    <td>Schéma Électrique Détaillé.pdf</td>
-                                    <td>Électricité</td>
-                                    <td>A. Martin</td>
-                                    <td>2024-01-22</td>
-                                    <td>Rejeté</td>
-                                </tr>
-                                <tr>
-                                    <td>Nomenclature Menuiseries Intérieures.pdf</td>
-                                    <td>Menuiseries</td>
-                                    <td>S. Bernard</td>
-                                    <td>2024-01-25</td>
-                                    <td>Validé</td>
-                                </tr>
-                                <tr>
-                                    <td>Rapport d'Étude de Sol.pdf</td>
-                                    <td>Fondations</td>
-                                    <td>C. Petit</td>
-                                    <td>2024-01-10</td>
-                                    <td>En cours d'approbation</td>
-                                </tr>
-                                <!-- Ajouter d'autres lignes ici avec de vraies données -->
+                                ${tableRows}
                             </tbody>
                         </table>
                     </div>
                 `;
-            }
+        }
+        // --- FIN DE LA SECTION POUR LES DONNEES ET LE TABLEAU DES VISAS ---
 
-            // Écouteur d'événement pour le bouton "Visas"
-            document.getElementById('visasBtn').addEventListener('click', displayVisaTable);
+        // Écouteur d'événement pour le bouton "Visas"
+        document
+          .getElementById("visasBtn")
+          .addEventListener("click", displayVisaTable);
+        // TODO (Étape ultérieure) : Ajouter des écouteurs pour "Tableau de Bord" et "Configuration"
+        // document.getElementById('dashboardBtn').addEventListener('click', displayDashboard);
+        // document.getElementById('configBtn').addEventListener('click', displayConfiguration);
 
-            // Initialisation de l'API Trimble Connect
-            try {
-                triconnectAPI = await TrimbleConnectWorkspace.connect(
-                    window.parent,
-                    (event, data) => {
-                        console.log("Événement Trimble Connect reçu : ", event, data);
-                        if (event === "extension.command" && data === "ecna_gestion_visa_clicked") {
-                            console.log("Le menu ECNA Gestion Visa a été cliqué !");
-                            // Afficher le tableau des visas par défaut lors du chargement initial de l'extension si c'est la page par défaut
-                            displayVisaTable();
-                        }
-                    },
-                    30000
-                );
+        // Initialisation de l'API Trimble Connect
+        try {
+          triconnectAPI = await TrimbleConnectWorkspace.connect(
+            window.parent,
+            (event, data) => {
+              console.log("Événement Trimble Connect reçu : ", event, data);
+              if (
+                event === "extension.command" &&
+                data === "ecna_gestion_visa_clicked"
+              ) {
+                console.log("Le menu ECNA Gestion Visa a été cliqué !");
+                // Afficher le tableau des visas par défaut lors du chargement initial de l'extension si c'est la page par défaut
+                displayVisaTable();
+              }
+            },
+            30000,
+          );
 
-                const accessToken = await triconnectAPI.extension.requestPermission("accesstoken");
-                if (accessToken) {
-                    console.log("Access Token Trimble Connect obtenu avec succès.");
-                } else {
-                    console.warn("Impossible d'obtenir l'Access Token Trimble Connect.");
-                }
+          const accessToken =
+            await triconnectAPI.extension.requestPermission("accesstoken");
+          if (accessToken) {
+            console.log("Access Token Trimble Connect obtenu avec succès.");
+          } else {
+            console.warn(
+              "Impossible d'obtenir l'Access Token Trimble Connect.",
+            );
+          }
 
-                const mainMenuObject = {
-                    title: "ECNA Gestion Visa",
-                    icon: "https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/logoEiffage.png",
-                    command: "ecna_gestion_visa_clicked",
-                };
+          const mainMenuObject = {
+            title: "ECNA Gestion Visa",
+            icon: "https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/logoEiffage.png",
+            command: "ecna_gestion_visa_clicked",
+          };
 
-                triconnectAPI.ui.setMenu(mainMenuObject);
-                console.log("Menu 'ECNA Gestion Visa' envoyé à Trimble Connect.");
+          triconnectAPI.ui.setMenu(mainMenuObject);
+          console.log("Menu 'ECNA Gestion Visa' envoyé à Trimble Connect.");
 
-                const projectInfo = await triconnectAPI.project.getCurrentProject();
-                console.log("Projet actuel :", projectInfo.name);
-
-            } catch (error) {
-                console.error("Erreur lors de la connexion à l'API Trimble Connect ou de la configuration du menu :", error);
-            }
-        })();
+          const projectInfo = await triconnectAPI.project.getCurrentProject();
+          console.log("Projet actuel :", projectInfo.name);
+        } catch (error) {
+          console.error(
+            "Erreur lors de la connexion à l'API Trimble Connect ou de la configuration du menu :",
+            error,
+          );
+        }
+      })();
     </script>
-</body>
+  </body>
 </html>
