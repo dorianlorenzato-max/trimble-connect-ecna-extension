@@ -117,12 +117,14 @@
     <script>
       (async function () {
         let triconnectAPI;
+        let globalAccessToken;
         const mainContentDiv = document.getElementById("mainContent");
 
         // --- DEBUT DE LA SECTION POUR LES DONNEES ET LE TABLEAU DES VISAS ---
 
         // Fonction utilitaire pour récupérer les informations de l'utilisateur
         async function getUserNameById(userId) {
+          if (!userId) return "Inconnu";
           try {
             const members = await triconnectAPI.project.getProjectMembers();
             const user = members.find(
@@ -140,6 +142,7 @@
 
         // Fonction utilitaire pour déterminer le "Lot" (groupe) d'un utilisateur
         async function getUserLot(userId) {
+          if (!userId) return "Non assigné";
           try {
             const groups = await triconnectAPI.project.getProjectGroups();
             for (const group of groups) {
@@ -165,6 +168,8 @@
           }
         }
 
+        // --- Fin des fonctions utilitaires ---
+
         // Fonction pour afficher le tableau des visas avec les données réelles
         async function displayVisaTable() {
           mainContentDiv.innerHTML = `
@@ -177,26 +182,22 @@
           let visaDocuments = [];
 
           try {
-            const accessToken =
-              await triconnectAPI.extensionAPI.requestPermission("accesstoken");
-            if (!accessToken) {
+            // Utilise le globalAccessToken déjà récupéré
+            if (!globalAccessToken) {
               throw new Error(
-                "Access Token non disponible. Impossible de récupérer les fichiers.",
+                "Access Token non disponible. L'initialisation a échoué.",
               );
             }
 
             const projectInfo = await triconnectAPI.project.getCurrentProject();
             const projectId = projectInfo.id;
 
-            // L'URL de l'API REST de Trimble Connect pour lister les fichiers.
-            // C'est l'endpoint standard pour les fichiers d'un projet.
-            // Il est important de confirmer la version de l'API (ex: /v1/ ou /v2/) si celle-ci ne fonctionne pas.
             const filesApiUrl = `https://api.connect.trimble.com/projects/${projectId}/files`;
 
             const response = await fetch(filesApiUrl, {
               method: "GET",
               headers: {
-                Authorization: `Bearer ${accessToken}`,
+                Authorization: `Bearer ${globalAccessToken}`, // Utilise globalAccessToken ici
                 "Content-Type": "application/json",
               },
             });
@@ -333,8 +334,10 @@
         // document.getElementById('dashboardBtn').addEventListener('click', displayDashboard);
         // document.getElementById('configBtn').addEventListener('click', displayConfiguration);
 
-        // Initialisation de l'API Trimble Connect
+        // --- SECTION D'INITIALISATION PRINCIPALE ---
         try {
+          // Étape 1: Initialiser la connexion à la Workspace API
+          mainContentDiv.innerHTML = `<p>Connexion à Trimble Connect...</p>`;
           triconnectAPI = await TrimbleConnectWorkspace.connect(
             window.parent,
             (event, data) => {
@@ -344,30 +347,62 @@
                 data === "ecna_gestion_visa_clicked"
               ) {
                 console.log("Le menu ECNA Gestion Visa a été cliqué !");
-                // Afficher le tableau des visas par défaut lors du chargement initial de l'extension si c'est la page par défaut
-                displayVisaTable();
+                // Si tu veux que le tableau s'affiche dès que l'extension est chargée,
+                // décommenter la ligne suivante :
+                // displayVisaTable();
               }
             },
             30000,
           );
+          console.log("Connexion à Trimble Connect établie.");
+
+          // Étape 2: Demander et stocker l'Access Token
+          mainContentDiv.innerHTML = `<p>Récupération du jeton d'accès...</p>`;
+          globalAccessToken =
+            await triconnectAPI.extension.requestPermission("accesstoken");
+          if (globalAccessToken) {
+            console.log("Access Token Trimble Connect obtenu avec succès.");
+          } else {
+            console.warn(
+              "Impossible d'obtenir l'Access Token Trimble Connect.",
+            );
+            throw new Error("L'Access Token n'a pas pu être récupéré.");
+          }
+
+          // Étape 3: Configurer l'interface de l'extension
+          const projectInfo = await triconnectAPI.project.getCurrentProject();
+          console.log("Projet actuel :", projectInfo.name);
 
           const mainMenuObject = {
             title: "ECNA Gestion Visa",
-            icon: "https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/logoEiffage.png",
+            icon: "https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/logo-eiffage-icone.png",
             command: "ecna_gestion_visa_clicked",
           };
-
           triconnectAPI.ui.setMenu(mainMenuObject);
           console.log("Menu 'ECNA Gestion Visa' envoyé à Trimble Connect.");
 
-          const projectInfo = await triconnectAPI.project.getCurrentProject();
-          console.log("Projet actuel :", projectInfo.name);
+          // Étape 4: Une fois tout initialisé, attacher les écouteurs d'événements
+          document
+            .getElementById("visasBtn")
+            .addEventListener("click", displayVisaTable);
+          // TODO (Étape ultérieure) : Ajouter des écouteurs pour "Tableau de Bord" et "Configuration"
+          // document.getElementById('dashboardBtn').addEventListener('click', displayDashboard);
+          // document.getElementById('configBtn').addEventListener('click', displayConfiguration);
+
+          // Afficher le message d'accueil initial après l'initialisation complète
+          mainContentDiv.innerHTML = `<p>Bienvenue sur l'interface de gestion de visa ECNA ! Cliquez sur un bouton ci-dessus pour commencer.</p>`;
         } catch (error) {
           console.error(
-            "Erreur lors de la connexion à l'API Trimble Connect ou de la configuration du menu :",
+            "Erreur lors de l'initialisation de l'extension :",
             error,
           );
+          mainContentDiv.innerHTML = `
+                    <h1>Erreur d'initialisation de l'extension</h1>
+                    <p>Impossible de charger l'extension. Veuillez vérifier la console du navigateur pour plus de détails.</p>
+                    <p>Détails de l'erreur : ${error.message || error}</p>
+                `;
         }
+        // --- FIN DE LA SECTION D'INITIALISATION PRINCIPALE ---
       })();
     </script>
   </body>
