@@ -117,7 +117,7 @@
     <script>
       (async function () {
         let triconnectAPI;
-        let globalAccessToken;
+        let globalAccessToken = null;
         const mainContentDiv = document.getElementById("mainContent");
 
         // --- DEBUT DE LA SECTION POUR LES DONNEES ET LE TABLEAU DES VISAS ---
@@ -183,9 +183,12 @@
 
           try {
             // Utilise le globalAccessToken déjà récupéré
-            if (!globalAccessToken) {
+            if (
+              typeof globalAccessToken !== "string" ||
+              globalAccessToken.length === 0
+            ) {
               throw new Error(
-                "Access Token non disponible. L'initialisation a échoué.",
+                "Access Token non disponible ou invalide. L'initialisation a échoué.",
               );
             }
 
@@ -327,9 +330,7 @@
         // --- FIN DE LA SECTION POUR LES DONNEES ET LE TABLEAU DES VISAS ---
 
         // Écouteur d'événement pour le bouton "Visas"
-        document
-          .getElementById("visasBtn")
-          .addEventListener("click", displayVisaTable);
+
         // TODO (Étape ultérieure) : Ajouter des écouteurs pour "Tableau de Bord" et "Configuration"
         // document.getElementById('dashboardBtn').addEventListener('click', displayDashboard);
         // document.getElementById('configBtn').addEventListener('click', displayConfiguration);
@@ -358,15 +359,23 @@
 
           // Étape 2: Demander et stocker l'Access Token
           mainContentDiv.innerHTML = `<p>Récupération du jeton d'accès...</p>`;
-          globalAccessToken =
+          const fetchedToken =
             await triconnectAPI.extension.requestPermission("accesstoken");
-          if (globalAccessToken) {
-            console.log("Access Token Trimble Connect obtenu avec succès.");
+          console.log("Valeur brute du jeton d'accès reçu:", fetchedToken); // TRÈS IMPORTANT pour le diagnostic
+
+          if (typeof fetchedToken === "string" && fetchedToken.length > 0) {
+            globalAccessToken = fetchedToken;
+            console.log(
+              "Access Token Trimble Connect obtenu et validé avec succès.",
+            );
           } else {
             console.warn(
-              "Impossible d'obtenir l'Access Token Trimble Connect.",
+              "Impossible d'obtenir un Access Token Trimble Connect valide. Valeur reçue:",
+              fetchedToken,
             );
-            throw new Error("L'Access Token n'a pas pu être récupéré.");
+            throw new Error(
+              "L'Access Token n'a pas pu être récupéré durant l'initialisation ou est invalide.",
+            );
           }
 
           // Étape 3: Configurer l'interface de l'extension
@@ -375,7 +384,7 @@
 
           const mainMenuObject = {
             title: "ECNA Gestion Visa",
-            icon: "https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/logoEiffage.png",
+            icon: "https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/logo-eiffage-icone.png",
             command: "ecna_gestion_visa_clicked",
           };
           triconnectAPI.ui.setMenu(mainMenuObject);
