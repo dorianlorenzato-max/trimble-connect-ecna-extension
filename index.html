@@ -188,7 +188,7 @@
             // 1. Récupérer tous les fichiers du projet
             // L'API Workspace pourrait avoir une méthode comme triconnectAPI.project.getFiles() ou les fichiers pourraient être dans l'objet project
             // Supposition: triconnectAPI.project.getProjectFiles() ou triconnectAPI.project.getProject().files
-            const projectFiles = await triconnectAPI.project.FileEntry(); // Cette méthode est une supposition basée sur les pratiques API.
+            const projectFiles = await triconnectAPI.project.getCurrentProject().file; // Cette méthode est une supposition basée sur les pratiques API.
 
             // TODO (Étape ultérieure) : Filtrer les fichiers en fonction des dossiers paramétrés
             // Les ID des dossiers seront définis via la configuration.
