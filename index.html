@@ -109,7 +109,7 @@
     </div>
 
     <div id="mainContent" class="main-content">
-      <!-- Le contenu sera injecté ici par JavaScript -->
+      <!-- Le contenu est injecté ici par JavaScript -->
       <p>Bienvenue sur l'interface de gestion de visa ECNA !</p>
     </div>
 
@@ -123,11 +123,6 @@
 
         // Fonction utilitaire pour récupérer les informations de l'utilisateur
         async function getUserNameById(userId) {
-          // TODO: Implémenter l'appel API pour obtenir le nom de l'utilisateur à partir de son ID
-          // La TrimbleConnectWorkspace API pourrait avoir une méthode comme triconnectAPI.project.getProjectMembers()
-          // ou triconnectAPI.user.getUserDetails(userId)
-          // Pour l'instant, on retourne un nom générique ou l'ID si le nom n'est pas trouvé.
-          // Cela nécessitera une itération sur la liste des membres du projet.
           try {
             const members = await triconnectAPI.project.getProjectMembers();
             const user = members.find(
@@ -145,9 +140,6 @@
 
         // Fonction utilitaire pour déterminer le "Lot" (groupe) d'un utilisateur
         async function getUserLot(userId) {
-          // TODO: Implémenter l'appel API pour obtenir les groupes de l'utilisateur
-          // La TrimbleConnectWorkspace API devrait permettre d'accéder aux groupes du projet.
-          // triconnectAPI.project.getProjectGroups() peut retourner les groupes et leurs membres.
           try {
             const groups = await triconnectAPI.project.getProjectGroups();
             for (const group of groups) {
@@ -185,14 +177,45 @@
           let visaDocuments = [];
 
           try {
-            // 1. Récupérer tous les fichiers du projet
-            // L'API Workspace pourrait avoir une méthode comme triconnectAPI.project.getFiles() ou les fichiers pourraient être dans l'objet project
-            // Supposition: triconnectAPI.project.getProjectFiles() ou triconnectAPI.project.getProject().files
-            const projectFiles = await triconnectAPI.project.getCurrentProject().file; // Cette méthode est une supposition basée sur les pratiques API.
+            const accessToken =
+              await triconnectAPI.extensionAPI.requestPermission("accesstoken");
+            if (!accessToken) {
+              throw new Error(
+                "Access Token non disponible. Impossible de récupérer les fichiers.",
+              );
+            }
 
-            // TODO (Étape ultérieure) : Filtrer les fichiers en fonction des dossiers paramétrés
-            // Les ID des dossiers seront définis via la configuration.
+            const projectInfo = await triconnectAPI.project.getCurrentProject();
+            const projectId = projectInfo.id;
 
+            // L'URL de l'API REST de Trimble Connect pour lister les fichiers.
+            // C'est l'endpoint standard pour les fichiers d'un projet.
+            // Il est important de confirmer la version de l'API (ex: /v1/ ou /v2/) si celle-ci ne fonctionne pas.
+            const filesApiUrl = `https://api.connect.trimble.com/projects/${projectId}/files`;
+
+            const response = await fetch(filesApiUrl, {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+            });
+
+            if (!response.ok) {
+              const errorData = await response
+                .json()
+                .catch(() => ({ message: response.statusText }));
+              throw new Error(
+                `Erreur API Trimble Connect (${response.status}): ${errorData.message}`,
+              );
+            }
+
+            const apiResponse = await response.json();
+            // L'API REST renvoie souvent les éléments sous une propriété 'data' ou 'items'.
+            // Nous vérifions les deux pour être flexibles.
+            const projectFiles = apiResponse.data || apiResponse.items || [];
+
+            // TODO (Étape ultérieure) : Filtrer les fichiers en fonction des dossiers paramétrés par l'administrateur.
             // 2. Filtrer uniquement les fichiers PDF
             const pdfFiles = projectFiles.filter((file) =>
               file.name.toLowerCase().endsWith(".pdf"),
@@ -327,16 +350,6 @@
             },
             30000,
           );
-
-          const accessToken =
-            await triconnectAPI.extension.requestPermission("accesstoken");
-          if (accessToken) {
-            console.log("Access Token Trimble Connect obtenu avec succès.");
-          } else {
-            console.warn(
-              "Impossible d'obtenir l'Access Token Trimble Connect.",
-            );
-          }
 
           const mainMenuObject = {
             title: "ECNA Gestion Visa",
