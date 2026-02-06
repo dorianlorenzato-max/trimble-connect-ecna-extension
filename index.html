@@ -120,7 +120,7 @@
         let globalAccessToken = null;
         const mainContentDiv = document.getElementById("mainContent");
 
-        const TRIMBLE_CLIENT_ID = "db958c40-8b49-4d72-b9cc-71333d3c9581";
+        const TRIMBLE_CLIENT_ID = "db958c40-8b49-4d72-b9cc-71333d3c9581"; // Ton ID Client est ici
 
         // --- DEBUT DE LA SECTION POUR LES DONNEES ET LE TABLEAU DES VISAS ---
 
@@ -128,17 +128,20 @@
         async function getUserNameById(userId) {
           if (!userId) return "Inconnu";
           try {
+            // TODO: Vérifier que triconnectAPI.project.getProjectMembers() retourne la bonne structure
             const members = await triconnectAPI.project.getProjectMembers();
             const user = members.find(
               (m) => m.id === userId || m.userId === userId,
-            ); // Trimble ID vs Internal ID
-            return user ? user.displayName || user.name : userId; // Utilise displayName ou name si disponible
+            );
+            return user ? user.displayName || user.name || userId : userId;
           } catch (error) {
-            console.error(
-              "Erreur lors de la récupération du nom de l'utilisateur:",
+            console.warn(
+              "Impossible de récupérer le nom de l'utilisateur via Workspace API (ID:",
+              userId,
+              "):",
               error,
             );
-            return userId; // Retourne l'ID si une erreur survient
+            return userId;
           }
         }
 
@@ -146,24 +149,24 @@
         async function getUserLot(userId) {
           if (!userId) return "Non assigné";
           try {
+            // TODO: Vérifier que triconnectAPI.project.getProjectGroups() retourne la bonne structure
             const groups = await triconnectAPI.project.getProjectGroups();
             for (const group of groups) {
-              // Supposition: Les groupes ont une propriété 'members' qui est un tableau d'IDs ou d'objets utilisateur
-              // Ou bien, il faut itérer sur les membres du projet et voir à quel groupe ils appartiennent.
-              // Cette partie peut être complexe et dépendre de la structure exacte des objets de l'API.
               if (
                 group.members &&
                 group.members.some(
                   (member) => member.id === userId || member.userId === userId,
                 )
               ) {
-                return group.name; // Retourne le nom du premier groupe trouvé
+                return group.name;
               }
             }
-            return "Non assigné"; // Si aucun groupe n'est trouvé
+            return "Non assigné";
           } catch (error) {
-            console.error(
-              "Erreur lors de la récupération des groupes de l'utilisateur:",
+            console.warn(
+              "Impossible de récupérer le lot de l'utilisateur via Workspace API (ID:",
+              userId,
+              "):",
               error,
             );
             return "Non assigné";
@@ -179,7 +182,7 @@
                     <div style="text-align:center; padding: 20px;">
                         <img src="https://upload.wikimedia.org/wikipedia/commons/b/b1/Loading_icon.gif" alt="Chargement..." style="width: 50px;">
                     </div>
-                `; // Affiche un message de chargement
+                `;
 
           let visaDocuments = [];
 
@@ -192,10 +195,8 @@
                 "Access Token non disponible ou invalide. L'initialisation a échoué.",
               );
             }
-            if (
-              TRIMBLE_CLIENT_ID === "Vdb958c40-8b49-4d72-b9cc-71333d3c9581" ||
-              TRIMBLE_CLIENT_ID.length === 0
-            ) {
+            // CORRECTION ICI : la vérification doit être si l'ID est vide, pas s'il est égal à une valeur spécifique
+            if (TRIMBLE_CLIENT_ID.length === 0) {
               throw new Error(
                 "TRIMBLE_CLIENT_ID non configuré. Veuillez le renseigner dans le code.",
               );
@@ -204,7 +205,6 @@
             const projectInfo = await triconnectAPI.project.getCurrentProject();
             const projectId = projectInfo.id;
 
-            // Utilisation de l'endpoint standard pour l'API REST de Trimble Connect
             const filesApiUrl = `https://api.connect.trimble.com/projects/${projectId}/files`;
 
             const response = await fetch(filesApiUrl, {
@@ -212,7 +212,7 @@
               headers: {
                 Authorization: `Bearer ${globalAccessToken}`,
                 "Content-Type": "application/json",
-                "Trimble-Client-Id": TRIMBLE_CLIENT_ID, // Ajout du Client ID ici
+                "Trimble-Client-Id": TRIMBLE_CLIENT_ID,
               },
             });
 
@@ -226,31 +226,25 @@
             }
 
             const apiResponse = await response.json();
-            // L'API REST renvoie souvent les éléments sous une propriété 'data' ou 'items'.
-            // Nous vérifions les deux pour être flexibles.
             const projectFiles = apiResponse.data || apiResponse.items || [];
+            console.log("Fichiers reçus de l'API REST:", projectFiles);
 
             // TODO (Étape ultérieure) : Filtrer les fichiers en fonction des dossiers paramétrés par l'administrateur.
-            // 2. Filtrer uniquement les fichiers PDF
-            const pdfFiles = projectFiles.filter((file) =>
-              file.name.toLowerCase().endsWith(".pdf"),
+            const pdfFiles = projectFiles.filter(
+              (file) => file.fileType && file.fileType.toLowerCase() === "pdf",
             );
 
-            // 3. Préparer les données pour le tableau
             for (const file of pdfFiles) {
-              const depositorId = file.lastModifiedUser || file.uploadedBy; // Supposition de propriétés de l'objet fichier
-              const depositorName = depositorId
-                ? await getUserNameById(depositorId)
+              const depositorId = file.uploadedBy ? file.uploadedBy.id : null;
+              const depositorName = file.uploadedBy
+                ? file.uploadedBy.name
                 : "Inconnu";
-              const lot = depositorId
-                ? await getUserLot(depositorId)
-                : "Non assigné";
               const depositDate = file.lastModifiedDate
                 ? new Date(file.lastModifiedDate).toLocaleDateString()
                 : "Date inconnue";
 
-              // TODO: Le statut sera récupéré depuis les métadonnées Trimble du document une fois configuré.
-              const status = "Statut en attente"; // Reste fictif pour l'instant
+              const lot = depositorId ? await getUserLot(depositorId) : "Non assigné";
+              const status = "Statut en attente";
 
               visaDocuments.push({
                 name: file.name,
@@ -266,14 +260,13 @@
               error,
             );
             mainContentDiv.innerHTML = `
-                        <h1>Erreur de chargement</h1>
-                        <p>Impossible de récupérer les documents. Veuillez réessayer ou contacter le support.</p>
+                        <h1>Erreur de chargement des documents</h1>
+                        <p>Impossible de récupérer les documents. Veuillez vérifier la console du navigateur pour les détails techniques.</p>
                         <p>Détails de l'erreur : ${error.message || error}</p>
                     `;
-            return; // Arrête l'exécution si une erreur survient
+            return;
           }
 
-          // Afficher le tableau une fois les données récupérées
           let tableRows = visaDocuments
             .map(
               (doc) => `
@@ -288,7 +281,6 @@
             )
             .join("");
 
-          // Si aucun document n'est trouvé
           if (visaDocuments.length === 0) {
             tableRows = `<tr><td colspan="5" style="text-align:center;">Aucun document PDF trouvé dans le projet.</td></tr>`;
           }
@@ -338,17 +330,9 @@
                     </div>
                 `;
         }
-        // --- FIN DE LA SECTION POUR LES DONNEES ET LE TABLEAU DES VISAS ---
-
-        // Écouteur d'événement pour le bouton "Visas"
-
-        // TODO (Étape ultérieure) : Ajouter des écouteurs pour "Tableau de Bord" et "Configuration"
-        // document.getElementById('dashboardBtn').addEventListener('click', displayDashboard);
-        // document.getElementById('configBtn').addEventListener('click', displayConfiguration);
 
         // --- SECTION D'INITIALISATION PRINCIPALE ---
         try {
-          // Étape 1: Initialiser la connexion à la Workspace API
           mainContentDiv.innerHTML = `<p>Connexion à Trimble Connect...</p>`;
           triconnectAPI = await TrimbleConnectWorkspace.connect(
             window.parent,
@@ -359,20 +343,17 @@
                 data === "ecna_gestion_visa_clicked"
               ) {
                 console.log("Le menu ECNA Gestion Visa a été cliqué !");
-                // Si tu veux que le tableau s'affiche dès que l'extension est chargée,
-                // décommenter la ligne suivante :
-                // displayVisaTable();
+                //displayVisaTable();
               }
             },
             30000,
           );
           console.log("Connexion à Trimble Connect établie.");
 
-          // Étape 2: Demander et stocker l'Access Token
           mainContentDiv.innerHTML = `<p>Récupération du jeton d'accès...</p>`;
           const fetchedToken =
             await triconnectAPI.extension.requestPermission("accesstoken");
-          console.log("Valeur brute du jeton d'accès reçu:", fetchedToken); // TRÈS IMPORTANT pour le diagnostic
+          console.log("Valeur brute du jeton d'accès reçu:", fetchedToken);
 
           if (typeof fetchedToken === "string" && fetchedToken.length > 0) {
             globalAccessToken = fetchedToken;
@@ -388,16 +369,14 @@
               "L'Access Token n'a pas pu être récupéré durant l'initialisation ou est invalide.",
             );
           }
-          if (
-            TRIMBLE_CLIENT_ID === "db958c40-8b49-4d72-b9cc-71333d3c9581" ||
-            TRIMBLE_CLIENT_ID.length === 0
-          ) {
+
+          // CORRECTION ICI : la vérification doit être si l'ID est vide, pas s'il est égal à une valeur spécifique
+          if (TRIMBLE_CLIENT_ID.length === 0) {
             throw new Error(
               "TRIMBLE_CLIENT_ID non configuré. Veuillez le renseigner dans le code.",
             );
           }
 
-          // Étape 3: Configurer l'interface de l'extension
           const projectInfo = await triconnectAPI.project.getCurrentProject();
           console.log("Projet actuel :", projectInfo.name);
 
@@ -409,15 +388,10 @@
           triconnectAPI.ui.setMenu(mainMenuObject);
           console.log("Menu 'ECNA Gestion Visa' envoyé à Trimble Connect.");
 
-          // Étape 4: Une fois tout initialisé, attacher les écouteurs d'événements
           document
             .getElementById("visasBtn")
             .addEventListener("click", displayVisaTable);
-          // TODO (Étape ultérieure) : Ajouter des écouteurs pour "Tableau de Bord" et "Configuration"
-          // document.getElementById('dashboardBtn').addEventListener('click', displayDashboard);
-          // document.getElementById('configBtn').addEventListener('click', displayConfiguration);
 
-          // Afficher le message d'accueil initial après l'initialisation complète
           mainContentDiv.innerHTML = `<p>Bienvenue sur l'interface de gestion de visa ECNA ! Cliquez sur un bouton ci-dessus pour commencer.</p>`;
         } catch (error) {
           console.error(
@@ -430,7 +404,6 @@
                     <p>Détails de l'erreur : ${error.message || error}</p>
                 `;
         }
-        // --- FIN DE LA SECTION D'INITIALISATION PRINCIPALE ---
       })();
     </script>
   </body>
