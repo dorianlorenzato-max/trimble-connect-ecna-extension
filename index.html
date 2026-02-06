@@ -120,6 +120,8 @@
         let globalAccessToken = null;
         const mainContentDiv = document.getElementById("mainContent");
 
+        const TRIMBLE_CLIENT_ID = "db958c40-8b49-4d72-b9cc-71333d3c9581";
+
         // --- DEBUT DE LA SECTION POUR LES DONNEES ET LE TABLEAU DES VISAS ---
 
         // Fonction utilitaire pour récupérer les informations de l'utilisateur
@@ -182,7 +184,6 @@
           let visaDocuments = [];
 
           try {
-            // Utilise le globalAccessToken déjà récupéré
             if (
               typeof globalAccessToken !== "string" ||
               globalAccessToken.length === 0
@@ -191,17 +192,27 @@
                 "Access Token non disponible ou invalide. L'initialisation a échoué.",
               );
             }
+            if (
+              TRIMBLE_CLIENT_ID === "Vdb958c40-8b49-4d72-b9cc-71333d3c9581" ||
+              TRIMBLE_CLIENT_ID.length === 0
+            ) {
+              throw new Error(
+                "TRIMBLE_CLIENT_ID non configuré. Veuillez le renseigner dans le code.",
+              );
+            }
 
             const projectInfo = await triconnectAPI.project.getCurrentProject();
             const projectId = projectInfo.id;
 
-            const filesApiUrl = `https://web.connect.trimble.com/projects/${projectId}/files`;
+            // Utilisation de l'endpoint standard pour l'API REST de Trimble Connect
+            const filesApiUrl = `https://api.connect.trimble.com/projects/${projectId}/files`;
 
             const response = await fetch(filesApiUrl, {
               method: "GET",
               headers: {
-                Authorization: `Bearer ${globalAccessToken}`, // Utilise globalAccessToken ici
+                Authorization: `Bearer ${globalAccessToken}`,
                 "Content-Type": "application/json",
+                "Trimble-Client-Id": TRIMBLE_CLIENT_ID, // Ajout du Client ID ici
               },
             });
 
@@ -375,6 +386,14 @@
             );
             throw new Error(
               "L'Access Token n'a pas pu être récupéré durant l'initialisation ou est invalide.",
+            );
+          }
+          if (
+            TRIMBLE_CLIENT_ID === "db958c40-8b49-4d72-b9cc-71333d3c9581" ||
+            TRIMBLE_CLIENT_ID.length === 0
+          ) {
+            throw new Error(
+              "TRIMBLE_CLIENT_ID non configuré. Veuillez le renseigner dans le code.",
             );
           }
 
