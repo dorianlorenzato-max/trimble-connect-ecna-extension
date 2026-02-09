@@ -205,7 +205,7 @@
             const projectInfo = await triconnectAPI.project.getCurrentProject();
             const projectId = projectInfo.id;
 
-            const filesApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/projects/${projectId}/files`;
+            const filesApiUrl = `https://open21.connect.trimble.com/3.0/projects/{projectId}/files`;
 
             const response = await fetch(filesApiUrl, {
               method: "GET",
