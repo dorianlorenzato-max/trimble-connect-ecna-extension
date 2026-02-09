@@ -208,7 +208,7 @@
             const filesApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/projects/${projectId}`;
 
             const response = await fetch(filesApiUrl, {
-              method: "GET/documents",
+              method: "GET",
               headers: {
                 Authorization: `Bearer ${globalAccessToken}`,
                 "Content-Type": "application/json",
