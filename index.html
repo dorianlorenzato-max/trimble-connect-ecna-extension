@@ -204,7 +204,7 @@
             const response = await fetch(filesApiUrl, {
               headers: {
                 Authorization: `Bearer ${globalAccessToken}`,
-                //"Content-Type": "application/json",
+                "Content-Type": "application/json",
                 //"Trimble-Client-Id": TRIMBLE_CLIENT_ID,
                 //Accept: "application/vnd.trimble.connect.app+json",
               },
@@ -221,7 +221,7 @@
 
             const apiResponse = await response.json();
             const projectFiles = apiResponse.data || apiResponse.items || [];
-            console.log("Fichiers reçus de l'API REST:", projectFiles);
+            console.log("Fichiers reçus de l'API REST:", apiResponse);
 
             // TODO (Étape ultérieure) : Filtrer les fichiers en fonction des dossiers paramétrés par l'administrateur.
             const pdfFiles = projectFiles.filter(
