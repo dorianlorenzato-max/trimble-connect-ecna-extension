@@ -201,7 +201,14 @@
 
             const filesApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/folders/MkvA_YZPfBk/items`;
 
-            const response = await fetch(filesApiUrl);
+            const response = await fetch(filesApiUrl, {
+              headers: {
+                Authorization: `Bearer ${globalAccessToken}`,
+                //"Content-Type": "application/json",
+                //"Trimble-Client-Id": TRIMBLE_CLIENT_ID,
+                //Accept: "application/vnd.trimble.connect.app+json",
+              },
+            });
 
             if (!response.ok) {
               const errorData = await response
