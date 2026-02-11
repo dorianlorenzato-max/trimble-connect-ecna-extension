@@ -201,24 +201,24 @@
 
             const filesApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/folders/MkvA_YZPfBk/items`;
 
-            const response = await fetch(filesApiUrl, {
-              method: "GET",
-              headers: {
-                Authorization: `Bearer ${globalAccessToken}`,
-                "Content-Type": "application/json",
-                "Trimble-Client-Id": TRIMBLE_CLIENT_ID,
-                "Accept": "application/vnd.trimble.connect.app+json"
-              },
-            });
-
-            if (!response.ok) {
-              const errorData = await response
-                .json()
-                .catch(() => ({ message: response.statusText }));
-              throw new Error(
-                `Erreur API Trimble Connect (${response.status}): ${errorData.message}`,
-              );
-            }
+            //const response = await fetch(filesApiUrl, {
+            // method: "GET",
+            //headers: {
+            // Authorization: `Bearer ${globalAccessToken}`,
+            //"Content-Type": "application/json",
+            //"Trimble-Client-Id": TRIMBLE_CLIENT_ID,
+            //Accept: "application/vnd.trimble.connect.app+json",
+            //},
+            //});
+            const response = await filesApiUrl.get();
+            //if (!response.ok) {
+            //const errorData = await response
+            //.json()
+            //.catch(() => ({ message: response.statusText }));
+            //throw new Error(
+            //`Erreur API Trimble Connect (${response.status}): ${errorData.message}`,
+            // );
+            // }
 
             const apiResponse = await response.json();
             const projectFiles = apiResponse.data || apiResponse.items || [];
