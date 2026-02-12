@@ -221,12 +221,13 @@
 
             const apiResponse = await response.json();
             const projectFiles = apiResponse.data || apiResponse.items || [];
-            console.log("Fichiers reçus de l'API REST:", apiResponse);
+            console.log("Fichiers reçus de l'API REST:", projectFiles);
 
             // TODO (Étape ultérieure) : Filtrer les fichiers en fonction des dossiers paramétrés par l'administrateur.
             const pdfFiles = projectFiles.filter(
-              (file) => file.fileType && file.fileType.toLowerCase() === "pdf",
+              (file) => file.name && file.name.toLowerCase().endsWith(".pdf"),
             );
+            console.log("Fichiers PDF filtrés:", pdfFiles);
 
             for (const file of pdfFiles) {
               const depositorId = file.uploadedBy ? file.uploadedBy.id : null;
