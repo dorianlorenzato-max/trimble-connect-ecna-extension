@@ -221,10 +221,10 @@
 
             const apiResponse = await response.json();
             const projectFiles = apiResponse.data || apiResponse.items || [];
-            console.log("Fichiers reçus de l'API REST:", projectFiles);
+            console.log("Fichiers reçus de l'API REST:", apiResponse);
 
             // TODO (Étape ultérieure) : Filtrer les fichiers en fonction des dossiers paramétrés par l'administrateur.
-            const pdfFiles = projectFiles.filter(
+            const pdfFiles = apiResponse.filter(
               (file) => file.name && file.name.toLowerCase().endsWith(".pdf"),
             );
             console.log("Fichiers PDF filtrés:", pdfFiles);
