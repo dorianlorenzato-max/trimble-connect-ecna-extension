@@ -225,7 +225,7 @@
               );
             }
             const allGroups = await groupsResponse.json();
-            console.log("Groupes reçus de l'API REST:", projectGroups);
+            console.log("Groupes reçus de l'API REST:", allGroups);
             // --- FIN POUR RECUPERER LES GROUPES ---
             //  Récupérer les utilisateurs de chaque groupe et créer la map user ID -> group Name
             const userToGroupMap = new Map(); // Map pour stocker userId -> groupName
