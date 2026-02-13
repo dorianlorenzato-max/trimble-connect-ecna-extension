@@ -220,22 +220,22 @@
             }
 
             const apiResponse = await response.json();
-            const projectFiles = apiResponse.data || apiResponse.items || [];
-            console.log("Fichiers reçus de l'API REST:", apiResponse);
+            const projectFiles = apiResponse || [];
+            console.log("Fichiers reçus de l'API REST:", projectFiles);
 
             // TODO (Étape ultérieure) : Filtrer les fichiers en fonction des dossiers paramétrés par l'administrateur.
-            const pdfFiles = apiResponse.filter(
+            const pdfFiles = projectFiles.filter(
               (file) => file.name && file.name.toLowerCase().endsWith(".pdf"),
             );
             console.log("Fichiers PDF filtrés:", pdfFiles);
 
             for (const file of pdfFiles) {
-              const depositorId = file.uploadedBy ? file.uploadedBy.id : null;
-              const depositorName = file.uploadedBy
-                ? file.uploadedBy.name
+              const depositorId = file.modifiedBy ? file.modifiedBy.id : null;
+              const depositorName = file.modifiedBy
+                ? `${file.modifiedBy.firstName || ""} ${file.modifiedBy.lastName || ""}`.trim()
                 : "Inconnu";
-              const depositDate = file.lastModifiedDate
-                ? new Date(file.lastModifiedDate).toLocaleDateString()
+              const depositDate = file.modifiedOn
+                ? new Date(file.modifiedOn).toLocaleDateString()
                 : "Date inconnue";
 
               const lot = depositorId ? await getUserLot(depositorId) : "Non assigné";
