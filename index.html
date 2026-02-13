@@ -123,58 +123,6 @@
         const TRIMBLE_CLIENT_ID = "db958c40-8b49-4d72-b9cc-71333d3c9581"; // Ton ID Client est ici
 
         // --- DEBUT DE LA SECTION POUR LES DONNEES ET LE TABLEAU DES VISAS ---
-
-        // Fonction utilitaire pour récupérer les informations de l'utilisateur
-        async function getUserNameById(userId) {
-          if (!userId) return "Inconnu";
-          try {
-            // TODO: Vérifier que triconnectAPI.project.getProjectMembers() retourne la bonne structure
-            const members = await triconnectAPI.project.getProjectMembers();
-            const user = members.find(
-              (m) => m.id === userId || m.userId === userId,
-            );
-            return user ? user.displayName || user.name || userId : userId;
-          } catch (error) {
-            console.warn(
-              "Impossible de récupérer le nom de l'utilisateur via Workspace API (ID:",
-              userId,
-              "):",
-              error,
-            );
-            return userId;
-          }
-        }
-
-        // Fonction utilitaire pour déterminer le "Lot" (groupe) d'un utilisateur
-        async function getUserLot(userId) {
-          if (!userId) return "Non assigné";
-          try {
-            // TODO: Vérifier que triconnectAPI.project.getProjectGroups() retourne la bonne structure
-            const groups = await triconnectAPI.project.getProjectGroups();
-            for (const group of groups) {
-              if (
-                group.members &&
-                group.members.some(
-                  (member) => member.id === userId || member.userId === userId,
-                )
-              ) {
-                return group.name;
-              }
-            }
-            return "Non assigné";
-          } catch (error) {
-            console.warn(
-              "Impossible de récupérer le lot de l'utilisateur via Workspace API (ID:",
-              userId,
-              "):",
-              error,
-            );
-            return "Non assigné";
-          }
-        }
-
-        // --- Fin des fonctions utilitaires ---
-
         // Fonction pour afficher le tableau des visas avec les données réelles
         async function displayVisaTable() {
           mainContentDiv.innerHTML = `
@@ -185,7 +133,6 @@
                 `;
 
           let visaDocuments = [];
-          //let projectGroups = [];
 
           try {
             if (
