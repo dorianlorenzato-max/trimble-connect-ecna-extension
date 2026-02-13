@@ -185,7 +185,7 @@
                 `;
 
           let visaDocuments = [];
-          let projectGroups = [];
+          //let projectGroups = [];
 
           try {
             if (
@@ -201,7 +201,7 @@
             const rootId = projectInfo.rootId;
 
             // --- DEBUT AJOUT POUR RECUPERER LES GROUPES ---
-            const groupsApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/groups?projectId=${projectId}`; // Endpoint pour récupérer tous les groupes
+            const groupsApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/groups`; // Endpoint pour récupérer tous les groupes
             console.log(
               "Tentative de récupération des groupes via:",
               groupsApiUrl,
@@ -224,11 +224,61 @@
                 `Erreur API Trimble Connect (groupes) (${groupsResponse.status}): ${errorData.message}`,
               );
             }
-            projectGroups = await groupsResponse.json();
+            const allGroups = await groupsResponse.json();
             console.log("Groupes reçus de l'API REST:", projectGroups);
-            // --- FIN AJOUT POUR RECUPERER LES GROUPES ---
+            // --- FIN POUR RECUPERER LES GROUPES ---
+            //  Récupérer les utilisateurs de chaque groupe et créer la map user ID -> group Name
+            const userToGroupMap = new Map(); // Map pour stocker userId -> groupName
 
-            //Récupération des fichiers
+            // Pour chaque groupe récupéré, obtenir ses utilisateurs
+            for (const group of allGroups) {
+              const usersInGroupApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/groups?projectId=${projectId}`;
+              console.log(
+                `Tentative de récupération des utilisateurs pour le groupe '${group.name}' (${group.id}) via:`,
+                usersInGroupApiUrl,
+              );
+
+              const usersInGroupResponse = await fetch(usersInGroupApiUrl, {
+                headers: {
+                  Authorization: `Bearer ${globalAccessToken}`,
+                  "Content-Type": "application/json",
+                  //"Trimble-Client-Id": TRIMBLE_CLIENT_ID,
+                  //Accept: "application/vnd.trimble.connect.app+json",
+                },
+              });
+
+              if (!usersInGroupResponse.ok) {
+                const errorData = await usersInGroupResponse
+                  .json()
+                  .catch(() => ({ message: usersInGroupResponse.statusText }));
+                console.warn(
+                  `Erreur API Trimble Connect (utilisateurs du groupe ${group.id}) (${usersInGroupResponse.status}): ${errorData.message}`,
+                );
+                continue; // Passe au groupe suivant si une erreur survient pour ce groupe
+              }
+
+              const groupUsers = await usersInGroupResponse.json();
+              console.log(
+                `Utilisateurs pour le groupe '${group.name}' (${group.id}):`,
+                groupUsers,
+              );
+
+              // Mappage : Pour chaque utilisateur, associer son ID au nom du groupe
+              // Si un utilisateur est dans plusieurs groupes, le premier groupe trouvé sera utilisé (selon cette logique).
+              for (const user of groupUsers) {
+                if (!userToGroupMap.has(user.id)) {
+                  // Pour s'assurer qu'on prend le premier groupe trouvé si l'utilisateur est dans plusieurs.
+                  userToGroupMap.set(user.id, group.name);
+                }
+              }
+            }
+            console.log(
+              "Mappage final des utilisateurs aux groupes:",
+              userToGroupMap,
+            );
+            // --- FIN MODIFICATIONS POUR LES GROUPES ET UTILISATEURS ---
+
+            //début pour Récupération les fichiers PDF
             // TODO (Étape ultérieure) : Filtrer les fichiers en fonction des dossiers paramétrés par l'administrateur.
             const filesApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/folders/9QpmVaoiJOc/items`;
 
@@ -268,7 +318,11 @@
                 ? new Date(file.modifiedOn).toLocaleDateString()
                 : "Date inconnue";
 
-              const lot = depositorId ? await getUserLot(depositorId) : "Non assigné";
+              //fin de récupération des fichiers, des dates et noms des dépositaires
+
+              const lot = depositorId
+                ? userToGroupMap.get(depositorId) || "Non assigné"
+                : "Non assigné";
               const status = "Statut en attente";
 
               visaDocuments.push({
