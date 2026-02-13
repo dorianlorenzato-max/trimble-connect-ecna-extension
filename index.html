@@ -201,7 +201,7 @@
             const rootId = projectInfo.rootId;
 
             // --- DEBUT AJOUT POUR RECUPERER LES GROUPES ---
-            const groupsApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/groups`; // Endpoint pour récupérer tous les groupes
+            const groupsApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/${projectId}/groups`; // Endpoint pour récupérer tous les groupes
             console.log(
               "Tentative de récupération des groupes via:",
               groupsApiUrl,
