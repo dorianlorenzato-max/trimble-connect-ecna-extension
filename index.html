@@ -185,6 +185,7 @@
                 `;
 
           let visaDocuments = [];
+          let projectGroups = [];
 
           try {
             if (
@@ -199,6 +200,36 @@
             const projectId = projectInfo.id;
             const rootId = projectInfo.rootId;
 
+            // --- DEBUT AJOUT POUR RECUPERER LES GROUPES ---
+            const groupsApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/groups`; // Endpoint pour récupérer tous les groupes
+            console.log(
+              "Tentative de récupération des groupes via:",
+              groupsApiUrl,
+            );
+
+            const groupsResponse = await fetch(groupsApiUrl, {
+              headers: {
+                Authorization: `Bearer ${globalAccessToken}`,
+                "Content-Type": "application/json",
+                //"Trimble-Client-Id": TRIMBLE_CLIENT_ID,
+                //Accept: "application/vnd.trimble.connect.app+json",
+              },
+            });
+
+            if (!groupsResponse.ok) {
+              const errorData = await groupsResponse
+                .json()
+                .catch(() => ({ message: groupsResponse.statusText }));
+              throw new Error(
+                `Erreur API Trimble Connect (groupes) (${groupsResponse.status}): ${errorData.message}`,
+              );
+            }
+            projectGroups = await groupsResponse.json();
+            console.log("Groupes reçus de l'API REST:", projectGroups);
+            // --- FIN AJOUT POUR RECUPERER LES GROUPES ---
+
+            //Récupération des fichiers
+            // TODO (Étape ultérieure) : Filtrer les fichiers en fonction des dossiers paramétrés par l'administrateur.
             const filesApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/folders/9QpmVaoiJOc/items`;
 
             const response = await fetch(filesApiUrl, {
@@ -223,7 +254,6 @@
             const projectFiles = apiResponse || [];
             console.log("Fichiers reçus de l'API REST:", projectFiles);
 
-            // TODO (Étape ultérieure) : Filtrer les fichiers en fonction des dossiers paramétrés par l'administrateur.
             const pdfFiles = projectFiles.filter(
               (file) => file.name && file.name.toLowerCase().endsWith(".pdf"),
             );
