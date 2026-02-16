@@ -278,7 +278,7 @@
                 headers: {
                   Authorization: `Bearer ${globalAccessToken}`,
                   "Content-Type": "application/json",
-                  "Trimble-Client-Id": TRIMBLE_CLIENT_ID,
+                  //"Trimble-Client-Id": TRIMBLE_CLIENT_ID,
                 },
               });
 
@@ -317,7 +317,7 @@
               const lot = depositorId
                 ? userToGroupMap.get(depositorId) || "Non assigné"
                 : "Non assigné";
-              const status = "en travaux";
+              //const status = "en travaux";
 
               visaDocuments.push({
                 name: file.name,
