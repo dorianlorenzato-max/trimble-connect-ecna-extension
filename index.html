@@ -148,78 +148,7 @@
             const projectInfo = await triconnectAPI.project.getCurrentProject();
             const projectId = projectInfo.id;
             const rootId = projectInfo.rootId;
-            // --- NOUVELLE PARTIE : DÉCOUVERTE DES PROPERTY SET DEFINITIONS ---
-
-            // Étape 1 : Lister les librairies de Property Sets pour trouver le libraryId
-            // L'endpoint pour l'API PSet est différent et spécifique à la région.
-            const psetApiBaseUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1`; // Basé sur les logs, spécifique à l'EU
-            const libsApiUrl = `${psetApiBaseUrl}/psets`;
-            console.log(
-              "Tentative de récupération des librairies de Property Sets via:",
-              libsApiUrl,
-            );
-
-            const libsResponse = await fetch(libsApiUrl, {
-              headers: {
-                Authorization: `Bearer ${globalAccessToken}`,
-                "Trimble-Client-Id": TRIMBLE_CLIENT_ID,
-              },
-            });
-
-            if (!libsResponse.ok) {
-              throw new Error(
-                `Erreur API PSet (libs) (${libsResponse.status}): Impossible de lister les librairies.`,
-              );
-            }
-
-            const libraries = await libsResponse.json();
-            console.log("Librairies de Property Sets trouvées:", libraries);
-
-            // Étape 2 : Pour chaque librairie, lister les définitions (PSetDefs)
-            // C'est ici que tu devrais trouver l'ID de ta définition "VISA"
-            for (const lib of libraries) {
-              if (
-                lib.scope &&
-                lib.scope.type === "tcproject" &&
-                lib.scope.tcProject.id === projectId
-              ) {
-                const defsApiUrl = `${psetApiBaseUrl}/libs/${lib.id}/defs`;
-                console.log(
-                  `Tentative de récupération des définitions pour la librairie '${lib.name}' (${lib.id}):`,
-                  defsApiUrl,
-                );
-
-                const defsResponse = await fetch(defsApiUrl, {
-                  headers: {
-                    Authorization: `Bearer ${globalAccessToken}`,
-                    "Trimble-Client-Id": TRIMBLE_CLIENT_ID,
-                  },
-                });
-
-                if (defsResponse.ok) {
-                  const definitions = await defsResponse.json();
-                  console.log(
-                    `Définitions pour la librairie '${lib.name}':`,
-                    definitions,
-                  );
-                } else {
-                  console.warn(
-                    `Impossible de récupérer les définitions pour la librairie '${lib.name}'.`,
-                  );
-                }
-              }
-            }
-            // --- FIN DE LA PARTIE DÉCOUVERTE ---
-
-            // A ce stade, la suite du code est mise en pause car nous sommes en phase de découverte.
-            // On affiche un message pour indiquer à l'utilisateur de vérifier la console.
-            mainContentDiv.innerHTML = `
-                <h1>Phase de Découverte des Métadonnées</h1>
-                <p>Les définitions de Property Sets du projet ont été affichées dans la console du navigateur (F12).</p>
-                <p>Veuillez inspecter les logs pour trouver l'ID de votre librairie (<b>libraryId</b>) et de la définition (<b>defId</b>) contenant votre métadonnée "VISA".</p>
-                <p>Une fois ces IDs identifiés, nous pourrons passer à l'étape suivante.</p>
-            `;
-            return; // On arrête l'exécution de la fonction ici pour la phase de découverte.
+            
             // --- DEBUT AJOUT POUR RECUPERER LES GROUPES ---
             const groupsApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/groups?projectId=${projectId}`; // Endpoint pour récupérer tous les groupes
             console.log(
