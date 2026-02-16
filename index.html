@@ -123,6 +123,7 @@
         const TRIMBLE_CLIENT_ID = "db958c40-8b49-4d72-b9cc-71333d3c9581"; // Ton ID Client est ici
 
         // --- DEBUT DE LA SECTION POUR LES DONNEES ET LE TABLEAU DES VISAS ---
+
         // Fonction pour afficher le tableau des visas avec les données réelles
         async function displayVisaTable() {
           mainContentDiv.innerHTML = `
@@ -133,6 +134,7 @@
                 `;
 
           let visaDocuments = [];
+          //let projectGroups = [];
 
           try {
             if (
@@ -174,6 +176,7 @@
             const allGroups = await groupsResponse.json();
             console.log("Groupes reçus de l'API REST:", allGroups);
             // --- FIN POUR RECUPERER LES GROUPES ---
+
             //  Récupérer les utilisateurs de chaque groupe et créer la map user ID -> group Name
             const userToGroupMap = new Map(); // Map pour stocker userId -> groupName
 
@@ -266,7 +269,7 @@
                 : "Date inconnue";
 
               //fin de récupération des fichiers, des dates et noms des dépositaires
-
+              const fileVersion = file.revision || "N/A";
               const lot = depositorId
                 ? userToGroupMap.get(depositorId) || "Non assigné"
                 : "Non assigné";
@@ -274,6 +277,7 @@
 
               visaDocuments.push({
                 name: file.name,
+                version: fileVersion,
                 lot: lot,
                 depositorName: depositorName,
                 depositDate: depositDate,
@@ -298,6 +302,7 @@
               (doc) => `
                     <tr>
                         <td>${doc.name || ""}</td>
+                        <td>${doc.version || ""}</td>
                         <td>${doc.lot || ""}</td>
                         <td>${doc.depositorName || ""}</td>
                         <td>${doc.depositDate || ""}</td>
@@ -308,7 +313,7 @@
             .join("");
 
           if (visaDocuments.length === 0) {
-            tableRows = `<tr><td colspan="5" style="text-align:center;">Aucun document PDF trouvé dans le projet.</td></tr>`;
+            tableRows = `<tr><td colspan="6" style="text-align:center;">Aucun document PDF trouvé dans le projet.</td></tr>`;
           }
 
           mainContentDiv.innerHTML = `
@@ -321,6 +326,12 @@
                                         <div class="filter-header">
                                             Nom du document
                                             <span class="filter-icon" title="Filtrer par nom">▼</span>
+                                        </div>
+                                    </th>
+                                    <th>
+                                        <div class="filter-header">
+                                            Version
+                                            <span class="filter-icon" title="Filtrer par version">▼</span>
                                         </div>
                                     </th>
                                     <th>
