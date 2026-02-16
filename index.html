@@ -273,7 +273,7 @@
               const lot = depositorId
                 ? userToGroupMap.get(depositorId) || "Non assigné"
                 : "Non assigné";
-              const status = "Statut en attente";
+              const status = file_VISA || "Statut en attente";
 
               visaDocuments.push({
                 name: file.name,
