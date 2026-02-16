@@ -291,14 +291,15 @@
 
                 // Étape D (préparation pour la prochaine itération) :
                 // Dans la console, inspecte les PSets pour trouver celui qui a ton champ "VISA"
-                // et note son 'defId'. Ensuite, nous pourrons filtrer ici.
+                // et note son 'defId'. Ensuite, nous pourrons filtrer ici. "39693470-5c15-11f0-a345-5d8d7e1cef8f"
+
                 //
                 // EXEMPLE de ce que nous ferons plus tard :
-                // const visaDefId = "ID_DE_TA_DEFINITION_VISA";
-                // const visaPSet = psets.items.find(pset => pset.defId === visaDefId);
-                // if (visaPSet && visaPSet.props && visaPSet.props.VISA) {
-                //     status = visaPSet.props.VISA;
-                // }
+                 const visaDefId = "ID_DE_TA_DEFINITION_VISA";
+                 const visaPSet = psets.items.find(pset => pset.defId === visaDefId);
+                 if (visaPSet && visaPSet.props && visaPSet.props.VISA) {
+                     status = visaPSet.props.VISA;
+                 }
               } else {
                 console.warn(
                   `Impossible de récupérer les PSets pour le fichier '${file.name}' (${psetsResponse.status}).`,
