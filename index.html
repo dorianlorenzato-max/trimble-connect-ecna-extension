@@ -296,9 +296,10 @@
                 //
                 // EXEMPLE de ce que nous ferons plus tard :
                  const visaDefId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
-                 const visaPSet = psets.items.find(pset => pset.defId === visaDefId);
-                 if (visaPSet && visaPSet.props && visaPSet.props.VISA) {
-                     status = visaPSet.props.VISA;
+                 const visaPSet = psets.props
+                console.log(visaPSet,);
+                 //if (visaPSet && visaPSet.props && visaPSet.props.VISA) {
+                     status = visaPSet.props;
                  }
               } else {
                 console.warn(
