@@ -260,49 +260,6 @@
             console.log("Fichiers PDF filtrés:", pdfFiles);
 
             for (const file of pdfFiles) {
-              // Étape B: Construire le FRN pour le fichier
-              const fileFRN = `frn:trimble.connect.project:${projectId}:file:${file.id}`;
-              const encodedFileFRN = encodeURIComponent(fileFRN); // Important d'encoder pour l'URL
-
-              // Étape C: Interroger l'API PSet pour ce fichier
-              const psetApiBaseUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1`;
-              const psetsApiUrl = `${psetApiBaseUrl}/psets/${encodedFileFRN}`;
-              console.log(
-                `Tentative de récupération des PSets pour le fichier '${file.name}' via:`,
-                psetsApiUrl,
-              );
-
-              let status = "Statut non trouvé"; // Statut par défaut
-
-              const psetsResponse = await fetch(psetsApiUrl, {
-                headers: {
-                  Authorization: `Bearer ${globalAccessToken}`,
-                  "Trimble-Client-Id": TRIMBLE_CLIENT_ID,
-                },
-              });
-
-              if (psetsResponse.ok) {
-                const psets = await psetsResponse.json();
-                console.log(
-                  `PSets trouvés pour le fichier '${file.name}':`,
-                  psets,
-                );
-
-                // Étape D (préparation pour la prochaine itération) :
-                // Dans la console, inspecte les PSets pour trouver celui qui a ton champ "VISA"
-                // et note son 'defId'. Ensuite, nous pourrons filtrer ici.
-                //
-                // EXEMPLE de ce que nous ferons plus tard :
-                // const visaDefId = "ID_DE_TA_DEFINITION_VISA";
-                // const visaPSet = psets.items.find(pset => pset.defId === visaDefId);
-                // if (visaPSet && visaPSet.props && visaPSet.props.VISA) {
-                //     status = visaPSet.props.VISA;
-                // }
-              } else {
-                console.warn(
-                  `Impossible de récupérer les PSets pour le fichier '${file.name}' (${psetsResponse.status}).`,
-                );
-              }
               const depositorId = file.modifiedBy ? file.modifiedBy.id : null;
               const depositorName = file.modifiedBy
                 ? `${file.modifiedBy.firstName || ""} ${file.modifiedBy.lastName || ""}`.trim()
@@ -316,7 +273,7 @@
               const lot = depositorId
                 ? userToGroupMap.get(depositorId) || "Non assigné"
                 : "Non assigné";
-              //const status = "en travaux";
+              const status = "en travaux";
 
               visaDocuments.push({
                 name: file.name,
