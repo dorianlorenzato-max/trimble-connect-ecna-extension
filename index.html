@@ -261,19 +261,19 @@
 
             for (const file of pdfFiles) {
              // Étape B: Construire le FRN pour le fichier
-             // const fileFRN = `frn:tcfile:${file.id}`;
-             // const encodedFileFRN = encodeURIComponent(fileFRN); // Important d'encoder pour l'URL
+              // const fileFRN = `frn:tcfile:${file.id}`;
+              // const encodedFileFRN = encodeURIComponent(fileFRN); // Important d'encoder pour l'URL
 
               // Étape C: Interroger l'API PSet pour ce fichier
               //const psetApiBaseUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1`;
               //const psetsApiUrl = `${psetApiBaseUrl}/psets/${encodedFileFRN}`;
-              const psetsApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/psets/frn%3Atcfile%3A2qjb4QPwC6A/tcproject%3Aprod%3ABen8Zb5a6KI/tcfiles`;
+              const psetsApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/psets`;
               console.log(
                 `Tentative de récupération des PSets pour le fichier '${file.name}' via:`,
                 psetsApiUrl,
               );
 
-              let status = "test visa 1"; // Statut par défaut
+              let status = "N/A"; // Statut par défaut
 
               const psetsResponse = await fetch(psetsApiUrl, {
                 headers: {
@@ -289,26 +289,27 @@
                   `PSets trouvés pour le fichier '${file.name}':`,
                   psets,
                 );
-
+                //let psetItems = [];
                 // Étape D (préparation pour la prochaine itération) :
-                     //if (psets && psets.items && psets.items.length > 0) {
-                    // Trouver le PSet qui a le defId "tcfiles" (bonne pratique si plusieurs PSets existent)
-                    const tcfilesPSet = psets.get(pset => pset.defId === 'tcfiles');
-                   // if (tcfilesPSet && tcfilesPSet.props) {
-                        // L'ID de ta propriété "VISA"
-                        const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
-                        
-                        // Vérifier si cette propriété existe dans l'objet props
-                        //if (tcfilesPSet.props[visaPropertyId]) {
-                            status = psets.props[visaPropertyId];
-                 
-                 //const visaPSet = psets.props.visaDefId
-               // console.log(visaPSet,);
-                 //if (visaPSet && visaPSet.props && visaPSet.props.VISA) {
-                  //status = visaPSet;
-                          // }
-                        // }
-                        //}
+                //if (psets && psets.items && psets.items.length > 0) {
+                // Trouver le PSet qui a le defId "tcfiles" (bonne pratique si plusieurs PSets existent)
+                //const tcfilesPSet = psets.find(
+                //  (pset) => pset.defId === "tcfiles",
+               // );
+                //if (tcfilesPSet && tcfilesPSet.props) {
+                // L'ID de ta propriété "VISA"
+                const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
+
+                // Vérifier si cette propriété existe dans l'objet props
+                //if (tcfilesPSet.props[visaPropertyId]) {
+                status = psets.props[visaPropertyId];
+                //}
+                //}
+                //}
+                //const visaPSet = psets.props.visaDefId
+                // console.log(visaPSet,);
+                //if (visaPSet && visaPSet.props && visaPSet.props.VISA) {
+                //status = visaPSet;
               } else {
                 console.warn(
                   `Impossible de récupérer les PSets pour le fichier '${file.name}' (${psetsResponse.status}).`,
