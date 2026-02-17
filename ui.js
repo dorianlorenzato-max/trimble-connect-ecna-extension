@@ -173,6 +173,26 @@ function renderCreateFluxPage(container, projectGroups) {
     // Lier l'événement au bouton
     addStepBtn.addEventListener('click', addStep);
 }
+// Affiche un message de sauvegarde en cours
+function renderSaving(container) {
+    container.innerHTML = `
+        <div style="text-align:center; padding: 40px;">
+            <img src="https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/Loading_icon.gif" alt="Sauvegarde..." style="width: 50px;">
+            <p>Sauvegarde de la configuration en cours...</p>
+        </div>
+    `;
+}
+
+// Affiche un message de succès
+function renderSuccess(container, message) {
+    container.innerHTML = `
+        <div style="text-align:center; padding: 40px; color: green;">
+            <h2>Succès !</h2>
+            <p>${message}</p>
+        </div>
+    `;
+}
 export { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfigPage, renderCreateFluxPage };
+
 
 
