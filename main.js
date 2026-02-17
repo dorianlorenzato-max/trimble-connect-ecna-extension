@@ -1,11 +1,6 @@
 // On importe les fonctions depuis nos modules
 import { fetchVisaDocuments } from "./api.js";
-import {
-  renderLoading,
-  renderError,
-  renderWelcome,
-  renderVisaTable,
-} from "./ui.js";
+import { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfigPage } from './ui.js';
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
 (async function () {
@@ -90,3 +85,4 @@ import {
     renderError(mainContentDiv, error);
   }
 })();
+
