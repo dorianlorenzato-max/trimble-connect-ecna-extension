@@ -273,7 +273,7 @@
                 psetsApiUrl,
               );
 
-              let status = "N/A"; // Statut par défaut
+              let status = "test1"; // Statut par défaut
 
               const psetsResponse = await fetch(psetsApiUrl, {
                 headers: {
@@ -299,14 +299,14 @@
                         const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
                         
                         // Vérifier si cette propriété existe dans l'objet props
-                        if (tcfilesPSet.props[visaPropertyId]) {
+                        //if (tcfilesPSet.props[visaPropertyId]) {
                             status = tcfilesPSet.props[visaPropertyId];
                  
                  //const visaPSet = psets.props.visaDefId
                // console.log(visaPSet,);
                  //if (visaPSet && visaPSet.props && visaPSet.props.VISA) {
                   //status = visaPSet;
-                           }
+                          // }
                          }
                         }
               } else {
