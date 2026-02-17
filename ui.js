@@ -192,7 +192,8 @@ function renderSuccess(container, message) {
         </div>
     `;
 }
-export { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfigPage, renderCreateFluxPage };
+export { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfigPage, renderCreateFluxPage, renderSaving, renderSuccess };
+
 
 
 
