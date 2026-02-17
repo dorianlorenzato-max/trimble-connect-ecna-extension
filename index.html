@@ -134,7 +134,6 @@
                 `;
 
           let visaDocuments = [];
-          //let projectGroups = [];
 
           try {
             if (
@@ -227,8 +226,40 @@
               userToGroupMap,
             );
             // --- FIN MODIFICATIONS POUR LES GROUPES ET UTILISATEURS ---
+           // --- DEBUT RECUPERATION PSET ---
 
-            //début pour Récupération les fichiers PDF
+            const psetsApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/psets`;
+            console.log(
+              "Tentative de récupération de TOUS les PSets via:",
+              psetsApiUrl,
+            );
+
+            const psetsResponse = await fetch(psetsApiUrl, {
+              headers: {
+                Authorization: `Bearer ${globalAccessToken}`,
+                "Content-Type": "application/json",
+              },
+            });
+
+            if (!psetsResponse.ok) {
+              throw new Error(`Erreur API PSet (${psetsResponse.status})`);
+            }
+            const psetsData = await psetsResponse.json();
+            console.log("Tous les PSets reçus:", psetsData);
+
+            // 2. Créer une Map pour un accès rapide : psetMap [fileFRN -> psetObject]
+            const psetMap = new Map();
+            if (psetsData && Array.isArray(psetsData.items)) {
+              for (const pset of psetsData.items) {
+                // La clé est le 'link' (le FRN du fichier), la valeur est l'objet pset entier
+                psetMap.set(pset.link, pset);
+              }
+            }
+            console.log("PSets mappés par FRN:", psetMap);
+            // --- FIN DE RECUPERATION PSET ---
+
+            // --- DEBUT RECUPERATION FICHIER PDF ---
+
             // TODO (Étape ultérieure) : Filtrer les fichiers en fonction des dossiers paramétrés par l'administrateur.
             const filesApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/folders/9QpmVaoiJOc/items`;
 
@@ -259,53 +290,21 @@
             );
             console.log("Fichiers PDF filtrés:", pdfFiles);
 
+            // --- FIN RECUPERATION FICHIER PDF ---
+
+            // --- DEBUT MAPPAGE FICHIER ET PSET ---
+
             for (const file of pdfFiles) {
-             const psetsApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/psets`;
-              console.log(
-                `Tentative de récupération des PSets pour le fichier '${file.name}' via:`,
-                psetsApiUrl,
-              );
+              const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
+              const targetDefId = "tcfiles";
+              const currentFileFRN = `frn:tcfile:${file.id}`;
+              let status = "N/A";
+              const relevantPSet = psetMap.get(currentFileFRN);
 
-              let status = "TEST visa2"; // Statut par défaut
-
-              const psetsResponse = await fetch(psetsApiUrl, {
-                headers: {
-                  Authorization: `Bearer ${globalAccessToken}`,
-                  "Content-Type": "application/json",
-                  //"Trimble-Client-Id": TRIMBLE_CLIENT_ID,
-                },
-              });
-
-              if (psetsResponse.ok) {
-                const psetsData = await psetsResponse.json();
-                console.log(`PSets trouvés:`, psetsData);
-
-                const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
-                const targetDefId = "tcfiles";
-                const currentFileFRN = `frn:tcfile:${file.id}`;
-                if (psetsData && Array.isArray(psetsData.items)) {
-                  // Chercher le PSet pertinent dans la liste retournée
-                  // On cherche celui qui est lié à notre fichier actuel (via 'link')
-                  // et qui a le bon 'defId' ('tcfiles' dans ton cas)
-                  const relevantPSet = psetsData.items.find(
-                    (pset) =>
-                      pset.link === currentFileFRN &&
-                      pset.defId === targetDefId,
-                  );
-
-                  // Si un PSet pertinent est trouvé et qu'il contient notre propriété VISA
-                  if (
-                    relevantPSet &&
-                    relevantPSet.props &&
-                    relevantPSet.props[visaPropertyId]
-                  ) {
-                    status = relevantPSet.props[visaPropertyId];
-                  }
+              if (relevantPSet && relevantPSet.defId === targetDefId) {
+                if (relevantPSet.props && relevantPSet.props[visaPropertyId]) {
+                  status = relevantPSet.props[visaPropertyId];
                 }
-              } else {
-                console.warn(
-                  `Impossible de récupérer les PSets pour le fichier '${file.name}' (${psetsResponse.status}).`,
-                );
               }
               const depositorId = file.modifiedBy ? file.modifiedBy.id : null;
               const depositorName = file.modifiedBy
@@ -315,12 +314,10 @@
                 ? new Date(file.modifiedOn).toLocaleDateString()
                 : "Date inconnue";
 
-              //fin de récupération des fichiers, des dates et noms des dépositaires
               const fileVersion = file.revision || "N/A";
               const lot = depositorId
                 ? userToGroupMap.get(depositorId) || "Non assigné"
                 : "Non assigné";
-              //const status = "en travaux";
 
               visaDocuments.push({
                 name: file.name,
@@ -331,6 +328,8 @@
                 status: status,
               });
             }
+            // --- FIN MAPPAGE FICHIER ET PSET ---
+            
           } catch (error) {
             console.error(
               "Erreur lors de la récupération des documents Trimble Connect:",
