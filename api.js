@@ -124,6 +124,52 @@ async function fetchProjectGroups(projectId, accessToken) {
     console.log("Groupes du projet récupérés :", allGroups);
     return allGroups;
 }
+
+/**
+ * Sauvegarde un objet de configuration dans un fichier JSON à la racine du projet.
+ * @param {object} triconnectAPI L'instance de l'API Trimble Connect.
+ * @param {string} accessToken Le jeton d'accès.
+ * @param {object} configurationData L'objet JavaScript à sauvegarder.
+ * @param {string} filename Le nom du fichier de destination (ex: '.ecna-visa-config.json').
+ */
+async function saveConfigurationFile(triconnectAPI, accessToken, configurationData, filename) {
+    // Récupérer l'ID du dossier racine du projet
+    const projectInfo = await triconnectAPI.project.getCurrentProject();
+    const rootFolderId = projectInfo.rootId;
+    
+    // L'URL de l'API pour téléverser des fichiers dans un dossier
+    const uploadUrl = `https://app21.connect.trimble.com/tc/api/2.0/folders/${rootFolderId}/files`;
+
+    // Convertir notre objet de configuration en une chaîne JSON formatée
+    const jsonString = JSON.stringify(configurationData, null, 2); // null, 2 pour un joli formatage
+
+    // Créer un objet "Blob", qui est une sorte de fichier en mémoire
+    const blob = new Blob([jsonString], { type: 'application/json' });
+
+    // FormData est le format standard pour envoyer des fichiers via une requête HTTP
+    const formData = new FormData();
+    formData.append('file', blob, filename);
+
+    const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            // IMPORTANT: Ne PAS mettre 'Content-Type' ici, le navigateur le fera pour nous
+            // avec la bonne délimitation pour le 'multipart/form-data'.
+        },
+        body: formData,
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Erreur API lors de la sauvegarde du fichier de configuration :", errorText);
+        throw new Error('Impossible de sauvegarder le fichier de configuration sur Trimble Connect.');
+    }
+
+    console.log("Fichier de configuration sauvegardé avec succès.");
+    return await response.json();
+}
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
-export { fetchVisaDocuments, fetchProjectGroups };
+export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile };
+
 
