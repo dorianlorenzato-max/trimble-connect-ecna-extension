@@ -273,7 +273,7 @@
                 psetsApiUrl,
               );
 
-              let status = "test1"; // Statut par défaut
+              let status = "test2"; // Statut par défaut
 
               const psetsResponse = await fetch(psetsApiUrl, {
                 headers: {
@@ -291,7 +291,7 @@
                 );
 
                 // Étape D (préparation pour la prochaine itération) :
-                     if (psets && psets.items && psets.items.length > 0) {
+                     //if (psets && psets.items && psets.items.length > 0) {
                     // Trouver le PSet qui a le defId "tcfiles" (bonne pratique si plusieurs PSets existent)
                     const tcfilesPSet = psets.items.find(pset => pset.defId === 'tcfiles');
                     if (tcfilesPSet && tcfilesPSet.props) {
@@ -307,7 +307,7 @@
                  //if (visaPSet && visaPSet.props && visaPSet.props.VISA) {
                   //status = visaPSet;
                           // }
-                         }
+                        // }
                         }
               } else {
                 console.warn(
