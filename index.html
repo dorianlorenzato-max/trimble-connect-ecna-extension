@@ -293,7 +293,7 @@
                 // Étape D (préparation pour la prochaine itération) :
                      //if (psets && psets.items && psets.items.length > 0) {
                     // Trouver le PSet qui a le defId "tcfiles" (bonne pratique si plusieurs PSets existent)
-                    const tcfilesPSet = psets.find(pset => pset.defId === 'tcfiles');
+                    const tcfilesPSet = psets.get(pset => pset.defId === 'tcfiles');
                     if (tcfilesPSet && tcfilesPSet.props) {
                         // L'ID de ta propriété "VISA"
                         const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
