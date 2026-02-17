@@ -294,13 +294,13 @@
                      //if (psets && psets.items && psets.items.length > 0) {
                     // Trouver le PSet qui a le defId "tcfiles" (bonne pratique si plusieurs PSets existent)
                     const tcfilesPSet = psets.get(pset => pset.defId === 'tcfiles');
-                    if (tcfilesPSet && tcfilesPSet.props) {
+                   // if (tcfilesPSet && tcfilesPSet.props) {
                         // L'ID de ta propriété "VISA"
                         const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
                         
                         // Vérifier si cette propriété existe dans l'objet props
                         //if (tcfilesPSet.props[visaPropertyId]) {
-                            status = tcfilesPSet.props[visaPropertyId];
+                            status = psets.props[visaPropertyId];
                  
                  //const visaPSet = psets.props.visaDefId
                // console.log(visaPSet,);
@@ -308,7 +308,7 @@
                   //status = visaPSet;
                           // }
                         // }
-                        }
+                        //}
               } else {
                 console.warn(
                   `Impossible de récupérer les PSets pour le fichier '${file.name}' (${psetsResponse.status}).`,
