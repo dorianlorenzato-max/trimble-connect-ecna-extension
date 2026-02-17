@@ -109,6 +109,21 @@ async function fetchFilePSetStatus(projectId, fileId, accessToken) {
 
   return relevantPSet?.props?.[visaPropertyId] || "Non défini";
 }
-
+// Récupère uniquement la liste des groupes d'un projet
+async function fetchProjectGroups(projectId, accessToken) {
+    const headers = { Authorization: `Bearer ${accessToken}` };
+    const groupsApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/groups?projectId=${projectId}`;
+    
+    const response = await fetch(groupsApiUrl, { headers });
+    if (!response.ok) {
+        console.error("Erreur API lors de la récupération des groupes :", await response.text());
+        throw new Error('Impossible de récupérer les groupes du projet.');
+    }
+    
+    const allGroups = await response.json();
+    console.log("Groupes du projet récupérés :", allGroups);
+    return allGroups;
+}
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
-export { fetchVisaDocuments };
+export { fetchVisaDocuments, fetchProjectGroups };
+
