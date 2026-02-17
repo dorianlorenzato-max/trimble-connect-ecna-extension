@@ -1,6 +1,6 @@
 // On importe les fonctions depuis nos modules
-import { fetchVisaDocuments } from "./api.js";
-import { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfigPage } from './ui.js';
+import { fetchVisaDocuments, fetchProjectGroups } from "./api.js";
+import { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfigPage, renderCreateFluxPage } from './ui.js';
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
 (async function () {
@@ -19,7 +19,6 @@ import { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfi
       );
       return;
     }
-
     renderLoading(mainContentDiv);
     try {
       const documents = await fetchVisaDocuments(
@@ -32,7 +31,39 @@ import { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfi
       renderError(mainContentDiv, error);
     }
   }
+  
+  // --- GESTIONNAIRE POUR LE BOUTON DE CREATION DE FLUX ---
+async function handleCreateFluxClick() {
+    if (!globalAccessToken || !triconnectAPI) {
+        renderError(mainContentDiv, new Error("L'extension n'est pas correctement initialisée."));
+        return;
+    }
 
+    renderLoading(mainContentDiv); // Affiche un message de chargement
+    try {
+        const projectInfo = await triconnectAPI.project.getCurrentProject();
+        const projectGroups = await fetchProjectGroups(projectInfo.id, globalAccessToken);
+        
+        // Affiche la page de création en lui passant la liste des groupes
+        renderCreateFluxPage(mainContentDiv, projectGroups);
+
+        // Une fois la page affichée, on attache l'événement au bouton "Annuler"
+        document.getElementById('cancel-flux-creation-btn').addEventListener('click', handleConfigClick);
+
+    } catch (error) {
+        console.error("Erreur lors de la préparation de la création de flux :", error);
+        renderError(mainContentDiv, error);
+    }
+}
+
+// --- GESTIONNAIRE POUR AFFICHER LA PAGE DE CONFIGURATION ---
+function handleConfigClick() {
+    renderConfigPage(mainContentDiv);
+    
+    // La page de config est affichée, on peut maintenant attacher l'événement au bouton "Créer un flux"
+    // qui se trouve DANS cette page.
+    document.querySelector('.config-actions .config-button:first-child').addEventListener('click', handleCreateFluxClick);
+}
   // --- INITIALISATION DE L'EXTENSION ---
   try {
     mainContentDiv.innerHTML = `<p>Connexion à Trimble Connect...</p>`;
@@ -74,7 +105,7 @@ import { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfi
     document
       .getElementById("dashboardBtn")
       .addEventListener("click", () => renderWelcome(mainContentDiv));
-    document.getElementById("configBtn").addEventListener("click", () => renderConfigPage(mainContentDiv));
+    document.getElementById("configBtn").addEventListener("click", handleConfigClick);
     // Afficher l'accueil
     renderWelcome(mainContentDiv);
   } catch (error) {
@@ -85,5 +116,6 @@ import { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfi
     renderError(mainContentDiv, error);
   }
 })();
+
 
 
