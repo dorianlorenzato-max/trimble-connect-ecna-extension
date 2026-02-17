@@ -68,5 +68,30 @@ function renderVisaTable(container, visaDocuments) {
         </div>
     `;
 }
+function renderConfigPage(container) {
+    container.innerHTML = `
+        <div class="config-page-container">
+            <h1>Configuration des Flux de Visa</h1>
+            <div class="config-actions">
+                <button class="config-button">Créer un flux</button>
+                <button class="config-button">Gestion des flux</button>
+                <button class="config-button">Droits d'accès</button>
+                <button class="config-button">Affectation d'un flux</button>
+            </div>
 
-export { renderLoading, renderError, renderWelcome, renderVisaTable };
+            <div class="flux-list-container">
+                <div class="flux-list-header">
+                    <div class="flux-header-item">Nom des flux en place</div>
+                    <div class="flux-header-item">Dossiers affectés</div>
+                    <div class="flux-header-item">Date de mise en place</div>
+                    <div class="flux-header-item">Nom du créateur</div>
+                </div>
+                <div class="flux-list-body">
+                    <p>La liste des flux configurés apparaîtra ici sous forme de tableau.</p>
+                </div>
+            </div>
+        </div>
+    `;
+}
+export { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfigPage };
+
