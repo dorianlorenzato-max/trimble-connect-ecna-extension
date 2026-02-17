@@ -74,7 +74,7 @@ import { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfi
     document
       .getElementById("dashboardBtn")
       .addEventListener("click", () => renderWelcome(mainContentDiv));
-
+    document.getElementById("configBtn").addEventListener("click", () => renderConfigPage(mainContentDiv));
     // Afficher l'accueil
     renderWelcome(mainContentDiv);
   } catch (error) {
@@ -85,4 +85,5 @@ import { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfi
     renderError(mainContentDiv, error);
   }
 })();
+
 
