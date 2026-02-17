@@ -266,21 +266,42 @@
                 psetsApiUrl,
               );
 
-              let status = "TEST visa"; // Statut par défaut
+              let status = "TEST visa2"; // Statut par défaut
 
               const psetsResponse = await fetch(psetsApiUrl, {
                 headers: {
                   Authorization: `Bearer ${globalAccessToken}`,
                   "Content-Type": "application/json",
-                  //"Trimble-Client-Id": TRIMBLE_CLIENT_ID,
+                  "Trimble-Client-Id": TRIMBLE_CLIENT_ID,
                 },
               });
 
               if (psetsResponse.ok) {
-                const psets = await psetsResponse.json();
-                console.log(`PSets trouvés:`, psets);
-                
+                const psetsData = await psetsResponse.json();
+                console.log(`PSets trouvés:`, psetsData);
+
                 const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
+                const targetDefId = "tcfiles";
+                const currentFileFRN = `frn:tcfile:${file.id}`;
+                if (psetsData && Array.isArray(psetsData.items)) {
+                  // Chercher le PSet pertinent dans la liste retournée
+                  // On cherche celui qui est lié à notre fichier actuel (via 'link')
+                  // et qui a le bon 'defId' ('tcfiles' dans ton cas)
+                  const relevantPSet = psetsData.items.find(
+                    (pset) =>
+                      pset.link === currentFileFRN &&
+                      pset.defId === targetDefId,
+                  );
+
+                  // Si un PSet pertinent est trouvé et qu'il contient notre propriété VISA
+                  if (
+                    relevantPSet &&
+                    relevantPSet.props &&
+                    relevantPSet.props[visaPropertyId]
+                  ) {
+                    status = relevantPSet.props[visaPropertyId];
+                  }
+                }
               } else {
                 console.warn(
                   `Impossible de récupérer les PSets pour le fichier '${file.name}' (${psetsResponse.status}).`,
