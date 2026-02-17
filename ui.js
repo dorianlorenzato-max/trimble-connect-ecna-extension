@@ -93,5 +93,86 @@ function renderConfigPage(container) {
         </div>
     `;
 }
-export { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfigPage };
+// Affiche le formulaire de création de flux
+function renderCreateFluxPage(container, projectGroups) {
+    // Options pour le menu déroulant de la durée
+    const durationOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+        .map(days => `<option value="${days}">${days} jour(s)</option>`)
+        .join('');
+
+    // Options pour le menu déroulant des groupes (permet la sélection multiple)
+    const groupOptions = projectGroups
+        .map(group => `<option value="${group.id}">${group.name}</option>`)
+        .join('');
+
+    container.innerHTML = `
+        <div class="flux-creation-container">
+            <h1>Création d'un nouveau flux de validation</h1>
+            <div class="form-section">
+                <label for="flux-name">Nom du flux :</label>
+                <input type="text" id="flux-name" name="flux-name" placeholder="Ex: Flux de validation VISA MOE">
+            </div>
+
+            <div id="flux-steps-container">
+                <!-- L'étape 1 est générée ici par défaut -->
+            </div>
+
+            <div class="add-step-wrapper">
+                <button id="add-step-btn" class="add-button" title="Ajouter une étape">+</button>
+            </div>
+
+            <div class="flux-actions">
+                <button id="cancel-flux-creation-btn" class="button-secondary">Annuler</button>
+                <button id="save-flux-btn" class="button-primary">Enregistrer</button>
+            </div>
+        </div>
+    `;
+
+    // Logique pour ajouter des étapes
+    let stepCounter = 0;
+    const stepsContainer = document.getElementById('flux-steps-container');
+    const addStepBtn = document.getElementById('add-step-btn');
+
+    function addStep() {
+        if (stepCounter >= 3) { // Limite à 3 étapes
+            addStepBtn.disabled = true;
+            return;
+        }
+        stepCounter++;
+
+        const stepEl = document.createElement('div');
+        stepEl.className = 'flux-step';
+        stepEl.innerHTML = `
+            <div class="step-header">
+                <h3>Étape ${stepCounter}</h3>
+            </div>
+            <div class="step-content">
+                <div class="form-group">
+                    <label>Groupe de validation</label>
+                    <select class="group-select" multiple>
+                        ${groupOptions}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Temps de validation</label>
+                    <select class="duration-select">
+                        ${durationOptions}
+                    </select>
+                </div>
+            </div>
+        `;
+        stepsContainer.appendChild(stepEl);
+        if (stepCounter >= 3) {
+             addStepBtn.style.display = 'none'; // Cache le bouton si on atteint 3 étapes
+        }
+    }
+
+    // Ajouter la première étape au chargement
+    addStep();
+
+    // Lier l'événement au bouton
+    addStepBtn.addEventListener('click', addStep);
+}
+export { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfigPage, renderCreateFluxPage };
+
 
