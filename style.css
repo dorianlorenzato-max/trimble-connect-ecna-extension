@@ -92,3 +92,71 @@ body {
 .visa-table th .filter-icon:hover {
   color: #0056b3;
 }
+
+/* --- Styles pour la page de Configuration --- */
+.config-page-container h1 {
+    text-align: center;
+    color: #003a72; /* Un bleu plus institutionnel */
+}
+
+/* Conteneur pour les boutons d'action du haut */
+.config-actions {
+    display: flex;
+    justify-content: center;
+    gap: 20px; /* Espace entre les boutons */
+    margin-bottom: 40px; /* Espace avant le grand panneau */
+    flex-wrap: wrap; /* Permet aux boutons de passer à la ligne sur écran étroit */
+}
+
+/* Style des boutons d'action spécifiques à la page config */
+.config-button {
+    background-color: #005A70; /* Bleu-vert Eiffage */
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s ease;
+}
+
+.config-button:hover {
+    background-color: #007A93;
+}
+
+/* Le grand conteneur pour la liste des flux */
+.flux-list-container {
+    background-color: #ffffff;
+    border: 2px solid #005A70;
+    border-radius: 15px; /* Bords bien arrondis */
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+/* L'en-tête de la liste (qui ressemble à des boutons) */
+.flux-list-header {
+    display: flex;
+    justify-content: space-around;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.flux-header-item {
+    background-color: #005A70;
+    color: white;
+    padding: 10px 15px;
+    border-radius: 6px;
+    text-align: center;
+    flex-grow: 1; /* Pour qu'ils prennent une largeur égale */
+}
+
+/* Le corps de la liste (où le tableau apparaîtra) */
+.flux-list-body {
+    text-align: center;
+    padding: 40px 20px;
+    color: #666;
+    font-style: italic;
+}
