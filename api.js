@@ -125,20 +125,15 @@ async function fetchProjectGroups(projectId, accessToken) {
     return allGroups;
 }
 
-/**
- * Sauvegarde un objet de configuration dans un fichier JSON à la racine du projet.
- * @param {object} triconnectAPI L'instance de l'API Trimble Connect.
- * @param {string} accessToken Le jeton d'accès.
- * @param {object} configurationData L'objet JavaScript à sauvegarder.
- * @param {string} filename Le nom du fichier de destination (ex: '.ecna-visa-config.json').
- */
+//Sauvegarde un objet de configuration dans un fichier JSON à la racine du projet.
+
 async function saveConfigurationFile(triconnectAPI, accessToken, configurationData, filename) {
     // Récupérer l'ID du dossier racine du projet
     const projectInfo = await triconnectAPI.project.getCurrentProject();
     const rootFolderId = projectInfo.rootId;
     
     // L'URL de l'API pour téléverser des fichiers dans un dossier
-    const uploadUrl = `https://app21.connect.trimble.com/tc/api/2.0/folders/${folderId}/items`;
+    const uploadUrl = `https://app21.connect.trimble.com/tc/api/2.0/files/fs/commit`;
 
     // Convertir notre objet de configuration en une chaîne JSON formatée
     const jsonString = JSON.stringify(configurationData, null, 2); // null, 2 pour un joli formatage
@@ -171,6 +166,7 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
 }
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile };
+
 
 
 
