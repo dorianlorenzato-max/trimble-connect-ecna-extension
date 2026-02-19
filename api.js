@@ -134,7 +134,7 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
     const rootFolderId = projectInfo.rootId;
     
     // L'URL de l'API pour téléverser des fichiers dans un dossier
-    const uploadUrl = `https://app21.connect.trimble.com/tc/api/v2/projects/${projectId}/files?folderId=${rootFolderId}`;
+    const uploadUrl = `https://app21.connect.trimble.com/tc/api/v2/projects/${projectId}/files?folderId=MkvA_YZPfBk`; // mettre un dossier spécifique pour les fichiers de configuration
 
     // Convertir notre objet de configuration en une chaîne JSON formatée
     const jsonString = JSON.stringify(configurationData, null, 2); // null, 2 pour un joli formatage
@@ -167,6 +167,7 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
 }
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile };
+
 
 
 
