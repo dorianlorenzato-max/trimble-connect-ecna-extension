@@ -148,27 +148,47 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
 
          // --- ÉTAPE 1 : INITIATION DE L'UPLOAD ---
     // On demande à Trimble Connect la permission d'uploader un fichier.
-    const initiateUploadUrl = `${apiBaseUrl}/files/fs/upload?parentId=${rootFolderId}&parentType=FOLDER`;
+    const initiateUploadUrl = `${apiBaseUrl}/files/fs/upload`;
     console.log("Étape 1 : Initialisation de l'upload via POST sur", initiateUploadUrl);
 
+  const initiatePayload = {
+            name: filename,
+            parentId: rootFolderId,
+            parentType: "FOLDER",
+            // Ajout facultatif mais recommandé :
+            size: JSON.stringify(configurationData, null, 2).length
+        };
+
+        console.log("Payload d'initiation:", initiatePayload);
+  
     const initiateResponse = await fetch(initiateUploadUrl, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name: filename }), // On envoie juste le nom du futur fichier
-    });
+       body: JSON.stringify(initiatePayload),
+        });
 
-    if (!uploadDetails.contents || !uploadDetails.contents[0] || !uploadDetails.contents[0].url) {
-            console.error("Structure inattendue de uploadDetails:", uploadDetails);
-            throw new Error("URL d'upload non trouvée dans la réponse");
-    }
+        // Log détaillé de la réponse
+        console.log("Statut réponse initiation:", initiateResponse.status);
+  
+    if (!initiateResponse.ok) {
+            const errorText = await initiateResponse.text();
+            console.error("Erreur initiation - Statut:", initiateResponse.status);
+            console.error("Erreur initiation - Corps:", errorText);
+            throw new Error(`Initiation upload échouée (${initiateResponse.status}): ${errorText}`);
+        }
+
 
     const uploadDetails = await initiateResponse.json();
+  console.log("uploadDetails reçus:", uploadDetails);
     const finalUploadUrl = uploadDetails.contents[0].url; // URL unique et pré-signée pour l'upload
     const uploadId = uploadDetails.uploadId; // ID unique de cette transaction d'upload
     console.log("Étape 1 réussie. URL d'upload obtenue. Upload ID:", uploadId);
+
+          console.log("Upload ID:", uploadId);
+        console.log("URL d'upload:", finalUploadUrl);
       
         // --- ÉTAPE 2 : TÉLÉVERSEMENT DU CONTENU ---
     // On envoie le contenu réel du fichier vers l'URL pré-signée.
@@ -222,6 +242,7 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
 
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile };
+
 
 
 
