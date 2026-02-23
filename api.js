@@ -138,7 +138,7 @@ async function fetchProjectGroups(projectId, accessToken) {
  */
 async function saveConfigurationFile(triconnectAPI, accessToken, configurationData, filename) {
     const projectInfo = await triconnectAPI.project.getCurrentProject();
-    const rootFolderId = projetcInfo.rootId;
+    const rootFolderId = projectInfo.rootId;
   if (!rootFolderId) {
         console.error("ERREUR : Impossible de trouver l'ID du dossier racine (rootFolderId) dans l'objet projet:", projectInfo);
         throw new Error("L'ID du dossier racine du projet n'a pas pu être déterminé. Vérifiez les permissions ou l'objet projet.");
@@ -155,14 +155,14 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${accessToken}`,
-            //'Content-Type': 'application/json',
+            'Content-Type': 'application/json',
         },
         body: JSON.stringify({ name: filename }), // On envoie juste le nom du futur fichier
     });
 
-    if (!initiateResponse.ok) {
-        const errorText = await initiateResponse.text();
-        throw new Error(`Impossible d'initier l'upload. Statut: ${initiateResponse.status}, Réponse: ${errorText}`);
+    if (!uploadDetails.contents || !uploadDetails.contents[0] || !uploadDetails.contents[0].url) {
+            console.error("Structure inattendue de uploadDetails:", uploadDetails);
+            throw new Error("URL d'upload non trouvée dans la réponse");
     }
 
     const uploadDetails = await initiateResponse.json();
@@ -173,6 +173,7 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
         // --- ÉTAPE 2 : TÉLÉVERSEMENT DU CONTENU ---
     // On envoie le contenu réel du fichier vers l'URL pré-signée.
     console.log("Étape 2 : Téléversement du contenu du fichier via PUT...");
+  
     const jsonString = JSON.stringify(configurationData, null, 2);
     const fileBlob = new Blob([jsonString], { type: 'application/json' });
 
@@ -221,6 +222,7 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
 
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile };
+
 
 
 
