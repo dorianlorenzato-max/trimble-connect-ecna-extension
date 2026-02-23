@@ -126,19 +126,11 @@ async function fetchProjectGroups(projectId, accessToken) {
 }
 
 //Sauvegarde un objet de configuration dans un fichier JSON à la racine du projet.
-/**
- * Téléverse un fichier de configuration JSON à la racine d'un projet Trimble Connect.
- * Ce code utilise le processus d'upload en 2 étapes recommandé par l'API Core.
- *
- * @param {object} triconnectAPI - L'objet API pour interagir avec Trimble Connect (pour obtenir les infos du projet).
- * @param {string} accessToken - Le jeton d'accès Bearer pour l'authentification.
- * @param {object} configurationData - L'objet JavaScript à convertir en JSON et à sauvegarder.
- * @param {string} filename - Le nom du fichier à créer (ex: "configuration.json").
- * @returns {Promise<object>} Une promesse qui se résout avec les détails du fichier téléversé.
- */
+
 async function saveConfigurationFile(triconnectAPI, accessToken, configurationData, filename) {
     const projectInfo = await triconnectAPI.project.getCurrentProject();
-    const rootFolderId = '9QpmVaoiJOc' ;
+  //TODO modifier le nom du fichier pour qu'il soit directement récupéré du projet
+    const rootFolderId = 'MkvA_YZPfBk' ;
   if (!rootFolderId) {
         console.error("ERREUR : Impossible de trouver l'ID du dossier racine (rootFolderId) dans l'objet projet:", projectInfo);
         throw new Error("L'ID du dossier racine du projet n'a pas pu être déterminé. Vérifiez les permissions ou l'objet projet.");
@@ -238,6 +230,7 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
 
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile };
+
 
 
 
