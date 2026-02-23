@@ -138,7 +138,7 @@ async function fetchProjectGroups(projectId, accessToken) {
  */
 async function saveConfigurationFile(triconnectAPI, accessToken, configurationData, filename) {
     const projectInfo = await triconnectAPI.project.getCurrentProject();
-    const rootFolderId = projectInfo.rootId;
+    const rootFolderId = projectInfo.Id;
   if (!rootFolderId) {
         console.error("ERREUR : Impossible de trouver l'ID du dossier racine (rootFolderId) dans l'objet projet:", projectInfo);
         throw new Error("L'ID du dossier racine du projet n'a pas pu être déterminé. Vérifiez les permissions ou l'objet projet.");
@@ -221,6 +221,7 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
 
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile };
+
 
 
 
