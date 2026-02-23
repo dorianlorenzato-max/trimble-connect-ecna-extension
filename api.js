@@ -138,7 +138,7 @@ async function fetchProjectGroups(projectId, accessToken) {
  */
 async function saveConfigurationFile(triconnectAPI, accessToken, configurationData, filename) {
     const projectInfo = await triconnectAPI.project.getCurrentProject();
-    const rootFolderId = 'MkvA_YZPfBk' ;
+    const rootFolderId = '9QpmVaoiJOc' ;
   if (!rootFolderId) {
         console.error("ERREUR : Impossible de trouver l'ID du dossier racine (rootFolderId) dans l'objet projet:", projectInfo);
         throw new Error("L'ID du dossier racine du projet n'a pas pu être déterminé. Vérifiez les permissions ou l'objet projet.");
@@ -148,15 +148,11 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
 
          // --- ÉTAPE 1 : INITIATION DE L'UPLOAD ---
     // On demande à Trimble Connect la permission d'uploader un fichier.
-    const initiateUploadUrl = `${apiBaseUrl}/files/fs/upload`;
+    const initiateUploadUrl = `${apiBaseUrl}/files/fs/upload?parentId=${rootFolderId}&parentType=FOLDER`;
     console.log("Étape 1 : Initialisation de l'upload via POST sur", initiateUploadUrl);
 
   const initiatePayload = {
             name: filename,
-            parentId: rootFolderId,
-            parentType: "FOLDER",
-            // Ajout facultatif mais recommandé :
-            size: JSON.stringify(configurationData, null, 2).length
         };
 
         console.log("Payload d'initiation:", initiatePayload);
@@ -242,6 +238,7 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
 
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile };
+
 
 
 
