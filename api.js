@@ -12,7 +12,7 @@ async function fetchVisaDocuments(accessToken, triconnectAPI) {
 
   // 2. Récupérer les fichiers PDF pertinents.
   // TODO: Utiliser un dossier paramétré au lieu d'un ID en dur.
-  const pdfFiles = await fetchPDFFilesInFolder("9QpmVaoiJOc", accessToken);
+  const pdfFiles = await fetchPDFFilesInFolder("9QpmVaoiJOc", accessToken); 
 
   // 3. Enrichir chaque fichier avec les informations de PSet, de dépositaire, etc.
   const visaDocuments = [];
@@ -126,47 +126,97 @@ async function fetchProjectGroups(projectId, accessToken) {
 }
 
 //Sauvegarde un objet de configuration dans un fichier JSON à la racine du projet.
-
+/**
+ * Téléverse un fichier de configuration JSON à la racine d'un projet Trimble Connect.
+ * Ce code utilise le processus d'upload en 2 étapes recommandé par l'API Core.
+ *
+ * @param {object} triconnectAPI - L'objet API pour interagir avec Trimble Connect (pour obtenir les infos du projet).
+ * @param {string} accessToken - Le jeton d'accès Bearer pour l'authentification.
+ * @param {object} configurationData - L'objet JavaScript à convertir en JSON et à sauvegarder.
+ * @param {string} filename - Le nom du fichier à créer (ex: "configuration.json").
+ * @returns {Promise<object>} Une promesse qui se résout avec les détails du fichier téléversé.
+ */
 async function saveConfigurationFile(triconnectAPI, accessToken, configurationData, filename) {
-    // Récupérer l'ID du dossier racine du projet
     const projectInfo = await triconnectAPI.project.getCurrentProject();
-    const projectId = projectInfo.id;
     const rootFolderId = projectInfo.rootId;
-    
-    // L'URL de l'API pour téléverser des fichiers dans un dossier
-    const uploadUrl = `https://app21.connect.trimble.com/tc/api/v2/projects/${projectId}/files?folderId=MkvA_YZPfBk`; // mettre un dossier spécifique pour les fichiers de configuration
+    const apiBaseUrl = 'https://app21.connect.trimble.com/tc/api/2.0';
 
-    // Convertir notre objet de configuration en une chaîne JSON formatée
-    const jsonString = JSON.stringify(configurationData, null, 2); // null, 2 pour un joli formatage
+         // --- ÉTAPE 1 : INITIATION DE L'UPLOAD ---
+    // On demande à Trimble Connect la permission d'uploader un fichier.
+    const initiateUploadUrl = `${apiBaseUrl}/files/fs/upload?parentId=${rootFolderId}&parentType=FOLDER`;
+    console.log("Étape 1 : Initialisation de l'upload via POST sur", initiateUploadUrl);
 
-    // Créer un objet "Blob", qui est une sorte de fichier en mémoire
-    const blob = new Blob([jsonString], { type: 'application/json' });
-
-    // FormData est le format standard pour envoyer des fichiers via une requête HTTP
-    const formData = new FormData();
-    formData.append('file', blob, filename);
-
-    const response = await fetch(uploadUrl, {
+    const initiateResponse = await fetch(initiateUploadUrl, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${accessToken}`,
-            // IMPORTANT: Ne PAS mettre 'Content-Type' ici, le navigateur le fera pour nous
-            // avec la bonne délimitation pour le 'multipart/form-data'.
+            'Content-Type': 'application/json',
         },
-        body: formData,
+        body: JSON.stringify({ name: filename }), // On envoie juste le nom du futur fichier
     });
 
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Erreur API lors de la sauvegarde du fichier de configuration :", errorText);
-        throw new Error('Impossible de sauvegarder le fichier de configuration sur Trimble Connect.');
+    if (!initiateResponse.ok) {
+        const errorText = await initiateResponse.text();
+        throw new Error(`Impossible d'initier l'upload. Statut: ${initiateResponse.status}, Réponse: ${errorText}`);
     }
 
-    console.log("Fichier de configuration sauvegardé avec succès.");
-    return await response.json();
+    const uploadDetails = await initiateResponse.json();
+    const finalUploadUrl = uploadDetails.contents[0].url; // URL unique et pré-signée pour l'upload
+    const uploadId = uploadDetails.uploadId; // ID unique de cette transaction d'upload
+    console.log("Étape 1 réussie. URL d'upload obtenue. Upload ID:", uploadId);
+      
+        // --- ÉTAPE 2 : TÉLÉVERSEMENT DU CONTENU ---
+    // On envoie le contenu réel du fichier vers l'URL pré-signée.
+    console.log("Étape 2 : Téléversement du contenu du fichier via PUT...");
+    const jsonString = JSON.stringify(configurationData, null, 2);
+    const fileBlob = new Blob([jsonString], { type: 'application/json' });
+
+    const uploadResponse = await fetch(finalUploadUrl, {
+        method: 'PUT',
+        headers: {
+            // Très important : PAS de header 'Authorization' ici, comme demandé par la doc.
+            'Content-Type': 'application/json',
+        },
+        body: fileBlob,
+    });
+
+    if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        throw new Error(`L'upload final du fichier a échoué. Statut: ${uploadResponse.status}, Réponse: ${errorText}`);
+    }
+    console.log("Étape 2 réussie. Contenu du fichier envoyé.");
+  
+       // --- ÉTAPE 3 : VÉRIFICATION ET FINALISATION (le point que j'ajoute) ---
+    // L'upload est terminé, mais on vérifie auprès de Trimble que le fichier a bien été traité.
+    console.log("Étape 3 : Vérification du statut final de l'upload...");
+    const verifyUrl = `${apiBaseUrl}/files/fs/upload?uploadId=${uploadId}&wait=true`;
+
+    const verifyResponse = await fetch(verifyUrl, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+    });
+
+    if (!verifyResponse.ok) {
+        const errorText = await verifyResponse.text();
+        throw new Error(`La vérification de l'upload a échoué. Statut: ${verifyResponse.status}, Réponse: ${errorText}`);
+    }
+
+    const finalFileDetails = await verifyResponse.json();
+
+    // On vérifie que le statut global est bien 'DONE'
+    if (finalFileDetails.status !== 'DONE') {
+        throw new Error(`Le traitement du fichier sur le serveur a échoué. Statut final: ${finalFileDetails.status || 'inconnu'}`);
+    }
+    
+    console.log("Étape 3 réussie. Fichier traité et finalisé avec succès. fileId:", finalFileDetails.fileId);
+    
+    // On retourne les détails finaux qui contiennent le fileId et versionId définitifs.
+    return finalFileDetails;
 }
+
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile };
+
 
 
 
