@@ -110,7 +110,7 @@ async function handleSaveFluxClick() {
             triconnectAPI, 
             globalAccessToken, 
             configurationData, 
-            '.ecna-visa-config.json' // Le nom de notre fichier
+            'ecna-visa-config.json' // Le nom de notre fichier
         );
 
         // 4. Afficher le succès et revenir à la page de configuration
@@ -187,6 +187,7 @@ function handleConfigClick() {
     renderError(mainContentDiv, error);
   }
 })();
+
 
 
 
