@@ -155,7 +155,7 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
+            //'Content-Type': 'application/json',
         },
         body: JSON.stringify({ name: filename }), // On envoie juste le nom du futur fichier
     });
@@ -221,6 +221,7 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
 
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile };
+
 
 
 
