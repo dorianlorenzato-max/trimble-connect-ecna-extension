@@ -283,8 +283,35 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
     return finalFileDetails;
 }
 
+// Récupération de l'arborescence du projet Trimble
+
+async function fetchFolderContents(folderId, accessToken) {
+  const listItemsUrl = `https://app21.connect.trimble.com/tc/api/2.0/folders/${folderId}/items`;
+
+  const response = await fetch(listItemsUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Impossible de lister le contenu du dossier ${folderId} (Statut: ${response.status}).`,
+    );
+  }
+
+  const allItems = await response.json();
+
+  // On filtre pour ne garder que les dossiers
+  const foldersOnly = allItems.filter((item) => item.type === "FOLDER");
+
+  console.log(
+    `Contenu du dossier ${folderId} récupéré, ${foldersOnly.length} sous-dossiers trouvés.`,
+  );
+  return foldersOnly;
+}
+
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
-export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile, fetchConfigurationFile };
+export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile, fetchConfigurationFile, fetchFolderContents };
+
 
 
 
