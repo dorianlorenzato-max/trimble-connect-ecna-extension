@@ -262,6 +262,16 @@ function renderManageFluxPage(container, flows, projectGroups) {
     container.innerHTML = ''; // Vide le container existant
     container.appendChild(fluxListContainer);
 }
+//Pour afficher le chargement de sauvegarde
+function renderSaving(container) {
+  container.innerHTML = `
+        <div class="message-container">
+            <h2>Sauvegarde en cours...</h2>
+            <p>Veuillez patienter pendant que les modifications sont enregistrées sur Trimble Connect.</p>
+            <img src="https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/Loading_icon.gif" alt="Sauvegarde..." style="width: 50px; margin-top: 15px;">
+        </div>
+    `;
+}
 
 // Pour afficher les messages de succès
 function renderSuccess(container, message) {
@@ -282,7 +292,8 @@ export {
   renderConfigPage,
   renderCreateFluxPage,
   renderManageFluxPage,
-  //renderSaving,
+  renderSaving,
   renderSuccess,
 };
+
 
