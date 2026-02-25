@@ -283,6 +283,25 @@ function renderSuccess(container, message) {
     `;
 }
 
+// interface de l'arborescence du projet Trimble
+function renderAffectationPage(container, projectName) {
+  container.innerHTML = `
+    <div class="affectation-page-container">
+      <h1>Affectation d'un flux à un dossier</h1>
+      <p>Projet : <strong>${projectName}</strong></p>
+      <div class="folder-browser-container">
+        <ul id="folder-tree-root" class="folder-tree">
+          <!-- Le contenu de l'arborescence sera injecté ici par JavaScript -->
+          <li class="loading-node">Chargement de l'arborescence...</li>
+        </ul>
+      </div>
+      <div class="flux-actions">
+        <button id="back-to-config-btn" class="button-secondary">Retour</button>
+      </div>
+    </div>
+  `;
+}
+
 // Exporter toutes les fonctions désormais
 export {
   renderLoading,
@@ -294,6 +313,8 @@ export {
   renderManageFluxPage,
   renderSaving,
   renderSuccess,
+  renderAffectationPage,
 };
+
 
 
