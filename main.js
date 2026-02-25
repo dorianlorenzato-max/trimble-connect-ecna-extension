@@ -4,6 +4,7 @@ import {
   fetchProjectGroups,
   saveConfigurationFile,
   fetchConfigurationFile,
+  fetchFolderContents,
 } from "./api.js";
 import {
   renderLoading,
@@ -12,9 +13,10 @@ import {
   renderVisaTable,
   renderConfigPage,
   renderCreateFluxPage,
-  renderManageFluxPage, // <--- AJOUTÉ
+  renderManageFluxPage,
   renderSaving,
   renderSuccess,
+  renderAffectationPage,
 } from "./ui.js";
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
@@ -33,46 +35,60 @@ import {
     renderLoading(mainContentDiv);
     try {
       // Récupérer la configuration la plus récente
-      const config = await fetchConfigurationFile(triconnectAPI, globalAccessToken, CONFIG_FILENAME);
+      const config = await fetchConfigurationFile(
+        triconnectAPI,
+        globalAccessToken,
+        CONFIG_FILENAME,
+      );
       const flows = config ? config.flux : [];
       // Rendre la page de gestion des flux
       renderManageFluxPage(mainContentDiv, flows, currentProjectGroups);
       attachManageFluxEvents(flows); // Ré-attacher les événements
     } catch (error) {
-      console.error("Erreur lors du rafraîchissement de la page de gestion des flux :", error);
+      console.error(
+        "Erreur lors du rafraîchissement de la page de gestion des flux :",
+        error,
+      );
       renderError(mainContentDiv, error);
     }
   }
 
   // Fonction pour attacher les événements sur les boutons Modifier/Supprimer
   function attachManageFluxEvents(flows) {
-    document.querySelectorAll('.edit-flux-btn').forEach(button => {
-        button.addEventListener('click', (event) => {
-            const fluxName = event.target.dataset.fluxName;
-            handleEditFlux(fluxName);
-        });
+    document.querySelectorAll(".edit-flux-btn").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        const fluxName = event.target.dataset.fluxName;
+        handleEditFlux(fluxName);
+      });
     });
 
-    document.querySelectorAll('.delete-flux-btn').forEach(button => {
-        button.addEventListener('click', (event) => {
-            const fluxName = event.target.dataset.fluxName;
-            handleDeleteFlux(fluxName);
-        });
+    document.querySelectorAll(".delete-flux-btn").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        const fluxName = event.target.dataset.fluxName;
+        handleDeleteFlux(fluxName);
+      });
     });
 
-    document.getElementById('back-to-config-btn').addEventListener('click', handleConfigClick);
+    document
+      .getElementById("back-to-config-btn")
+      .addEventListener("click", handleConfigClick);
   }
-
 
   // --- GESTIONNAIRE D'ÉVÉNEMENT POUR LE BOUTON VISA ---
   async function handleVisaButtonClick() {
     if (!globalAccessToken || !triconnectAPI) {
-      renderError(mainContentDiv, new Error("L'extension n'est pas correctement initialisée."));
+      renderError(
+        mainContentDiv,
+        new Error("L'extension n'est pas correctement initialisée."),
+      );
       return;
     }
     renderLoading(mainContentDiv);
     try {
-      const documents = await fetchVisaDocuments(globalAccessToken, triconnectAPI);
+      const documents = await fetchVisaDocuments(
+        globalAccessToken,
+        triconnectAPI,
+      );
       renderVisaTable(mainContentDiv, documents);
     } catch (error) {
       console.error("Erreur lors de la récupération des documents :", error);
@@ -83,7 +99,10 @@ import {
   // --- GESTIONNAIRE POUR LE BOUTON DE CREATION DE FLUX ---
   async function handleCreateFluxClick() {
     if (!globalAccessToken || !triconnectAPI) {
-      renderError(mainContentDiv, new Error("L'extension n'est pas correctement initialisée."));
+      renderError(
+        mainContentDiv,
+        new Error("L'extension n'est pas correctement initialisée."),
+      );
       return;
     }
 
@@ -91,12 +110,18 @@ import {
     renderLoading(mainContentDiv);
     try {
       const projectInfo = await triconnectAPI.project.getCurrentProject();
-      currentProjectGroups = await fetchProjectGroups(projectInfo.id, globalAccessToken);
+      currentProjectGroups = await fetchProjectGroups(
+        projectInfo.id,
+        globalAccessToken,
+      );
 
       renderCreateFluxPage(mainContentDiv, currentProjectGroups); // Pas de flux à éditer
       attachCreateEditFluxEvents();
     } catch (error) {
-      console.error("Erreur lors de la préparation de la création de flux :", error);
+      console.error(
+        "Erreur lors de la préparation de la création de flux :",
+        error,
+      );
       renderError(mainContentDiv, error);
     }
   }
@@ -104,81 +129,132 @@ import {
   // --- NOUVEAU GESTIONNAIRE POUR LE BOUTON 'GÉRER LES FLUX' ---
   async function handleManageFluxClick() {
     if (!globalAccessToken || !triconnectAPI) {
-      renderError(mainContentDiv, new Error("L'extension n'est pas correctement initialisée."));
+      renderError(
+        mainContentDiv,
+        new Error("L'extension n'est pas correctement initialisée."),
+      );
       return;
     }
 
     renderLoading(mainContentDiv);
     try {
       const projectInfo = await triconnectAPI.project.getCurrentProject();
-      currentProjectGroups = await fetchProjectGroups(projectInfo.id, globalAccessToken); // Récupérer les groupes
-      
-      const config = await fetchConfigurationFile(triconnectAPI, globalAccessToken, CONFIG_FILENAME);
+      currentProjectGroups = await fetchProjectGroups(
+        projectInfo.id,
+        globalAccessToken,
+      ); // Récupérer les groupes
+
+      const config = await fetchConfigurationFile(
+        triconnectAPI,
+        globalAccessToken,
+        CONFIG_FILENAME,
+      );
       const flows = config ? config.flux : []; // Récupérer tous les flux
 
       renderManageFluxPage(mainContentDiv, flows, currentProjectGroups);
       attachManageFluxEvents(flows);
     } catch (error) {
-      console.error("Erreur lors de la récupération des flux existants :", error);
+      console.error(
+        "Erreur lors de la récupération des flux existants :",
+        error,
+      );
       renderError(mainContentDiv, error);
     }
   }
 
   // --- GESTIONNAIRE POUR SUPPRIMER UN FLUX ---
   async function handleDeleteFlux(fluxNameToDelete) {
-      if (!confirm(`Êtes-vous sûr de vouloir supprimer le flux "${fluxNameToDelete}" ? Cette action est irréversible.`)) {
-          return; // Annuler la suppression si l'utilisateur refuse
+    if (
+      !confirm(
+        `Êtes-vous sûr de vouloir supprimer le flux "${fluxNameToDelete}" ? Cette action est irréversible.`,
+      )
+    ) {
+      return; // Annuler la suppression si l'utilisateur refuse
+    }
+
+    renderSaving(mainContentDiv); // Afficher un message de "suppression en cours"
+    try {
+      const existingConfig = await fetchConfigurationFile(
+        triconnectAPI,
+        globalAccessToken,
+        CONFIG_FILENAME,
+      );
+      if (!existingConfig || !existingConfig.flux) {
+        throw new Error("Impossible de récupérer la configuration existante.");
       }
 
-      renderSaving(mainContentDiv); // Afficher un message de "suppression en cours"
-      try {
-          const existingConfig = await fetchConfigurationFile(triconnectAPI, globalAccessToken, CONFIG_FILENAME);
-          if (!existingConfig || !existingConfig.flux) {
-              throw new Error("Impossible de récupérer la configuration existante.");
-          }
+      const updatedFluxes = existingConfig.flux.filter(
+        (flux) => flux.name !== fluxNameToDelete,
+      );
+      const finalConfigurationData = { ...existingConfig, flux: updatedFluxes }; // Conserver les autres propriétés du fichier si elles existent
 
-          const updatedFluxes = existingConfig.flux.filter(flux => flux.name !== fluxNameToDelete);
-          const finalConfigurationData = { ...existingConfig, flux: updatedFluxes }; // Conserver les autres propriétés du fichier si elles existent
+      await saveConfigurationFile(
+        triconnectAPI,
+        globalAccessToken,
+        finalConfigurationData,
+        CONFIG_FILENAME,
+      );
 
-          await saveConfigurationFile(triconnectAPI, globalAccessToken, finalConfigurationData, CONFIG_FILENAME);
-          
-          renderSuccess(mainContentDiv, `Le flux "${fluxNameToDelete}" a été supprimé avec succès.`);
-          setTimeout(refreshManageFluxPage, 1500); // Rafraîchir après un court délai
-      } catch (error) {
-          console.error(`Échec de la suppression du flux "${fluxNameToDelete}" :`, error);
-          renderError(mainContentDiv, error);
-      }
+      renderSuccess(
+        mainContentDiv,
+        `Le flux "${fluxNameToDelete}" a été supprimé avec succès.`,
+      );
+      setTimeout(refreshManageFluxPage, 1500); // Rafraîchir après un court délai
+    } catch (error) {
+      console.error(
+        `Échec de la suppression du flux "${fluxNameToDelete}" :`,
+        error,
+      );
+      renderError(mainContentDiv, error);
+    }
   }
 
   // --- GESTIONNAIRE POUR ÉDITER UN FLUX ---
   async function handleEditFlux(fluxName) {
-      if (!globalAccessToken || !triconnectAPI) {
-          renderError(mainContentDiv, new Error("L'extension n'est pas correctement initialisée."));
-          return;
+    if (!globalAccessToken || !triconnectAPI) {
+      renderError(
+        mainContentDiv,
+        new Error("L'extension n'est pas correctement initialisée."),
+      );
+      return;
+    }
+
+    renderLoading(mainContentDiv);
+    try {
+      const existingConfig = await fetchConfigurationFile(
+        triconnectAPI,
+        globalAccessToken,
+        CONFIG_FILENAME,
+      );
+      if (!existingConfig || !existingConfig.flux) {
+        throw new Error(
+          "Impossible de récupérer la configuration existante pour l'édition.",
+        );
       }
 
-      renderLoading(mainContentDiv);
-      try {
-          const existingConfig = await fetchConfigurationFile(triconnectAPI, globalAccessToken, CONFIG_FILENAME);
-          if (!existingConfig || !existingConfig.flux) {
-              throw new Error("Impossible de récupérer la configuration existante pour l'édition.");
-          }
-
-          const fluxToEdit = existingConfig.flux.find(flux => flux.name === fluxName);
-          if (!fluxToEdit) {
-              throw new Error(`Flux "${fluxName}" introuvable pour édition.`);
-          }
-
-          currentEditedFluxName = fluxName; // Marquer le flux en cours d'édition
-          const projectInfo = await triconnectAPI.project.getCurrentProject();
-          currentProjectGroups = await fetchProjectGroups(projectInfo.id, globalAccessToken);
-
-          renderCreateFluxPage(mainContentDiv, currentProjectGroups, fluxToEdit); // Passer le flux à éditer
-          attachCreateEditFluxEvents();
-      } catch (error) {
-          console.error(`Erreur lors de la préparation de l'édition du flux "${fluxName}" :`, error);
-          renderError(mainContentDiv, error);
+      const fluxToEdit = existingConfig.flux.find(
+        (flux) => flux.name === fluxName,
+      );
+      if (!fluxToEdit) {
+        throw new Error(`Flux "${fluxName}" introuvable pour édition.`);
       }
+
+      currentEditedFluxName = fluxName; // Marquer le flux en cours d'édition
+      const projectInfo = await triconnectAPI.project.getCurrentProject();
+      currentProjectGroups = await fetchProjectGroups(
+        projectInfo.id,
+        globalAccessToken,
+      );
+
+      renderCreateFluxPage(mainContentDiv, currentProjectGroups, fluxToEdit); // Passer le flux à éditer
+      attachCreateEditFluxEvents();
+    } catch (error) {
+      console.error(
+        `Erreur lors de la préparation de l'édition du flux "${fluxName}" :`,
+        error,
+      );
+      renderError(mainContentDiv, error);
+    }
   }
 
   // --- GESTIONNAIRE POUR LE BOUTON D'ENREGISTREMENT/MODIFICATION DU FLUX ---
@@ -186,7 +262,9 @@ import {
     // --- Section 1: Lecture des données du formulaire ---
     const fluxNameInput = document.getElementById("flux-name");
     const fluxName = fluxNameInput.value;
-    const originalFluxName = document.getElementById("original-flux-name") ? document.getElementById("original-flux-name").value : null;
+    const originalFluxName = document.getElementById("original-flux-name")
+      ? document.getElementById("original-flux-name").value
+      : null;
 
     if (!fluxName.trim()) {
       alert("Veuillez donner un nom au flux.");
@@ -197,9 +275,10 @@ import {
     const stepElements = document.querySelectorAll(".flux-step");
     let validationOk = true;
 
-    if (stepElements.length === 0) { // S'assurer qu'il y a au moins une étape
-        alert("Veuillez ajouter au moins une étape au flux.");
-        return;
+    if (stepElements.length === 0) {
+      // S'assurer qu'il y a au moins une étape
+      alert("Veuillez ajouter au moins une étape au flux.");
+      return;
     }
 
     stepElements.forEach((stepEl, index) => {
@@ -245,23 +324,35 @@ import {
       // ÉTAPE 2: MODIFIER (fusionner/mettre à jour les données)
       if (currentEditedFluxName) {
         // Mode édition
-        const index = finalConfigurationData.flux.findIndex(flux => flux.name === currentEditedFluxName);
+        const index = finalConfigurationData.flux.findIndex(
+          (flux) => flux.name === currentEditedFluxName,
+        );
         if (index !== -1) {
-            finalConfigurationData.flux[index] = newFluxData; // Remplacer le flux existant
+          finalConfigurationData.flux[index] = newFluxData; // Remplacer le flux existant
         } else {
-            // Cas inattendu : le flux à éditer n'est plus là, on l'ajoute
-            finalConfigurationData.flux.push(newFluxData);
+          // Cas inattendu : le flux à éditer n'est plus là, on l'ajoute
+          finalConfigurationData.flux.push(newFluxData);
         }
-        console.log(`Flux "${currentEditedFluxName}" modifié en "${fluxName}".`);
+        console.log(
+          `Flux "${currentEditedFluxName}" modifié en "${fluxName}".`,
+        );
         currentEditedFluxName = null; // Réinitialiser le mode édition
       } else {
         // Mode création
         // Vérifier si un flux avec ce nom existe déjà en mode création
-        if (finalConfigurationData.flux.some(flux => flux.name === fluxName)) {
-            alert(`Un flux nommé "${fluxName}" existe déjà. Veuillez choisir un nom différent.`);
-            renderCreateFluxPage(mainContentDiv, currentProjectGroups, newFluxData); // Re-afficher le formulaire avec les données actuelles
-            attachCreateEditFluxEvents();
-            return;
+        if (
+          finalConfigurationData.flux.some((flux) => flux.name === fluxName)
+        ) {
+          alert(
+            `Un flux nommé "${fluxName}" existe déjà. Veuillez choisir un nom différent.`,
+          );
+          renderCreateFluxPage(
+            mainContentDiv,
+            currentProjectGroups,
+            newFluxData,
+          ); // Re-afficher le formulaire avec les données actuelles
+          attachCreateEditFluxEvents();
+          return;
         }
         finalConfigurationData.flux.push(newFluxData); // Ajouter un nouveau flux
         console.log(`Nouveau flux "${fluxName}" ajouté.`);
@@ -277,7 +368,7 @@ import {
 
       renderSuccess(
         mainContentDiv,
-        `Le flux "${fluxName}" a été ${originalFluxName ? 'modifié' : 'enregistré'} avec succès.`,
+        `Le flux "${fluxName}" a été ${originalFluxName ? "modifié" : "enregistré"} avec succès.`,
       );
 
       setTimeout(handleManageFluxClick, 2000); // Retour à la gestion des flux après sauvegarde
@@ -289,19 +380,34 @@ import {
 
   // Fonction pour attacher les événements des boutons Annuler/Enregistrer
   function attachCreateEditFluxEvents() {
-    document.getElementById("cancel-flux-creation-btn").addEventListener("click", handleManageFluxClick);
-    document.getElementById("save-flux-btn").addEventListener("click", handleSaveFluxClick);
+    document
+      .getElementById("cancel-flux-creation-btn")
+      .addEventListener("click", handleManageFluxClick);
+    document
+      .getElementById("save-flux-btn")
+      .addEventListener("click", handleSaveFluxClick);
   }
-
 
   // --- GESTIONNAIRE POUR AFFICHER LA PAGE DE CONFIGURATION ---
   function handleConfigClick() {
     renderConfigPage(mainContentDiv);
 
-    document.getElementById("create-flux-btn").addEventListener("click", handleCreateFluxClick);
-    document.getElementById("manage-flux-btn").addEventListener("click", handleManageFluxClick); // <-- NOUVEAU
-  }
+    document
+      .getElementById("create-flux-btn")
+      .addEventListener("click", handleCreateFluxClick);
+    document
+      .getElementById("manage-flux-btn")
+      .addEventListener("click", handleManageFluxClick);
 
+    // On trouve le bouton "Affectation d'un flux" et on le lie
+    const assignButton = Array.from(
+      document.querySelectorAll(".config-button"),
+    ).find((btn) => btn.textContent === "Affectation d'un flux");
+    if (assignButton) {
+      assignButton.disabled = false; // On l'active
+      assignButton.addEventListener("click", handleAssignFluxClick);
+    }
+  }
   // --- INITIALISATION DE L'EXTENSION ---
   try {
     mainContentDiv.innerHTML = `<p>Connexion à Trimble Connect...</p>`;
@@ -355,5 +461,108 @@ import {
       error,
     );
     renderError(mainContentDiv, error);
+  }
+  // GESTIONNAIRE D'ÉVÉNEMENT POUR LE BOUTON D'AFFECTATION des flux ---
+  async function handleAssignFluxClick() {
+    if (!globalAccessToken || !triconnectAPI) {
+      renderError(
+        mainContentDiv,
+        new Error("L'extension n'est pas correctement initialisée."),
+      );
+      return;
+    }
+
+    try {
+      const projectInfo = await triconnectAPI.project.getCurrentProject();
+      renderAffectationPage(mainContentDiv, projectInfo.name);
+
+      const rootFolders = await fetchFolderContents(
+        projectInfo.rootId,
+        globalAccessToken,
+      );
+
+      const treeRootElement = document.getElementById("folder-tree-root");
+      treeRootElement.innerHTML = ""; // Nettoyer le message de chargement
+
+      renderAndAttachFolderListeners(rootFolders, treeRootElement);
+
+      document
+        .getElementById("back-to-config-btn")
+        .addEventListener("click", handleConfigClick);
+    } catch (error) {
+      console.error(
+        "Erreur lors du chargement de la page d'affectation :",
+        error,
+      );
+      renderError(mainContentDiv, error);
+    }
+  }
+
+  // FONCTION RÉCURSIVE POUR AFFICHER ET GÉRER L'ARBORESCENCE ---
+  function renderAndAttachFolderListeners(folders, parentElement) {
+    if (folders.length === 0) {
+      const noSubfolderItem = document.createElement("li");
+      noSubfolderItem.className = "folder-item-empty";
+      noSubfolderItem.textContent = "Aucun sous-dossier";
+      parentElement.appendChild(noSubfolderItem);
+      return;
+    }
+
+    folders.forEach((folder) => {
+      const listItem = document.createElement("li");
+      listItem.className = "folder-item";
+      listItem.dataset.folderId = folder.id;
+      listItem.dataset.loaded = "false"; // Pour savoir si les enfants ont été chargés
+
+      const folderNameSpan = document.createElement("span");
+      folderNameSpan.className = "folder-name";
+      folderNameSpan.textContent = folder.name;
+
+      listItem.appendChild(folderNameSpan);
+      parentElement.appendChild(listItem);
+
+      // Ajouter un écouteur de clic pour charger les sous-dossiers
+      folderNameSpan.addEventListener("click", async (event) => {
+        event.stopPropagation(); // Évite que le clic se propage aux parents
+
+        if (listItem.dataset.loaded === "true") {
+          // Si déjà chargé, on se contente de basculer la visibilité du sous-menu
+          const subList = listItem.querySelector("ul");
+          if (subList) {
+            subList.style.display =
+              subList.style.display === "none" ? "block" : "none";
+            listItem.classList.toggle("collapsed");
+          }
+          return;
+        }
+
+        // Afficher un indicateur de chargement
+        const loadingSpan = document.createElement("span");
+        loadingSpan.textContent = " (chargement...)";
+        loadingSpan.className = "loading-text";
+        folderNameSpan.appendChild(loadingSpan);
+
+        try {
+          const subFolders = await fetchFolderContents(
+            folder.id,
+            globalAccessToken,
+          );
+
+          const subList = document.createElement("ul");
+          subList.className = "folder-tree";
+          listItem.appendChild(subList);
+
+          renderAndAttachFolderListeners(subFolders, subList);
+
+          listItem.dataset.loaded = "true";
+        } catch (error) {
+          console.error(`Erreur au chargement du dossier ${folder.id}`, error);
+          folderNameSpan.textContent += " (erreur)";
+        } finally {
+          // Retirer l'indicateur de chargement
+          folderNameSpan.removeChild(loadingSpan);
+        }
+      });
+    });
   }
 })();
