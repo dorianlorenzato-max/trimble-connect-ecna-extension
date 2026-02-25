@@ -128,39 +128,33 @@ async function fetchProjectGroups(projectId, accessToken) {
 // lecture du fichier JSON pour la configuration des flux
 
 async function fetchConfigurationFile(triconnectAPI, accessToken, filename) {
-  const projectInfo = await triconnectAPI.project.getCurrentProject();
-  //TODO modifier le nom du fichier pour qu'il soit directement récupéré du projet
   const folderId = "MkvA_YZPfBk";
   const apiBaseUrl = "https://app21.connect.trimble.com/tc/api/2.0";
 
   try {
-    // 1. Trouver l'ID du fichier par son nom dans le dossier
-    const getFileUrl = `${apiBaseUrl}/folders/${folderId}/items?name=${filename}`;
-    const fileInfoResponse = await fetch(getFileUrl, {
+    // Étape A: Lister les items pour trouver notre fichier
+    const listItemsUrl = `${apiBaseUrl}/folders/${folderId}/items`;
+    const itemsResponse = await fetch(listItemsUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    if (fileInfoResponse.status === 404) {
-      console.log(
-        "Le fichier de configuration n'existe pas encore. Un nouveau sera créé.",
-      );
-      return null; // Cas normal si c'est le premier enregistrement
-    }
-    if (fileInfoResponse.status === 200) {
-      console.log("Le fichier est existant.");
-      return null; // Cas si un fichier du meme nom est trouvé
-    }
-    if (!fileInfoResponse.ok) {
-      throw new Error(
-        `Impossible de trouver les informations du fichier ${filename}.`,
-      );
+    if (!itemsResponse.ok) {
+      throw new Error(`Impossible de lister le contenu du dossier (Statut: ${itemsResponse.status}).`);
     }
 
-    const fileInfo = await fileInfoResponse.json();
-    const fileId = fileInfo.id;
+    const allItems = await itemsResponse.json();
+    const fileInfo = allItems.find(item => item.name === filename && item.type === 'FILE');
 
-    // 2. Obtenir l'URL de téléchargement pour ce fichier
-    const getDownloadUrl = `${apiBaseUrl}/files/fs/${fileId}/downloadurl`;
+    // Étape B: Si le fichier n'est pas dans la liste, on retourne null.
+    if (!fileInfo) {
+      console.log(`Le fichier '${filename}' n'a pas été trouvé. Un nouveau sera créé.`);
+      return null; 
+    }
+    
+    console.log(`Fichier trouvé avec l'ID : ${fileInfo.id}. Procédons au téléchargement.`);
+
+    // Étape C: Si on a trouvé le fichier, on continue pour le télécharger
+    const getDownloadUrl = `${apiBaseUrl}/files/fs/${fileInfo.id}/downloadurl`;
     const downloadInfoResponse = await fetch(getDownloadUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -168,22 +162,20 @@ async function fetchConfigurationFile(triconnectAPI, accessToken, filename) {
       throw new Error("Impossible d'obtenir l'URL de téléchargement.");
     }
     const downloadInfo = await downloadInfoResponse.json();
-    const finalDownloadUrl = downloadInfo.url;
-
-    // 3. Télécharger le contenu du fichier
-    const fileContentResponse = await fetch(finalDownloadUrl); // Pas de header d'auth ici
+    
+    // Étape D: Télécharger le contenu brut
+    const fileContentResponse = await fetch(downloadInfo.url);
     if (!fileContentResponse.ok) {
       throw new Error("Le téléchargement du contenu du fichier a échoué.");
     }
 
-    // Retourner le contenu parsé en JSON
-    return await fileContentResponse.json();
+    // Étape E: Renvoyer l'objet JSON parsé
+    const jsonData = await fileContentResponse.json();
+    console.log("Contenu du fichier existant parsé avec succès :", jsonData);
+    return jsonData; // On retourne bien le contenu !
+
   } catch (error) {
-    // Si une autre erreur que 404 survient, on la signale.
-    console.error(
-      "Erreur lors de la récupération du fichier de configuration:",
-      error,
-    );
+    console.error("Erreur dans fetchConfigurationFile:", error);
     throw error;
   }
 }
@@ -293,6 +285,7 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
 
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile, fetchConfigurationFile };
+
 
 
 
