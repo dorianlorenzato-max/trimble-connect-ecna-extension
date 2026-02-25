@@ -135,9 +135,9 @@ async function fetchConfigurationFile(triconnectAPI, accessToken, filename) {
 
   try {
     // 1. Trouver l'ID du fichier par son nom dans le dossier
-    const getFileUrl = `${apiBaseUrl}/folders/${folderId}/item?name=${filename}`;
+    const getFileUrl = `${apiBaseUrl}/folders/${folderId}/items?name=${filename}`;
     const fileInfoResponse = await fetch(getFileUrl, {
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
 
     if (fileInfoResponse.status === 404) {
@@ -145,6 +145,14 @@ async function fetchConfigurationFile(triconnectAPI, accessToken, filename) {
         "Le fichier de configuration n'existe pas encore. Un nouveau sera créé.",
       );
       return null; // Cas normal si c'est le premier enregistrement
+    }
+    if (fileInfoResponse.status === 200) {
+      console.log("Le fichier est existant.");
+      return null; // Cas si un fichier du meme nom est trouvé
+    }
+    if (fileInfoResponse.status === 400) {
+      console.log("Mauvaise demande.");
+      return null; // Cas si un fichier du meme nom est trouvé
     }
     if (!fileInfoResponse.ok) {
       throw new Error(
@@ -289,6 +297,7 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
 
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile, fetchConfigurationFile };
+
 
 
 
