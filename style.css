@@ -51,6 +51,40 @@ body {
   color: #003a72;
 }
 
+
+/* === STYLES POUR LE TABLEAU DES VISAS (SECTION RÉINTÉGRÉE) === */
+.visa-table-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  overflow-x: auto;
+}
+.visa-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.visa-table th,
+.visa-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #ddd;
+  text-align: left;
+}
+.visa-table th {
+  background-color: #f8f8f8;
+  font-weight: bold;
+  color: #333;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.visa-table tbody tr:hover {
+  background-color: #f1f1f1;
+}
+
+
 /* === STYLES UNIFIÉS POUR LES BOUTONS === */
 .button-primary, .button-secondary, .button-danger, .config-button {
   border: none;
@@ -84,7 +118,7 @@ body {
 }
 
 .button-danger {
-  background-color: #d9534f; /* Rouge pour la suppression */
+  background-color: #d9534f;
   color: white;
 }
 .button-danger:hover {
@@ -230,7 +264,7 @@ body {
 }
 
 select[multiple] {
-    min-height: 120px; /* Hauteur minimale pour voir plusieurs options */
+    min-height: 120px;
 }
 
 
@@ -240,7 +274,7 @@ select[multiple] {
 }
 
 .add-button {
-  background-color: #28a745; /* Vert pour l'ajout */
+  background-color: #28a745;
   color: white;
   border: none;
   border-radius: 50%;
@@ -279,4 +313,3 @@ select[multiple] {
 .message-container h2 {
     margin-top: 0;
 }
-
