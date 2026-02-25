@@ -150,10 +150,6 @@ async function fetchConfigurationFile(triconnectAPI, accessToken, filename) {
       console.log("Le fichier est existant.");
       return null; // Cas si un fichier du meme nom est trouvé
     }
-    if (fileInfoResponse.status === 400) {
-      console.log("Mauvaise demande.");
-      return null; // Cas si un fichier du meme nom est trouvé
-    }
     if (!fileInfoResponse.ok) {
       throw new Error(
         `Impossible de trouver les informations du fichier ${filename}.`,
@@ -297,6 +293,7 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
 
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile, fetchConfigurationFile };
+
 
 
 
