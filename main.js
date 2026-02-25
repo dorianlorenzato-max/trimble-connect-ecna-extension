@@ -1,5 +1,5 @@
 // On importe les fonctions depuis nos modules
-import { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile } from "./api.js";
+import { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile, fetchConfigurationFile } from "./api.js";
 import { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfigPage, renderCreateFluxPage, renderSaving, renderSuccess } from './ui.js';
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
@@ -57,73 +57,93 @@ async function handleCreateFluxClick() {
     }
 }
 // --- GESTIONNAIRE POUR LE BOUTON D'ENREGISTREMENT DU FLUX ---
+// --- GESTIONNAIRE POUR LE BOUTON D'ENREGISTREMENT DU FLUX ---
 async function handleSaveFluxClick() {
-    // 1. Lire les données du formulaire
-    const fluxName = document.getElementById('flux-name').value;
+  // --- Section 1: Lecture des données du formulaire (INCHANGÉE) ---
+  const fluxName = document.getElementById("flux-name").value;
+  if (!fluxName.trim()) {
+    alert("Veuillez donner un nom au flux.");
+    return;
+  }
+  const fluxSteps = [];
+  const stepElements = document.querySelectorAll(".flux-step");
+  let validationOk = true;
+  stepElements.forEach((stepEl, index) => {
+    const groupSelect = stepEl.querySelector(".group-select");
+    const selectedGroupIds = Array.from(groupSelect.selectedOptions).map((opt) => opt.value);
+    const duration = stepEl.querySelector(".duration-select").value;
 
-    if (!fluxName.trim()) {
-        alert("Veuillez donner un nom au flux.");
-        return;
+    if (selectedGroupIds.length === 0) {
+      alert(`Veuillez sélectionner au moins un groupe pour l'étape ${index + 1}.`);
+      validationOk = false;
     }
-
-    const fluxSteps = [];
-    const stepElements = document.querySelectorAll('.flux-step');
-    
-    stepElements.forEach((stepEl, index) => {
-        const groupSelect = stepEl.querySelector('.group-select');
-        // Récupérer toutes les options sélectionnées pour un groupe
-        const selectedGroupIds = Array.from(groupSelect.selectedOptions).map(opt => opt.value);
-        
-        const duration = stepEl.querySelector('.duration-select').value;
-
-        if (selectedGroupIds.length === 0) {
-            alert(`Veuillez sélectionner au moins un groupe pour l'étape ${index + 1}.`);
-            return; // On pourrait améliorer cette validation
-        }
-
-        fluxSteps.push({
-            step: index + 1,
-            groupIds: selectedGroupIds, // On sauvegarde un tableau d'IDs
-            durationDays: parseInt(duration, 10)
-        });
+    fluxSteps.push({
+      step: index + 1,
+      groupIds: selectedGroupIds,
+      durationDays: parseInt(duration, 10),
     });
-    
-    // Si la validation a échoué sur une des étapes
-    if (fluxSteps.length !== stepElements.length) {
-        return;
+  });
+
+  if (!validationOk) return;
+
+  // Créer l'objet pour le nouveau flux
+  const newFluxData = {
+    name: fluxName,
+    steps: fluxSteps,
+  };
+
+  // Afficher l'écran de sauvegarde
+  renderSaving(mainContentDiv);
+
+  try {
+    // --- Section 2: Logique "Lire, Modifier, Écrire" (MODIFIÉE) ---
+
+    // ÉTAPE 1: LIRE la configuration existante depuis Trimble Connect
+    console.log("Lecture de la configuration existante...");
+    const existingConfig = await fetchConfigurationFile(
+      triconnectAPI,
+      globalAccessToken,
+      "ecna-visa-config.json",
+    );
+
+    let finalConfigurationData;
+
+    // ÉTAPE 2: MODIFIER (fusionner les données)
+    if (existingConfig && existingConfig.flux) {
+      // Le fichier existe et a une structure valide, on ajoute le nouveau flux
+      console.log("Fichier existant trouvé, ajout du nouveau flux.");
+      existingConfig.flux.push(newFluxData);
+      finalConfigurationData = existingConfig;
+    } else {
+      // Le fichier n'existe pas ou est vide, on crée une nouvelle structure
+      console.log("Aucun fichier valide existant, création d'un nouveau.");
+      finalConfigurationData = {
+        flux: [newFluxData],
+      };
     }
 
-    // 2. Préparer l'objet de configuration
-    // Pour le moment, on écrase toute la configuration avec ce nouveau flux
-    // Plus tard, on pourra lire le fichier existant et y ajouter le nouveau flux
-    const configurationData = {
-        flux: [{
-            name: fluxName,
-            steps: fluxSteps
-        }]
-    };
+    // ÉTAPE 3: ÉCRIRE la configuration complète
+    console.log("Sauvegarde de la configuration finale :", finalConfigurationData);
+    await saveConfigurationFile(
+      triconnectAPI,
+      globalAccessToken,
+      finalConfigurationData, // On envoie l'objet fusionné !
+      "ecna-visa-config.json",
+    );
 
-    // 3. Lancer la sauvegarde
-    renderSaving(mainContentDiv);
-    try {
-        await saveConfigurationFile(
-            triconnectAPI, 
-            globalAccessToken, 
-            configurationData, 
-            'ecna-visa-config.json' // Le nom de notre fichier
-        );
+    // --- Section 3: Affichage du succès (INCHANGÉE) ---
+    renderSuccess(
+      mainContentDiv,
+      "Le nouveau flux a été ajouté avec succès.",
+    );
 
-        // 4. Afficher le succès et revenir à la page de configuration
-        renderSuccess(mainContentDiv, "Le nouveau flux a été sauvegardé avec succès.");
-        
-        setTimeout(() => {
-            handleConfigClick(); // Retour à la page de configuration après 2 secondes
-        }, 2000);
-
-    } catch (error) {
-        console.error("Échec de la sauvegarde du flux :", error);
-        renderError(mainContentDiv, error);
-    }
+    setTimeout(() => {
+      handleConfigClick();
+    }, 2000);
+  } catch (error) {
+    console.error("Échec de la sauvegarde du flux :", error);
+    renderError(mainContentDiv, error);
+  }
 }
 
 // --- GESTIONNAIRE POUR AFFICHER LA PAGE DE CONFIGURATION ---
@@ -187,6 +207,7 @@ function handleConfigClick() {
     renderError(mainContentDiv, error);
   }
 })();
+
 
 
 
