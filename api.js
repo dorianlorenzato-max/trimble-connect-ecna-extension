@@ -125,6 +125,65 @@ async function fetchProjectGroups(projectId, accessToken) {
     return allGroups;
 }
 
+// lecture du fichier JSON pour la configuration des flux
+
+async function fetchConfigurationFile(triconnectAPI, accessToken, filename) {
+  const projectInfo = await triconnectAPI.project.getCurrentProject();
+  //TODO modifier le nom du fichier pour qu'il soit directement récupéré du projet
+  const folderId = "MkvA_YZPfBk";
+  const apiBaseUrl = "https://app21.connect.trimble.com/tc/api/2.0";
+
+  try {
+    // 1. Trouver l'ID du fichier par son nom dans le dossier
+    const getFileUrl = `${apiBaseUrl}/folders/${folderId}/item?name=${encodeURIComponent(filename)}`;
+    const fileInfoResponse = await fetch(getFileUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (fileInfoResponse.status === 404) {
+      console.log(
+        "Le fichier de configuration n'existe pas encore. Un nouveau sera créé.",
+      );
+      return null; // Cas normal si c'est le premier enregistrement
+    }
+    if (!fileInfoResponse.ok) {
+      throw new Error(
+        `Impossible de trouver les informations du fichier ${filename}.`,
+      );
+    }
+
+    const fileInfo = await fileInfoResponse.json();
+    const fileId = fileInfo.id;
+
+    // 2. Obtenir l'URL de téléchargement pour ce fichier
+    const getDownloadUrl = `${apiBaseUrl}/files/fs/${fileId}/downloadurl`;
+    const downloadInfoResponse = await fetch(getDownloadUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!downloadInfoResponse.ok) {
+      throw new Error("Impossible d'obtenir l'URL de téléchargement.");
+    }
+    const downloadInfo = await downloadInfoResponse.json();
+    const finalDownloadUrl = downloadInfo.url;
+
+    // 3. Télécharger le contenu du fichier
+    const fileContentResponse = await fetch(finalDownloadUrl); // Pas de header d'auth ici
+    if (!fileContentResponse.ok) {
+      throw new Error("Le téléchargement du contenu du fichier a échoué.");
+    }
+
+    // Retourner le contenu parsé en JSON
+    return await fileContentResponse.json();
+  } catch (error) {
+    // Si une autre erreur que 404 survient, on la signale.
+    console.error(
+      "Erreur lors de la récupération du fichier de configuration:",
+      error,
+    );
+    throw error;
+  }
+}
+
 //Sauvegarde un objet de configuration dans un fichier JSON à la racine du projet.
 
 async function saveConfigurationFile(triconnectAPI, accessToken, configurationData, filename) {
@@ -229,7 +288,8 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
 }
 
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
-export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile };
+export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile, fetchConfigurationFile };
+
 
 
 
