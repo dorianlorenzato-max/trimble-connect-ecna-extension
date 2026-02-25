@@ -1,157 +1,307 @@
 // On importe les fonctions depuis nos modules
-import { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile, fetchConfigurationFile } from "./api.js";
-import { renderLoading, renderError, renderWelcome, renderVisaTable, renderConfigPage, renderCreateFluxPage, renderSaving, renderSuccess } from './ui.js';
+import {
+  fetchVisaDocuments,
+  fetchProjectGroups,
+  saveConfigurationFile,
+  fetchConfigurationFile,
+} from "./api.js";
+import {
+  renderLoading,
+  renderError,
+  renderWelcome,
+  renderVisaTable,
+  renderConfigPage,
+  renderCreateFluxPage,
+  renderManageFluxPage, // <--- AJOUTÉ
+  renderSaving,
+  renderSuccess,
+} from "./ui.js";
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
 (async function () {
   const mainContentDiv = document.getElementById("mainContent");
+  const CONFIG_FILENAME = "ecna-visa-config.json"; // Nom du fichier de configuration
   const TRIMBLE_CLIENT_ID = "db958c40-8b49-4d72-b9cc-71333d3c9581"; // Votre ID Client
 
   let triconnectAPI;
   let globalAccessToken = null;
+  let currentProjectGroups = []; // Pour stocker les groupes et éviter de les re-fetcher
+  let currentEditedFluxName = null; // Pour suivre si nous éditons un flux existant
+
+  // Fonction utilitaire pour rafraîchir la page de gestion des flux
+  async function refreshManageFluxPage() {
+    renderLoading(mainContentDiv);
+    try {
+      // Récupérer la configuration la plus récente
+      const config = await fetchConfigurationFile(triconnectAPI, globalAccessToken, CONFIG_FILENAME);
+      const flows = config ? config.flux : [];
+      // Rendre la page de gestion des flux
+      renderManageFluxPage(mainContentDiv, flows, currentProjectGroups);
+      attachManageFluxEvents(flows); // Ré-attacher les événements
+    } catch (error) {
+      console.error("Erreur lors du rafraîchissement de la page de gestion des flux :", error);
+      renderError(mainContentDiv, error);
+    }
+  }
+
+  // Fonction pour attacher les événements sur les boutons Modifier/Supprimer
+  function attachManageFluxEvents(flows) {
+    document.querySelectorAll('.edit-flux-btn').forEach(button => {
+        button.addEventListener('click', (event) => {
+            const fluxName = event.target.dataset.fluxName;
+            handleEditFlux(fluxName);
+        });
+    });
+
+    document.querySelectorAll('.delete-flux-btn').forEach(button => {
+        button.addEventListener('click', (event) => {
+            const fluxName = event.target.dataset.fluxName;
+            handleDeleteFlux(fluxName);
+        });
+    });
+
+    document.getElementById('back-to-config-btn').addEventListener('click', handleConfigClick);
+  }
+
 
   // --- GESTIONNAIRE D'ÉVÉNEMENT POUR LE BOUTON VISA ---
   async function handleVisaButtonClick() {
     if (!globalAccessToken || !triconnectAPI) {
-      renderError(
-        mainContentDiv,
-        new Error("L'extension n'est pas correctement initialisée."),
-      );
+      renderError(mainContentDiv, new Error("L'extension n'est pas correctement initialisée."));
       return;
     }
     renderLoading(mainContentDiv);
     try {
-      const documents = await fetchVisaDocuments(
-        globalAccessToken,
-        triconnectAPI,
-      );
+      const documents = await fetchVisaDocuments(globalAccessToken, triconnectAPI);
       renderVisaTable(mainContentDiv, documents);
     } catch (error) {
       console.error("Erreur lors de la récupération des documents :", error);
       renderError(mainContentDiv, error);
     }
   }
-  
+
   // --- GESTIONNAIRE POUR LE BOUTON DE CREATION DE FLUX ---
-async function handleCreateFluxClick() {
+  async function handleCreateFluxClick() {
     if (!globalAccessToken || !triconnectAPI) {
-        renderError(mainContentDiv, new Error("L'extension n'est pas correctement initialisée."));
+      renderError(mainContentDiv, new Error("L'extension n'est pas correctement initialisée."));
+      return;
+    }
+
+    currentEditedFluxName = null; // S'assurer qu'on est en mode création
+    renderLoading(mainContentDiv);
+    try {
+      const projectInfo = await triconnectAPI.project.getCurrentProject();
+      currentProjectGroups = await fetchProjectGroups(projectInfo.id, globalAccessToken);
+
+      renderCreateFluxPage(mainContentDiv, currentProjectGroups); // Pas de flux à éditer
+      attachCreateEditFluxEvents();
+    } catch (error) {
+      console.error("Erreur lors de la préparation de la création de flux :", error);
+      renderError(mainContentDiv, error);
+    }
+  }
+
+  // --- NOUVEAU GESTIONNAIRE POUR LE BOUTON 'GÉRER LES FLUX' ---
+  async function handleManageFluxClick() {
+    if (!globalAccessToken || !triconnectAPI) {
+      renderError(mainContentDiv, new Error("L'extension n'est pas correctement initialisée."));
+      return;
+    }
+
+    renderLoading(mainContentDiv);
+    try {
+      const projectInfo = await triconnectAPI.project.getCurrentProject();
+      currentProjectGroups = await fetchProjectGroups(projectInfo.id, globalAccessToken); // Récupérer les groupes
+      
+      const config = await fetchConfigurationFile(triconnectAPI, globalAccessToken, CONFIG_FILENAME);
+      const flows = config ? config.flux : []; // Récupérer tous les flux
+
+      renderManageFluxPage(mainContentDiv, flows, currentProjectGroups);
+      attachManageFluxEvents(flows);
+    } catch (error) {
+      console.error("Erreur lors de la récupération des flux existants :", error);
+      renderError(mainContentDiv, error);
+    }
+  }
+
+  // --- GESTIONNAIRE POUR SUPPRIMER UN FLUX ---
+  async function handleDeleteFlux(fluxNameToDelete) {
+      if (!confirm(`Êtes-vous sûr de vouloir supprimer le flux "${fluxNameToDelete}" ? Cette action est irréversible.`)) {
+          return; // Annuler la suppression si l'utilisateur refuse
+      }
+
+      renderSaving(mainContentDiv); // Afficher un message de "suppression en cours"
+      try {
+          const existingConfig = await fetchConfigurationFile(triconnectAPI, globalAccessToken, CONFIG_FILENAME);
+          if (!existingConfig || !existingConfig.flux) {
+              throw new Error("Impossible de récupérer la configuration existante.");
+          }
+
+          const updatedFluxes = existingConfig.flux.filter(flux => flux.name !== fluxNameToDelete);
+          const finalConfigurationData = { ...existingConfig, flux: updatedFluxes }; // Conserver les autres propriétés du fichier si elles existent
+
+          await saveConfigurationFile(triconnectAPI, globalAccessToken, finalConfigurationData, CONFIG_FILENAME);
+          
+          renderSuccess(mainContentDiv, `Le flux "${fluxNameToDelete}" a été supprimé avec succès.`);
+          setTimeout(refreshManageFluxPage, 1500); // Rafraîchir après un court délai
+      } catch (error) {
+          console.error(`Échec de la suppression du flux "${fluxNameToDelete}" :`, error);
+          renderError(mainContentDiv, error);
+      }
+  }
+
+  // --- GESTIONNAIRE POUR ÉDITER UN FLUX ---
+  async function handleEditFlux(fluxName) {
+      if (!globalAccessToken || !triconnectAPI) {
+          renderError(mainContentDiv, new Error("L'extension n'est pas correctement initialisée."));
+          return;
+      }
+
+      renderLoading(mainContentDiv);
+      try {
+          const existingConfig = await fetchConfigurationFile(triconnectAPI, globalAccessToken, CONFIG_FILENAME);
+          if (!existingConfig || !existingConfig.flux) {
+              throw new Error("Impossible de récupérer la configuration existante pour l'édition.");
+          }
+
+          const fluxToEdit = existingConfig.flux.find(flux => flux.name === fluxName);
+          if (!fluxToEdit) {
+              throw new Error(`Flux "${fluxName}" introuvable pour édition.`);
+          }
+
+          currentEditedFluxName = fluxName; // Marquer le flux en cours d'édition
+          const projectInfo = await triconnectAPI.project.getCurrentProject();
+          currentProjectGroups = await fetchProjectGroups(projectInfo.id, globalAccessToken);
+
+          renderCreateFluxPage(mainContentDiv, currentProjectGroups, fluxToEdit); // Passer le flux à éditer
+          attachCreateEditFluxEvents();
+      } catch (error) {
+          console.error(`Erreur lors de la préparation de l'édition du flux "${fluxName}" :`, error);
+          renderError(mainContentDiv, error);
+      }
+  }
+
+  // --- GESTIONNAIRE POUR LE BOUTON D'ENREGISTREMENT/MODIFICATION DU FLUX ---
+  async function handleSaveFluxClick() {
+    // --- Section 1: Lecture des données du formulaire ---
+    const fluxNameInput = document.getElementById("flux-name");
+    const fluxName = fluxNameInput.value;
+    const originalFluxName = document.getElementById("original-flux-name") ? document.getElementById("original-flux-name").value : null;
+
+    if (!fluxName.trim()) {
+      alert("Veuillez donner un nom au flux.");
+      return;
+    }
+
+    const fluxSteps = [];
+    const stepElements = document.querySelectorAll(".flux-step");
+    let validationOk = true;
+
+    if (stepElements.length === 0) { // S'assurer qu'il y a au moins une étape
+        alert("Veuillez ajouter au moins une étape au flux.");
         return;
     }
 
-    renderLoading(mainContentDiv); // Affiche un message de chargement
-    try {
-        const projectInfo = await triconnectAPI.project.getCurrentProject();
-        const projectGroups = await fetchProjectGroups(projectInfo.id, globalAccessToken);
-        
-        // Affiche la page de création en lui passant la liste des groupes
-        renderCreateFluxPage(mainContentDiv, projectGroups);
+    stepElements.forEach((stepEl, index) => {
+      const groupSelect = stepEl.querySelector(".group-select");
+      const selectedGroupIds = Array.from(groupSelect.selectedOptions).map(
+        (opt) => opt.value,
+      );
+      const duration = stepEl.querySelector(".duration-select").value;
 
-        // Une fois la page affichée, on attache l'événement au bouton "Annuler"
-        document.getElementById('cancel-flux-creation-btn').addEventListener('click', handleConfigClick);
-        document.getElementById('save-flux-btn').addEventListener('click', handleSaveFluxClick);
-
-    } catch (error) {
-        console.error("Erreur lors de la préparation de la création de flux :", error);
-        renderError(mainContentDiv, error);
-    }
-}
-// --- GESTIONNAIRE POUR LE BOUTON D'ENREGISTREMENT DU FLUX ---
-async function handleSaveFluxClick() {
-  // --- Section 1: Lecture des données du formulaire (INCHANGÉE) ---
-  const fluxName = document.getElementById("flux-name").value;
-  if (!fluxName.trim()) {
-    alert("Veuillez donner un nom au flux.");
-    return;
-  }
-  const fluxSteps = [];
-  const stepElements = document.querySelectorAll(".flux-step");
-  let validationOk = true;
-  stepElements.forEach((stepEl, index) => {
-    const groupSelect = stepEl.querySelector(".group-select");
-    const selectedGroupIds = Array.from(groupSelect.selectedOptions).map((opt) => opt.value);
-    const duration = stepEl.querySelector(".duration-select").value;
-
-    if (selectedGroupIds.length === 0) {
-      alert(`Veuillez sélectionner au moins un groupe pour l'étape ${index + 1}.`);
-      validationOk = false;
-    }
-    fluxSteps.push({
-      step: index + 1,
-      groupIds: selectedGroupIds,
-      durationDays: parseInt(duration, 10),
+      if (selectedGroupIds.length === 0) {
+        alert(
+          `Veuillez sélectionner au moins un groupe pour l'étape ${index + 1}.`,
+        );
+        validationOk = false;
+      }
+      fluxSteps.push({
+        step: index + 1,
+        groupIds: selectedGroupIds,
+        durationDays: parseInt(duration, 10),
+      });
     });
-  });
 
-  if (!validationOk) return;
+    if (!validationOk) return;
 
-  // Créer l'objet pour le nouveau flux
-  const newFluxData = {
-    name: fluxName,
-    steps: fluxSteps,
-  };
+    // Créer l'objet pour le nouveau ou le flux modifié
+    const newFluxData = {
+      name: fluxName,
+      steps: fluxSteps,
+    };
 
-  // Afficher l'écran de sauvegarde
-  renderSaving(mainContentDiv);
+    renderSaving(mainContentDiv);
 
-  try {
-    // ÉTAPE 1: LIRE la configuration existante depuis Trimble Connect
-    console.log("Lecture de la configuration existante...");
-    const existingConfig = await fetchConfigurationFile(
-      triconnectAPI,
-      globalAccessToken,
-      "ecna-visa-config.json",
-    );
-    console.log("Résultat de fetchConfigurationFile (doit être un objet si le fichier existe):", existingConfig);
-    
-    let finalConfigurationData;
+    try {
+      // ÉTAPE 1: LIRE la configuration existante
+      const existingConfig = await fetchConfigurationFile(
+        triconnectAPI,
+        globalAccessToken,
+        CONFIG_FILENAME,
+      );
 
-    // ÉTAPE 2: MODIFIER (fusionner les données)
-    if (existingConfig && existingConfig.flux) {
-      // Le fichier existe et a une structure valide, on ajoute le nouveau flux
-      console.log("Fichier existant trouvé, ajout du nouveau flux.");
-      existingConfig.flux.push(newFluxData);
-      finalConfigurationData = existingConfig;
-    } else {
-      // Le fichier n'existe pas ou est vide, on crée une nouvelle structure
-      console.log("Aucun fichier valide existant, création d'un nouveau.");
-      finalConfigurationData = {
-        flux: [newFluxData],
-      };
+      let finalConfigurationData = existingConfig || { flux: [] }; // Initialiser si le fichier est vide ou n'existe pas
+
+      // ÉTAPE 2: MODIFIER (fusionner/mettre à jour les données)
+      if (currentEditedFluxName) {
+        // Mode édition
+        const index = finalConfigurationData.flux.findIndex(flux => flux.name === currentEditedFluxName);
+        if (index !== -1) {
+            finalConfigurationData.flux[index] = newFluxData; // Remplacer le flux existant
+        } else {
+            // Cas inattendu : le flux à éditer n'est plus là, on l'ajoute
+            finalConfigurationData.flux.push(newFluxData);
+        }
+        console.log(`Flux "${currentEditedFluxName}" modifié en "${fluxName}".`);
+        currentEditedFluxName = null; // Réinitialiser le mode édition
+      } else {
+        // Mode création
+        // Vérifier si un flux avec ce nom existe déjà en mode création
+        if (finalConfigurationData.flux.some(flux => flux.name === fluxName)) {
+            alert(`Un flux nommé "${fluxName}" existe déjà. Veuillez choisir un nom différent.`);
+            renderCreateFluxPage(mainContentDiv, currentProjectGroups, newFluxData); // Re-afficher le formulaire avec les données actuelles
+            attachCreateEditFluxEvents();
+            return;
+        }
+        finalConfigurationData.flux.push(newFluxData); // Ajouter un nouveau flux
+        console.log(`Nouveau flux "${fluxName}" ajouté.`);
+      }
+
+      // ÉTAPE 3: ÉCRIRE la configuration complète
+      await saveConfigurationFile(
+        triconnectAPI,
+        globalAccessToken,
+        finalConfigurationData,
+        CONFIG_FILENAME,
+      );
+
+      renderSuccess(
+        mainContentDiv,
+        `Le flux "${fluxName}" a été ${originalFluxName ? 'modifié' : 'enregistré'} avec succès.`,
+      );
+
+      setTimeout(handleManageFluxClick, 2000); // Retour à la gestion des flux après sauvegarde
+    } catch (error) {
+      console.error("Échec de la sauvegarde/modification du flux :", error);
+      renderError(mainContentDiv, error);
     }
-
-    // ÉTAPE 3: ÉCRIRE la configuration complète
-    console.log("Sauvegarde de la configuration finale :", finalConfigurationData);
-    await saveConfigurationFile(
-      triconnectAPI,
-      globalAccessToken,
-      finalConfigurationData, // On envoie l'objet fusionné !
-      "ecna-visa-config.json",
-    );
-
-    // --- Section 3: Affichage du succès (INCHANGÉE) ---
-    renderSuccess(
-      mainContentDiv,
-      "Le nouveau flux a été ajouté avec succès.",
-    );
-
-    setTimeout(() => {
-      handleConfigClick();
-    }, 2000);
-  } catch (error) {
-    console.error("Échec de la sauvegarde du flux :", error);
-    renderError(mainContentDiv, error);
   }
-}
 
-// --- GESTIONNAIRE POUR AFFICHER LA PAGE DE CONFIGURATION ---
-function handleConfigClick() {
+  // Fonction pour attacher les événements des boutons Annuler/Enregistrer
+  function attachCreateEditFluxEvents() {
+    document.getElementById("cancel-flux-creation-btn").addEventListener("click", handleManageFluxClick);
+    document.getElementById("save-flux-btn").addEventListener("click", handleSaveFluxClick);
+  }
+
+
+  // --- GESTIONNAIRE POUR AFFICHER LA PAGE DE CONFIGURATION ---
+  function handleConfigClick() {
     renderConfigPage(mainContentDiv);
-    
-    // La page de config est affichée, on peut maintenant attacher l'événement au bouton "Créer un flux"
-    // qui se trouve DANS cette page.
-    document.querySelector('.config-actions .config-button:first-child').addEventListener('click', handleCreateFluxClick);
-}
+
+    document.getElementById("create-flux-btn").addEventListener("click", handleCreateFluxClick);
+    document.getElementById("manage-flux-btn").addEventListener("click", handleManageFluxClick); // <-- NOUVEAU
+  }
+
   // --- INITIALISATION DE L'EXTENSION ---
   try {
     mainContentDiv.innerHTML = `<p>Connexion à Trimble Connect...</p>`;
@@ -186,15 +336,17 @@ function handleConfigClick() {
       command: "ecna_gestion_visa_clicked",
     });
 
-    // Attacher les événements aux boutons
+    // Attacher les événements aux boutons principaux de la bannière
     document
       .getElementById("visasBtn")
       .addEventListener("click", handleVisaButtonClick);
     document
       .getElementById("dashboardBtn")
       .addEventListener("click", () => renderWelcome(mainContentDiv));
-    document.getElementById("configBtn").addEventListener("click", handleConfigClick);
-    
+    document
+      .getElementById("configBtn")
+      .addEventListener("click", handleConfigClick);
+
     // Afficher l'accueil
     renderWelcome(mainContentDiv);
   } catch (error) {
@@ -205,10 +357,3 @@ function handleConfigClick() {
     renderError(mainContentDiv, error);
   }
 })();
-
-
-
-
-
-
-
