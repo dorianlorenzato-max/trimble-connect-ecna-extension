@@ -135,7 +135,7 @@ async function fetchConfigurationFile(triconnectAPI, accessToken, filename) {
 
   try {
     // 1. Trouver l'ID du fichier par son nom dans le dossier
-    const getFileUrl = `${apiBaseUrl}/folders/${folderId}/item?name=${encodeURIComponent(filename)}`;
+    const getFileUrl = `${apiBaseUrl}/folders/${folderId}/item?name=${filename}`;
     const fileInfoResponse = await fetch(getFileUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -289,6 +289,7 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
 
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile, fetchConfigurationFile };
+
 
 
 
