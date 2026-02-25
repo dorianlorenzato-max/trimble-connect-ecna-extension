@@ -57,7 +57,6 @@ async function handleCreateFluxClick() {
     }
 }
 // --- GESTIONNAIRE POUR LE BOUTON D'ENREGISTREMENT DU FLUX ---
-// --- GESTIONNAIRE POUR LE BOUTON D'ENREGISTREMENT DU FLUX ---
 async function handleSaveFluxClick() {
   // --- Section 1: Lecture des données du formulaire (INCHANGÉE) ---
   const fluxName = document.getElementById("flux-name").value;
@@ -96,8 +95,6 @@ async function handleSaveFluxClick() {
   renderSaving(mainContentDiv);
 
   try {
-    // --- Section 2: Logique "Lire, Modifier, Écrire" (MODIFIÉE) ---
-
     // ÉTAPE 1: LIRE la configuration existante depuis Trimble Connect
     console.log("Lecture de la configuration existante...");
     const existingConfig = await fetchConfigurationFile(
@@ -105,7 +102,8 @@ async function handleSaveFluxClick() {
       globalAccessToken,
       "ecna-visa-config.json",
     );
-
+    console.log("Résultat de fetchConfigurationFile (doit être un objet si le fichier existe):", existingConfig);
+    
     let finalConfigurationData;
 
     // ÉTAPE 2: MODIFIER (fusionner les données)
@@ -207,6 +205,7 @@ function handleConfigClick() {
     renderError(mainContentDiv, error);
   }
 })();
+
 
 
 
