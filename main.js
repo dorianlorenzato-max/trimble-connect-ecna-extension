@@ -24,7 +24,7 @@ import {
 (async function () {
   const mainContentDiv = document.getElementById("mainContent");
   const CONFIG_FILENAME = "ecna-visa-config.json"; // Nom du fichier de configuration des flux
-  const FLUX_CONFIG_FILENAME = "flux-assignments.json"; // Nom pour fichier d'affectation des flux aux dossier
+  const ASSIGNMENTS_FILENAME = "flux-assignments.json"; // Nom pour fichier d'affectation des flux aux dossier
   const TRIMBLE_CLIENT_ID = "db958c40-8b49-4d72-b9cc-71333d3c9581"; // Votre ID Client
 
   let triconnectAPI;
@@ -485,7 +485,7 @@ import {
           fetchConfigurationFile(
             triconnectAPI,
             globalAccessToken,
-            FLUX_CONFIG_FILENAME,
+            CONFIG_FILENAME,
           ),
           fetchConfigurationFile(
             triconnectAPI,
@@ -653,4 +653,3 @@ import {
     });
   }
 })();
-
