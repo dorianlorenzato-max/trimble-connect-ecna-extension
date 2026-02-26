@@ -286,7 +286,7 @@ async function saveConfigurationFile(triconnectAPI, accessToken, configurationDa
 // Récupération de l'arborescence du projet Trimble
 
 async function fetchFolderContents(folderId, accessToken) {
-  const folderId = "MkvA_YZPfBk";
+  //const folderId = "MkvA_YZPfBk";
   const listItemsUrl = `https://app21.connect.trimble.com/tc/api/2.0/folders/${folderId}/items`;
 
   const response = await fetch(listItemsUrl, {
@@ -312,6 +312,7 @@ async function fetchFolderContents(folderId, accessToken) {
 
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile, fetchConfigurationFile, fetchFolderContents };
+
 
 
 
