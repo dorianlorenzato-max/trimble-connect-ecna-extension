@@ -365,6 +365,89 @@ function updateAssignmentPanel(folder, allFluxNames, currentAssignedFlux) {
     `;
 }
 
+// Affiche la page pour viser un document
+function renderVisaInterfacePage(container, doc) {
+  // Données pour l'exemple
+  const visaStatusOptions = ["BPE", "REJ", "BPA", "VI", "SO"]
+    .map((status) => `<option value="${status}">${status}</option>`)
+    .join("");
+
+  container.innerHTML = `
+    <div class="visa-interface-container">
+      <h1>Interface de Visa</h1>
+      
+      <div class="visa-interface-grid">
+        <!-- Colonne de Gauche -->
+        <div class="visa-col">
+          <div class="visa-data-bubble">
+            <label>Nom du Groupe de l'utilisateur</label>
+            <span>Groupe à récupérer</span>
+          </div>
+          <div class="visa-data-bubble">
+            <label>Nom de l'utilisateur</label>
+            <span>Utilisateur à récupérer</span>
+          </div>
+          <div class="visa-data-bubble">
+            <label>Date du jour</label>
+            <span>${new Date().toLocaleDateString()}</span>
+          </div>
+        </div>
+
+        <!-- Colonne Centrale -->
+        <div class="visa-col">
+          <div class="visa-data-bubble">
+            <label>Nom du projet</label>
+            <span>Projet à récupérer</span>
+          </div>
+          <div class="visa-data-bubble">
+            <label>État du Visa</label>
+            <select id="visa-status-select">${visaStatusOptions}</select>
+          </div>
+           <div class="visa-data-bubble">
+            <button id="view-doc-btn" class="button-secondary">Visualiser le document</button>
+          </div>
+          <div class="visa-data-bubble">
+            <label>Nom du fichier</label>
+            <span>${doc.name}</span>
+          </div>
+        </div>
+
+        <!-- Colonne de Droite -->
+        <div class="visa-col">
+          <div class="visa-data-bubble">
+            <label>Nom du flux de visa</label>
+            <span>Flux à récupérer</span>
+          </div>
+          <div class="visa-data-bubble">
+            <label>Indice du document</label>
+            <span>${doc.version}</span>
+          </div>
+          <div class="visa-data-bubble">
+            <label>Dernière date de dépôt</label>
+            <span>${doc.depositDate}</span>
+          </div>
+          <div class="visa-data-bubble">
+            <label>Nom du dernier dépositaire</label>
+            <span>${doc.depositorName}</span>
+          </div>
+        </div>
+        
+        <!-- Section Observations -->
+        <div class="visa-data-bubble full-width">
+            <label for="observations">Observations</label>
+            <textarea id="observations" placeholder="Ajoutez vos observations ici..."></textarea>
+        </div>
+
+        <!-- Actions -->
+        <div class="visa-actions">
+          <button id="cancel-visa-btn" class="button-secondary">Annuler</button>
+          <button id="save-visa-btn" class="button-primary">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 // Exporter toutes les fonctions désormais
 export {
   renderLoading,
@@ -378,4 +461,5 @@ export {
   renderSuccess,
   renderAffectationPage,
   updateAssignmentPanel,
+  renderVisaInterfacePage,
 };
