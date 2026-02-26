@@ -399,15 +399,11 @@ import {
       .getElementById("manage-flux-btn")
       .addEventListener("click", handleManageFluxClick);
 
-    // On trouve le bouton "Affectation d'un flux" et on le lie
-    const assignButton = Array.from(
-      document.querySelectorAll(".config-button"),
-    ).find((btn) => btn.textContent === "Affectation d'un flux");
-    if (assignButton) {
-      assignButton.disabled = false; // On l'active
-      assignButton.addEventListener("click", handleAssignFluxClick);
-    }
+    const assignButton = document.getElementById("assign-flux-btn");
+    assignButton.disabled = false; // On active le bouton
+    assignButton.addEventListener("click", handleAssignFluxClick);
   }
+  
   // --- INITIALISATION DE L'EXTENSION ---
   try {
     mainContentDiv.innerHTML = `<p>Connexion à Trimble Connect...</p>`;
@@ -566,3 +562,4 @@ import {
     });
   }
 })();
+
