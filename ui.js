@@ -93,7 +93,9 @@ function renderConfigPage(container) {
 // Affiche le formulaire de création/édition de flux
 function renderCreateFluxPage(container, projectGroups, fluxToEdit = null) {
   const isEditing = fluxToEdit !== null;
-  const pageTitle = isEditing ? `Édition du flux : ${fluxToEdit.name}` : "Création d'un nouveau flux de validation";
+  const pageTitle = isEditing
+    ? `Édition du flux : ${fluxToEdit.name}`
+    : "Création d'un nouveau flux de validation";
 
   // Options pour le menu déroulant de la durée
   const durationOptions = Array.from({ length: 20 }, (_, i) => i + 1)
@@ -110,8 +112,8 @@ function renderCreateFluxPage(container, projectGroups, fluxToEdit = null) {
             <h1>${pageTitle}</h1>
             <div class="form-section">
                 <label for="flux-name">Nom du flux :</label>
-                <input type="text" id="flux-name" name="flux-name" placeholder="Ex: Flux de validation VISA MOE" value="${fluxToEdit ? fluxToEdit.name : ''}">
-                ${isEditing ? `<input type="hidden" id="original-flux-name" value="${fluxToEdit.name}">` : ''}
+                <input type="text" id="flux-name" name="flux-name" placeholder="Ex: Flux de validation VISA MOE" value="${fluxToEdit ? fluxToEdit.name : ""}">
+                ${isEditing ? `<input type="hidden" id="original-flux-name" value="${fluxToEdit.name}">` : ""}
             </div>
 
             <div id="flux-steps-container">
@@ -124,7 +126,7 @@ function renderCreateFluxPage(container, projectGroups, fluxToEdit = null) {
 
             <div class="flux-actions">
                 <button id="cancel-flux-creation-btn" class="button-secondary">Annuler</button>
-                <button id="save-flux-btn" class="button-primary">${isEditing ? 'Modifier' : 'Enregistrer'}</button>
+                <button id="save-flux-btn" class="button-primary">${isEditing ? "Modifier" : "Enregistrer"}</button>
             </div>
         </div>
     `;
@@ -146,28 +148,35 @@ function renderCreateFluxPage(container, projectGroups, fluxToEdit = null) {
     stepEl.innerHTML = `
             <div class="step-header">
                 <h3>Étape ${stepCounter}</h3>
-                ${stepCounter > 1 ? `<button type="button" class="remove-step-btn" data-step="${stepCounter}">×</button>` : ''}
+                ${stepCounter > 1 ? `<button type="button" class="remove-step-btn" data-step="${stepCounter}">×</button>` : ""}
             </div>
             <div class="step-content">
                 <div class="form-group">
                     <label>Groupe(s) de validation</label>
                     <select class="group-select" multiple>
-                        ${projectGroups.map(group => `
-                            <option value="${group.id}" ${stepData && stepData.groupIds.includes(group.id) ? 'selected' : ''}>
+                        ${projectGroups
+                          .map(
+                            (group) => `
+                            <option value="${group.id}" ${stepData && stepData.groupIds.includes(group.id) ? "selected" : ""}>
                                 ${group.name}
                             </option>
-                        `).join('')}
+                        `,
+                          )
+                          .join("")}
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Durée de validation</label>
                     <select class="duration-select">
                         ${Array.from({ length: 20 }, (_, i) => i + 1)
-                            .map(days => `
-                                <option value="${days}" ${stepData && stepData.durationDays === days ? 'selected' : ''}>
+                          .map(
+                            (days) => `
+                                <option value="${days}" ${stepData && stepData.durationDays === days ? "selected" : ""}>
                                     ${days} jour(s)
                                 </option>
-                            `).join('')}
+                            `,
+                          )
+                          .join("")}
                     </select>
                 </div>
             </div>
@@ -176,36 +185,37 @@ function renderCreateFluxPage(container, projectGroups, fluxToEdit = null) {
 
     // Si on est en mode édition, on disable les boutons après avoir affiché toutes les étapes
     if (isEditing && stepCounter >= fluxToEdit.steps.length) {
-        if (stepCounter >= 3) { // Limite le nombre d'étapes total
-            addStepBtn.disabled = true;
-            addStepBtn.style.display = "none";
-        }
+      if (stepCounter >= 3) {
+        // Limite le nombre d'étapes total
+        addStepBtn.disabled = true;
+        addStepBtn.style.display = "none";
+      }
     }
 
     // Gérer la suppression d'étape
     const removeBtn = stepEl.querySelector(".remove-step-btn");
     if (removeBtn) {
-        removeBtn.addEventListener('click', () => {
-            stepEl.remove();
-            stepCounter--;
-            updateStepNumbers();
-            addStepBtn.disabled = false;
-            addStepBtn.style.display = "block";
-        });
+      removeBtn.addEventListener("click", () => {
+        stepEl.remove();
+        stepCounter--;
+        updateStepNumbers();
+        addStepBtn.disabled = false;
+        addStepBtn.style.display = "block";
+      });
     }
   }
 
   function updateStepNumbers() {
     document.querySelectorAll(".flux-step").forEach((el, index) => {
-        el.querySelector(".step-header h3").textContent = `Étape ${index + 1}`;
-        const removeBtn = el.querySelector(".remove-step-btn");
-        if (removeBtn) removeBtn.dataset.step = index + 1;
+      el.querySelector(".step-header h3").textContent = `Étape ${index + 1}`;
+      const removeBtn = el.querySelector(".remove-step-btn");
+      if (removeBtn) removeBtn.dataset.step = index + 1;
     });
   }
 
   // Pré-remplir les étapes si en mode édition
   if (isEditing && fluxToEdit.steps && fluxToEdit.steps.length > 0) {
-    fluxToEdit.steps.forEach(step => addStep(step));
+    fluxToEdit.steps.forEach((step) => addStep(step));
   } else {
     // Ajouter la première étape par défaut si en mode création
     addStep();
@@ -214,12 +224,11 @@ function renderCreateFluxPage(container, projectGroups, fluxToEdit = null) {
   addStepBtn.addEventListener("click", () => addStep());
 }
 
-
 // Nouveau : Affiche la liste des flux existants avec options Modifier/Supprimer
 function renderManageFluxPage(container, flows, projectGroups) {
-    const fluxListContainer = document.createElement('div');
-    fluxListContainer.className = 'flux-management-container';
-    fluxListContainer.innerHTML = `
+  const fluxListContainer = document.createElement("div");
+  fluxListContainer.className = "flux-management-container";
+  fluxListContainer.innerHTML = `
         <h1>Gestion des Flux de Validation</h1>
         <div class="flux-table-wrapper">
             <table class="flux-table">
@@ -232,26 +241,40 @@ function renderManageFluxPage(container, flows, projectGroups) {
                     </tr>
                 </thead>
                 <tbody>
-                    ${flows && flows.length > 0 ? flows.map(flux => `
+                    ${
+                      flows && flows.length > 0
+                        ? flows
+                            .map(
+                              (flux) => `
                         <tr data-flux-name="${flux.name}">
                             <td>${flux.name}</td>
                             <td>${flux.steps ? flux.steps.length : 0}</td>
                             <td>${
-                                flux.steps && flux.steps[0] && flux.steps[0].groupIds
-                                ? flux.steps[0].groupIds.map(groupId => {
-                                    const group = projectGroups.find(g => g.id === groupId);
-                                    return group ? group.name : groupId;
-                                }).join(', ')
-                                : 'Non défini'
+                              flux.steps &&
+                              flux.steps[0] &&
+                              flux.steps[0].groupIds
+                                ? flux.steps[0].groupIds
+                                    .map((groupId) => {
+                                      const group = projectGroups.find(
+                                        (g) => g.id === groupId,
+                                      );
+                                      return group ? group.name : groupId;
+                                    })
+                                    .join(", ")
+                                : "Non défini"
                             }</td>
                             <td class="flux-actions-cell">
                                 <button class="edit-flux-btn button-small" data-flux-name="${flux.name}">Modifier</button>
                                 <button class="delete-flux-btn button-small button-danger" data-flux-name="${flux.name}">Supprimer</button>
                             </td>
                         </tr>
-                    `).join('') : `
+                    `,
+                            )
+                            .join("")
+                        : `
                         <tr><td colspan="4" style="text-align:center;">Aucun flux configuré.</td></tr>
-                    `}
+                    `
+                    }
                 </tbody>
             </table>
         </div>
@@ -259,8 +282,8 @@ function renderManageFluxPage(container, flows, projectGroups) {
             <button id="back-to-config-btn" class="button-secondary">Retour à la Configuration</button>
         </div>
     `;
-    container.innerHTML = ''; // Vide le container existant
-    container.appendChild(fluxListContainer);
+  container.innerHTML = ""; // Vide le container existant
+  container.appendChild(fluxListContainer);
 }
 //Pour afficher le chargement de sauvegarde
 function renderSaving(container) {
@@ -275,7 +298,7 @@ function renderSaving(container) {
 
 // Pour afficher les messages de succès
 function renderSuccess(container, message) {
-    container.innerHTML = `
+  container.innerHTML = `
         <div class="message-container success">
             <h2>Succès !</h2>
             <p>${message}</p>
@@ -289,17 +312,57 @@ function renderAffectationPage(container, projectName) {
     <div class="affectation-page-container">
       <h1>Affectation d'un flux à un dossier</h1>
       <p>Projet : <strong>${projectName}</strong></p>
-      <div class="folder-browser-container">
-        <ul id="folder-tree-root" class="folder-tree">
-          <!-- Le contenu de l'arborescence sera injecté ici par JavaScript -->
-          <li class="loading-node">Chargement de l'arborescence...</li>
-        </ul>
+
+      <div class="affectation-layout-grid">
+        <!-- Panneau de gauche : Arborescence des dossiers -->
+        <div class="folder-browser-container">
+          <ul id="folder-tree-root" class="folder-tree">
+            <li class="loading-node">Chargement de l'arborescence...</li>
+          </ul>
+        </div>
+
+        <!-- Panneau de droite : Panneau d'affectation -->
+        <div id="assignment-panel" class="assignment-panel">
+          <div class="assignment-panel-placeholder">
+            <p>Veuillez sélectionner un dossier dans l'arborescence pour lui affecter un flux.</p>
+          </div>
+        </div>
       </div>
+
       <div class="flux-actions">
-        <button id="back-to-config-btn" class="button-secondary">Retour</button>
+        <button id="back-to-config-btn" class="button-secondary">Retour à la Configuration</button>
       </div>
     </div>
   `;
+}
+
+// Met à jour le panneau d'affectation avec les informations du dossier sélectionné.
+
+function updateAssignmentPanel(folder, allFluxNames, currentAssignedFlux) {
+  const panel = document.getElementById("assignment-panel");
+  if (!panel) return;
+
+  const fluxOptions = allFluxNames
+    .map(
+      (name) =>
+        `<option value="${name}" ${name === currentAssignedFlux ? "selected" : ""}>${name}</option>`,
+    )
+    .join("");
+
+  panel.innerHTML = `
+        <div class="assignment-panel-content">
+            <h3>Dossier Sélectionné</h3>
+            <p class="selected-folder-name">${folder.name}</p>
+            <div class="form-group">
+                <label for="flux-assignment-select">Flux de validation à affecter :</label>
+                <select id="flux-assignment-select">
+                    <option value="">-- Aucun flux --</option>
+                    ${fluxOptions}
+                </select>
+            </div>
+            <button id="save-assignment-btn" class="button-primary">Sauvegarder l'affectation</button>
+        </div>
+    `;
 }
 
 // Exporter toutes les fonctions désormais
@@ -314,8 +377,5 @@ export {
   renderSaving,
   renderSuccess,
   renderAffectationPage,
+  updateAssignmentPanel,
 };
-
-
-
-
