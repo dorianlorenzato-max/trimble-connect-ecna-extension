@@ -458,7 +458,7 @@ import {
     );
     renderError(mainContentDiv, error);
   }
-  // GESTIONNAIRE D'ÉVÉNEMENT POUR LE BOUTON D'AFFECTATION des flux ---
+  // --- GESTIONNAIRE D'ÉVÉNEMENT POUR LE BOUTON D'AFFECTATION DES FLUX---
   async function handleAssignFluxClick() {
     if (!globalAccessToken || !triconnectAPI) {
       renderError(
@@ -469,21 +469,25 @@ import {
     }
 
     try {
+      // Étape 1 : Récupérer les informations du projet
       const projectInfo = await triconnectAPI.project.getCurrentProject();
       renderAffectationPage(mainContentDiv, projectInfo.name);
 
-      console.log("Récupération de l'arborescence racine...");
-      const folderTree = await triconnectAPI.project.getFolderTree(projectInfo.id);
-      
-      // Le premier élément de folderTree est toujours le dossier racine.
-      const rootFolder = folderTree[0];
-      // Les sous-dossiers de la racine sont dans la propriété `children`.
-      const rootSubfolders = rootFolder.children || [];
+      // TODO récupérer l'ID du dossier racine.
+      const initialFolderId = "MkvA_YZPfBk";
+      console.log(
+        `Initialisation de l'arborescence à partir du dossier ID : ${initialFolderId}`,
+      );
+
+      const rootSubfolders = await fetchFolderContents(
+        initialFolderId,
+        globalAccessToken,
+      );
 
       const treeRootElement = document.getElementById("folder-tree-root");
       treeRootElement.innerHTML = ""; // Nettoyer le message de chargement
 
-      renderAndAttachFolderListeners(rootFolders, treeRootElement);
+      renderAndAttachFolderListeners(rootSubfolders, treeRootElement);
 
       document
         .getElementById("back-to-config-btn")
@@ -499,71 +503,69 @@ import {
 
   // FONCTION RÉCURSIVE POUR AFFICHER ET GÉRER L'ARBORESCENCE ---
   function renderAndAttachFolderListeners(folders, parentElement) {
-    if (folders.length === 0) {
-      const noSubfolderItem = document.createElement("li");
-      noSubfolderItem.className = "folder-item-empty";
-      noSubfolderItem.textContent = "Aucun sous-dossier";
+    if (!folders || folders.length === 0) {
+      const noSubfolderItem = document.createElement('li');
+      noSubfolderItem.className = 'folder-item-empty';
+      noSubfolderItem.textContent = 'Aucun sous-dossier';
       parentElement.appendChild(noSubfolderItem);
       return;
     }
+    
+    folders.forEach(folder => {
+      const listItem = document.createElement('li');
+      listItem.className = 'folder-item';
+      listItem.dataset.folderId = folder.id; // On stocke l'ID pour le prochain fetch
+      listItem.dataset.loaded = "false"; 
 
-    folders.forEach((folder) => {
-      const listItem = document.createElement("li");
-      listItem.className = "folder-item";
-      listItem.dataset.folderId = folder.id;
-      listItem.dataset.loaded = "false"; // Pour savoir si les enfants ont été chargés
-
-      const folderNameSpan = document.createElement("span");
-      folderNameSpan.className = "folder-name";
+      const folderNameSpan = document.createElement('span');
+      folderNameSpan.className = 'folder-name';
       folderNameSpan.textContent = folder.name;
 
       listItem.appendChild(folderNameSpan);
       parentElement.appendChild(listItem);
 
-      // Ajouter un écouteur de clic pour charger les sous-dossiers
-      folderNameSpan.addEventListener("click", async (event) => {
-        event.stopPropagation(); // Évite que le clic se propage aux parents
-
+      // C'est ici que la "boucle" se produit, au clic
+      folderNameSpan.addEventListener('click', async (event) => {
+        event.stopPropagation(); 
+        
+        // Si les enfants ont déjà été chargés, on ne fait que les afficher/masquer
         if (listItem.dataset.loaded === "true") {
-          // Si déjà chargé, on se contente de basculer la visibilité du sous-menu
-          const subList = listItem.querySelector("ul");
-          if (subList) {
-            subList.style.display =
-              subList.style.display === "none" ? "block" : "none";
-            listItem.classList.toggle("collapsed");
-          }
-          return;
+            const subList = listItem.querySelector('ul');
+            if (subList) {
+                subList.style.display = subList.style.display === 'none' ? 'block' : 'none';
+                listItem.classList.toggle('collapsed');
+            }
+            return;
         }
 
         // Afficher un indicateur de chargement
-        const loadingSpan = document.createElement("span");
-        loadingSpan.textContent = " (chargement...)";
-        loadingSpan.className = "loading-text";
+        const loadingSpan = document.createElement('span');
+        loadingSpan.textContent = ' (chargement...)';
+        loadingSpan.className = 'loading-text';
         folderNameSpan.appendChild(loadingSpan);
 
         try {
-          const subFolders = await fetchFolderContents(
-            folder.id,
-            globalAccessToken,
-          );
-
-          const subList = document.createElement("ul");
-          subList.className = "folder-tree";
+          // On utilise l'ID stocké dans l'élément pour le NOUVEAU fetch
+          const subFolders = await fetchFolderContents(folder.id, globalAccessToken);
+          
+          const subList = document.createElement('ul');
+          subList.className = 'folder-tree';
           listItem.appendChild(subList);
-
+          
+          // On ré-appelle la fonction pour afficher les sous-dossiers
           renderAndAttachFolderListeners(subFolders, subList);
-
+          
           listItem.dataset.loaded = "true";
-        } catch (error) {
-          console.error(`Erreur au chargement du dossier ${folder.id}`, error);
-          folderNameSpan.textContent += " (erreur)";
+        } catch(error) {
+            console.error(`Erreur au chargement du dossier ${folder.id}`, error);
+            folderNameSpan.textContent += ' (erreur)';
         } finally {
-          // Retirer l'indicateur de chargement
-          folderNameSpan.removeChild(loadingSpan);
+            folderNameSpan.removeChild(loadingSpan);
         }
       });
     });
-  }
+}
 })();
+
 
 
