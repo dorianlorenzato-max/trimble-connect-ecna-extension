@@ -366,7 +366,9 @@ function updateAssignmentPanel(folder, allFluxNames, currentAssignedFlux) {
 }
 
 // Affiche la page pour viser un document
-function renderVisaInterfacePage(container, doc) {
+function renderVisaInterfacePage(container, visaData) {
+  const { doc, projectName, userName, userGroup, fluxName, visaStates } =
+    visaData;
   // Données pour l'exemple
   const visaStatusOptions = ["BPE", "REJ", "BPA", "VI", "SO"]
     .map((status) => `<option value="${status}">${status}</option>`)
