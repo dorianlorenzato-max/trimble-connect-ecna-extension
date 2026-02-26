@@ -17,18 +17,25 @@ import {
   renderSaving,
   renderSuccess,
   renderAffectationPage,
+  updateAssignmentPanel,
 } from "./ui.js";
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
 (async function () {
   const mainContentDiv = document.getElementById("mainContent");
-  const CONFIG_FILENAME = "ecna-visa-config.json"; // Nom du fichier de configuration
+  const CONFIG_FILENAME = "ecna-visa-config.json"; // Nom du fichier de configuration des flux
+  const ASSIGNMENTS_FILENAME = "flux-assignments.json"; // Nom pour fichier d'affectation des flux aux dossier
   const TRIMBLE_CLIENT_ID = "db958c40-8b49-4d72-b9cc-71333d3c9581"; // Votre ID Client
 
   let triconnectAPI;
   let globalAccessToken = null;
   let currentProjectGroups = []; // Pour stocker les groupes et éviter de les re-fetcher
   let currentEditedFluxName = null; // Pour suivre si nous éditons un flux existant
+
+  // Variables pour la page d'affectation
+  let allProjectFlows = [];
+  let currentAssignments = {};
+  let selectedFolderInfo = null;
 
   // Fonction utilitaire pour rafraîchir la page de gestion des flux
   async function refreshManageFluxPage() {
@@ -403,7 +410,7 @@ import {
     assignButton.disabled = false; // On active le bouton
     assignButton.addEventListener("click", handleAssignFluxClick);
   }
-  
+
   // --- INITIALISATION DE L'EXTENSION ---
   try {
     mainContentDiv.innerHTML = `<p>Connexion à Trimble Connect...</p>`;
@@ -468,24 +475,37 @@ import {
       return;
     }
 
+    renderLoading(mainContentDiv);
     try {
-      // Étape 1 : Récupérer les informations du projet
       const projectInfo = await triconnectAPI.project.getCurrentProject();
+
+      // On lance tous les chargements de données en parallèle pour la performance
+      const [fluxConfig, assignmentsConfig, rootSubfolders] = await Promise.all(
+        [
+          fetchConfigurationFile(
+            triconnectAPI,
+            globalAccessToken,
+            FLUX_CONFIG_FILENAME,
+          ),
+          fetchConfigurationFile(
+            triconnectAPI,
+            globalAccessToken,
+            ASSIGNMENTS_FILENAME,
+          ),
+          // TODO modifier l'ID du dossier racine
+          fetchFolderContents("MkvA_YZPfBk", globalAccessToken),
+        ],
+      );
+
+      // On stocke les données pour les réutiliser
+      allProjectFlows = fluxConfig ? fluxConfig.flux : [];
+      currentAssignments = assignmentsConfig || {};
+
+      // On affiche l'interface
       renderAffectationPage(mainContentDiv, projectInfo.name);
 
-      // TODO récupérer l'ID du dossier racine.
-      const initialFolderId = "MkvA_YZPfBk";
-      console.log(
-        `Initialisation de l'arborescence à partir du dossier ID : ${initialFolderId}`,
-      );
-
-      const rootSubfolders = await fetchFolderContents(
-        initialFolderId,
-        globalAccessToken,
-      );
-
       const treeRootElement = document.getElementById("folder-tree-root");
-      treeRootElement.innerHTML = ""; // Nettoyer le message de chargement
+      treeRootElement.innerHTML = "";
 
       renderAndAttachFolderListeners(rootSubfolders, treeRootElement);
 
@@ -501,71 +521,135 @@ import {
     }
   }
 
+  // Affiche le panneau de droite quand on clique sur un dossier
+  function displayFolderAssignmentDetails(folder) {
+    selectedFolderInfo = folder; // Sauvegarder l'info du dossier sélectionné
+    const currentAssignedFlux = currentAssignments[folder.id] || null;
+    const allFluxNames = allProjectFlows.map((f) => f.name);
+
+    updateAssignmentPanel(folder, allFluxNames, currentAssignedFlux);
+
+    // Attacher l'événement au bouton de sauvegarde qui vient d'être créé
+    document
+      .getElementById("save-assignment-btn")
+      .addEventListener("click", handleSaveAssignment);
+  }
+
+  // Sauvegarde l'affectation choisie
+  async function handleSaveAssignment() {
+    if (!selectedFolderInfo) {
+      alert("Aucun dossier n'est sélectionné.");
+      return;
+    }
+
+    renderSaving(mainContentDiv);
+
+    const selectElement = document.getElementById("flux-assignment-select");
+    const selectedFluxName = selectElement.value;
+    const folderId = selectedFolderInfo.id;
+
+    if (selectedFluxName) {
+      // Ajouter ou mettre à jour l'affectation
+      currentAssignments[folderId] = selectedFluxName;
+      console.log(
+        `Affectation du flux '${selectedFluxName}' au dossier '${folderId}'.`,
+      );
+    } else {
+      // Supprimer l'affectation si "Aucun flux" est choisi
+      delete currentAssignments[folderId];
+      console.log(`Désaffectation du flux pour le dossier '${folderId}'.`);
+    }
+
+    try {
+      await saveConfigurationFile(
+        triconnectAPI,
+        globalAccessToken,
+        currentAssignments,
+        ASSIGNMENTS_FILENAME,
+      );
+      renderSuccess(
+        mainContentDiv,
+        "L'affectation a été sauvegardée avec succès.",
+      );
+      setTimeout(handleAssignFluxClick, 1500); // Recharger la page d'affectation
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde des affectations:", error);
+      renderError(mainContentDiv, error);
+    }
+  }
+
   // FONCTION RÉCURSIVE POUR AFFICHER ET GÉRER L'ARBORESCENCE ---
   function renderAndAttachFolderListeners(folders, parentElement) {
     if (!folders || folders.length === 0) {
-      const noSubfolderItem = document.createElement('li');
-      noSubfolderItem.className = 'folder-item-empty';
-      noSubfolderItem.textContent = 'Aucun sous-dossier';
+      const noSubfolderItem = document.createElement("li");
+      noSubfolderItem.className = "folder-item-empty";
+      noSubfolderItem.textContent = "Aucun sous-dossier";
       parentElement.appendChild(noSubfolderItem);
       return;
     }
-    
-    folders.forEach(folder => {
-      const listItem = document.createElement('li');
-      listItem.className = 'folder-item';
-      listItem.dataset.folderId = folder.id; // On stocke l'ID pour le prochain fetch
-      listItem.dataset.loaded = "false"; 
 
-      const folderNameSpan = document.createElement('span');
-      folderNameSpan.className = 'folder-name';
+    folders.forEach((folder) => {
+      const listItem = document.createElement("li");
+      listItem.className = "folder-item";
+      listItem.dataset.folderId = folder.id;
+      listItem.dataset.folderName = folder.name;
+      listItem.dataset.loaded = "false";
+
+      const folderNameSpan = document.createElement("span");
+      folderNameSpan.className = "folder-name";
       folderNameSpan.textContent = folder.name;
 
       listItem.appendChild(folderNameSpan);
       parentElement.appendChild(listItem);
 
-      // C'est ici que la "boucle" se produit, au clic
-      folderNameSpan.addEventListener('click', async (event) => {
-        event.stopPropagation(); 
-        
-        // Si les enfants ont déjà été chargés, on ne fait que les afficher/masquer
+      // Le clic sur le nom du dossier fait deux choses :
+      // 1. Déplie l'arborescence (si pas déjà fait)
+      // 2. Affiche le panneau d'affectation
+      folderNameSpan.addEventListener("click", async (event) => {
+        event.stopPropagation();
+
+        // Mettre en surbrillance le dossier sélectionné
+        document
+          .querySelectorAll(".folder-item.selected")
+          .forEach((el) => el.classList.remove("selected"));
+        listItem.classList.add("selected");
+
+        // AFFICHER LE PANNEAU D'AFFECTATION
+        displayFolderAssignmentDetails({ id: folder.id, name: folder.name });
+
+        // DÉPLIER L'ARBORESCENCE (logique existante)
         if (listItem.dataset.loaded === "true") {
-            const subList = listItem.querySelector('ul');
-            if (subList) {
-                subList.style.display = subList.style.display === 'none' ? 'block' : 'none';
-                listItem.classList.toggle('collapsed');
-            }
-            return;
+          const subList = listItem.querySelector("ul");
+          if (subList) {
+            subList.style.display =
+              subList.style.display === "none" ? "block" : "none";
+            listItem.classList.toggle("collapsed");
+          }
+          return;
         }
 
-        // Afficher un indicateur de chargement
-        const loadingSpan = document.createElement('span');
-        loadingSpan.textContent = ' (chargement...)';
-        loadingSpan.className = 'loading-text';
+        const loadingSpan = document.createElement("span");
+        loadingSpan.textContent = " (chargement...)";
+        loadingSpan.className = "loading-text";
         folderNameSpan.appendChild(loadingSpan);
 
         try {
-          // On utilise l'ID stocké dans l'élément pour le NOUVEAU fetch
-          const subFolders = await fetchFolderContents(folder.id, globalAccessToken);
-          
-          const subList = document.createElement('ul');
-          subList.className = 'folder-tree';
+          const subFolders = await fetchFolderContents(
+            folder.id,
+            globalAccessToken,
+          );
+          const subList = document.createElement("ul");
+          subList.className = "folder-tree";
           listItem.appendChild(subList);
-          
-          // On ré-appelle la fonction pour afficher les sous-dossiers
           renderAndAttachFolderListeners(subFolders, subList);
-          
           listItem.dataset.loaded = "true";
-        } catch(error) {
-            console.error(`Erreur au chargement du dossier ${folder.id}`, error);
-            folderNameSpan.textContent += ' (erreur)';
+        } catch (error) {
+          console.error(`Erreur au chargement du dossier ${folder.id}`, error);
+          folderNameSpan.textContent += " (erreur)";
         } finally {
-            folderNameSpan.removeChild(loadingSpan);
+          folderNameSpan.removeChild(loadingSpan);
         }
       });
     });
-}
+  }
 })();
-
-
-
