@@ -12,7 +12,7 @@ async function fetchVisaDocuments(accessToken, triconnectAPI) {
 
   // 2. Récupérer les fichiers PDF pertinents.
   // TODO: Utiliser un dossier paramétré au lieu d'un ID en dur.
-  const pdfFiles = await fetchPDFFilesInFolder("9QpmVaoiJOc", accessToken); 
+  const pdfFiles = await fetchPDFFilesInFolder("9QpmVaoiJOc", accessToken);
 
   // 3. Enrichir chaque fichier avec les informations de PSet, de dépositaire, etc.
   const visaDocuments = [];
@@ -31,6 +31,8 @@ async function fetchVisaDocuments(accessToken, triconnectAPI) {
       : "Non assigné";
 
     visaDocuments.push({
+      id: file.id,
+      parentId: file.parentId,
       name: file.name,
       version: file.revision || "N/A",
       lot: lot,
@@ -111,18 +113,21 @@ async function fetchFilePSetStatus(projectId, fileId, accessToken) {
 }
 // Récupère uniquement la liste des groupes d'un projet
 async function fetchProjectGroups(projectId, accessToken) {
-    const headers = { Authorization: `Bearer ${accessToken}` };
-    const groupsApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/groups?projectId=${projectId}`;
-    
-    const response = await fetch(groupsApiUrl, { headers });
-    if (!response.ok) {
-        console.error("Erreur API lors de la récupération des groupes :", await response.text());
-        throw new Error('Impossible de récupérer les groupes du projet.');
-    }
-    
-    const allGroups = await response.json();
-    console.log("Groupes du projet récupérés :", allGroups);
-    return allGroups;
+  const headers = { Authorization: `Bearer ${accessToken}` };
+  const groupsApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/groups?projectId=${projectId}`;
+
+  const response = await fetch(groupsApiUrl, { headers });
+  if (!response.ok) {
+    console.error(
+      "Erreur API lors de la récupération des groupes :",
+      await response.text(),
+    );
+    throw new Error("Impossible de récupérer les groupes du projet.");
+  }
+
+  const allGroups = await response.json();
+  console.log("Groupes du projet récupérés :", allGroups);
+  return allGroups;
 }
 
 // lecture du fichier JSON pour la configuration des flux
@@ -139,19 +144,27 @@ async function fetchConfigurationFile(triconnectAPI, accessToken, filename) {
     });
 
     if (!itemsResponse.ok) {
-      throw new Error(`Impossible de lister le contenu du dossier (Statut: ${itemsResponse.status}).`);
+      throw new Error(
+        `Impossible de lister le contenu du dossier (Statut: ${itemsResponse.status}).`,
+      );
     }
 
     const allItems = await itemsResponse.json();
-    const fileInfo = allItems.find(item => item.name === filename && item.type === 'FILE');
+    const fileInfo = allItems.find(
+      (item) => item.name === filename && item.type === "FILE",
+    );
 
     // Étape B: Si le fichier n'est pas dans la liste, on retourne null.
     if (!fileInfo) {
-      console.log(`Le fichier '${filename}' n'a pas été trouvé. Un nouveau sera créé.`);
-      return null; 
+      console.log(
+        `Le fichier '${filename}' n'a pas été trouvé. Un nouveau sera créé.`,
+      );
+      return null;
     }
-    
-    console.log(`Fichier trouvé avec l'ID : ${fileInfo.id}. Procédons au téléchargement.`);
+
+    console.log(
+      `Fichier trouvé avec l'ID : ${fileInfo.id}. Procédons au téléchargement.`,
+    );
 
     // Étape C: Si on a trouvé le fichier, on continue pour le télécharger
     const getDownloadUrl = `${apiBaseUrl}/files/fs/${fileInfo.id}/downloadurl`;
@@ -162,7 +175,7 @@ async function fetchConfigurationFile(triconnectAPI, accessToken, filename) {
       throw new Error("Impossible d'obtenir l'URL de téléchargement.");
     }
     const downloadInfo = await downloadInfoResponse.json();
-    
+
     // Étape D: Télécharger le contenu brut
     const fileContentResponse = await fetch(downloadInfo.url);
     if (!fileContentResponse.ok) {
@@ -173,7 +186,6 @@ async function fetchConfigurationFile(triconnectAPI, accessToken, filename) {
     const jsonData = await fileContentResponse.json();
     console.log("Contenu du fichier existant parsé avec succès :", jsonData);
     return jsonData; // On retourne bien le contenu !
-
   } catch (error) {
     console.error("Erreur dans fetchConfigurationFile:", error);
     throw error;
@@ -182,111 +194,133 @@ async function fetchConfigurationFile(triconnectAPI, accessToken, filename) {
 
 //Sauvegarde un objet de configuration dans un fichier JSON à la racine du projet.
 
-async function saveConfigurationFile(triconnectAPI, accessToken, configurationData, filename) {
-    const projectInfo = await triconnectAPI.project.getCurrentProject();
+async function saveConfigurationFile(
+  triconnectAPI,
+  accessToken,
+  configurationData,
+  filename,
+) {
+  const projectInfo = await triconnectAPI.project.getCurrentProject();
   //TODO modifier le nom du fichier pour qu'il soit directement récupéré du projet
-    const rootFolderId = 'MkvA_YZPfBk' ;
+  const rootFolderId = "MkvA_YZPfBk";
   if (!rootFolderId) {
-        console.error("ERREUR : Impossible de trouver l'ID du dossier racine (rootFolderId) dans l'objet projet:", projectInfo);
-        throw new Error("L'ID du dossier racine du projet n'a pas pu être déterminé. Vérifiez les permissions ou l'objet projet.");
-    }
+    console.error(
+      "ERREUR : Impossible de trouver l'ID du dossier racine (rootFolderId) dans l'objet projet:",
+      projectInfo,
+    );
+    throw new Error(
+      "L'ID du dossier racine du projet n'a pas pu être déterminé. Vérifiez les permissions ou l'objet projet.",
+    );
+  }
 
-    const apiBaseUrl = 'https://app21.connect.trimble.com/tc/api/2.0';
+  const apiBaseUrl = "https://app21.connect.trimble.com/tc/api/2.0";
 
-         // --- ÉTAPE 1 : INITIATION DE L'UPLOAD ---
-    // On demande à Trimble Connect la permission d'uploader un fichier.
-    const initiateUploadUrl = `${apiBaseUrl}/files/fs/upload?parentId=${rootFolderId}&parentType=FOLDER`;
-    console.log("Étape 1 : Initialisation de l'upload via POST sur", initiateUploadUrl);
+  // --- ÉTAPE 1 : INITIATION DE L'UPLOAD ---
+  // On demande à Trimble Connect la permission d'uploader un fichier.
+  const initiateUploadUrl = `${apiBaseUrl}/files/fs/upload?parentId=${rootFolderId}&parentType=FOLDER`;
+  console.log(
+    "Étape 1 : Initialisation de l'upload via POST sur",
+    initiateUploadUrl,
+  );
 
   const initiatePayload = {
-            name: filename,
-        };
+    name: filename,
+  };
 
-        console.log("Payload d'initiation:", initiatePayload);
-  
-    const initiateResponse = await fetch(initiateUploadUrl, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-        },
-       body: JSON.stringify(initiatePayload),
-        });
+  console.log("Payload d'initiation:", initiatePayload);
 
-        // Log détaillé de la réponse
-        console.log("Statut réponse initiation:", initiateResponse.status);
-  
-    if (!initiateResponse.ok) {
-            const errorText = await initiateResponse.text();
-            console.error("Erreur initiation - Statut:", initiateResponse.status);
-            console.error("Erreur initiation - Corps:", errorText);
-            throw new Error(`Initiation upload échouée (${initiateResponse.status}): ${errorText}`);
-        }
+  const initiateResponse = await fetch(initiateUploadUrl, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(initiatePayload),
+  });
 
+  // Log détaillé de la réponse
+  console.log("Statut réponse initiation:", initiateResponse.status);
 
-    const uploadDetails = await initiateResponse.json();
+  if (!initiateResponse.ok) {
+    const errorText = await initiateResponse.text();
+    console.error("Erreur initiation - Statut:", initiateResponse.status);
+    console.error("Erreur initiation - Corps:", errorText);
+    throw new Error(
+      `Initiation upload échouée (${initiateResponse.status}): ${errorText}`,
+    );
+  }
+
+  const uploadDetails = await initiateResponse.json();
   console.log("uploadDetails reçus:", uploadDetails);
-    const finalUploadUrl = uploadDetails.contents[0].url; // URL unique et pré-signée pour l'upload
-    const uploadId = uploadDetails.uploadId; // ID unique de cette transaction d'upload
-    console.log("Étape 1 réussie. URL d'upload obtenue. Upload ID:", uploadId);
+  const finalUploadUrl = uploadDetails.contents[0].url; // URL unique et pré-signée pour l'upload
+  const uploadId = uploadDetails.uploadId; // ID unique de cette transaction d'upload
+  console.log("Étape 1 réussie. URL d'upload obtenue. Upload ID:", uploadId);
 
-          console.log("Upload ID:", uploadId);
-        console.log("URL d'upload:", finalUploadUrl);
-      
-        // --- ÉTAPE 2 : TÉLÉVERSEMENT DU CONTENU ---
-    // On envoie le contenu réel du fichier vers l'URL pré-signée.
-    console.log("Étape 2 : Téléversement du contenu du fichier via PUT...");
-  
-    const jsonString = JSON.stringify(configurationData, null, 2);
-    const fileBlob = new Blob([jsonString], { type: 'application/json' });
+  console.log("Upload ID:", uploadId);
+  console.log("URL d'upload:", finalUploadUrl);
 
-    const uploadResponse = await fetch(finalUploadUrl, {
-        method: 'PUT',
-        headers: {
-            // Très important : PAS de header 'Authorization' ici, comme demandé par la doc.
-            'Content-Type': 'application/json',
-        },
-        body: fileBlob,
-    });
+  // --- ÉTAPE 2 : TÉLÉVERSEMENT DU CONTENU ---
+  // On envoie le contenu réel du fichier vers l'URL pré-signée.
+  console.log("Étape 2 : Téléversement du contenu du fichier via PUT...");
 
-    if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        throw new Error(`L'upload final du fichier a échoué. Statut: ${uploadResponse.status}, Réponse: ${errorText}`);
-    }
-    console.log("Étape 2 réussie. Contenu du fichier envoyé.");
-  
-       // --- ÉTAPE 3 : VÉRIFICATION ET FINALISATION (le point que j'ajoute) ---
-    // L'upload est terminé, mais on vérifie auprès de Trimble que le fichier a bien été traité.
-    console.log("Étape 3 : Vérification du statut final de l'upload...");
-    const verifyUrl = `${apiBaseUrl}/files/fs/upload?uploadId=${uploadId}&wait=true`;
+  const jsonString = JSON.stringify(configurationData, null, 2);
+  const fileBlob = new Blob([jsonString], { type: "application/json" });
 
-    const verifyResponse = await fetch(verifyUrl, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${accessToken}` },
-    });
+  const uploadResponse = await fetch(finalUploadUrl, {
+    method: "PUT",
+    headers: {
+      // Très important : PAS de header 'Authorization' ici, comme demandé par la doc.
+      "Content-Type": "application/json",
+    },
+    body: fileBlob,
+  });
 
-    if (!verifyResponse.ok) {
-        const errorText = await verifyResponse.text();
-        throw new Error(`La vérification de l'upload a échoué. Statut: ${verifyResponse.status}, Réponse: ${errorText}`);
-    }
+  if (!uploadResponse.ok) {
+    const errorText = await uploadResponse.text();
+    throw new Error(
+      `L'upload final du fichier a échoué. Statut: ${uploadResponse.status}, Réponse: ${errorText}`,
+    );
+  }
+  console.log("Étape 2 réussie. Contenu du fichier envoyé.");
 
-    const finalFileDetails = await verifyResponse.json();
+  // --- ÉTAPE 3 : VÉRIFICATION ET FINALISATION (le point que j'ajoute) ---
+  // L'upload est terminé, mais on vérifie auprès de Trimble que le fichier a bien été traité.
+  console.log("Étape 3 : Vérification du statut final de l'upload...");
+  const verifyUrl = `${apiBaseUrl}/files/fs/upload?uploadId=${uploadId}&wait=true`;
 
-    // On vérifie que le statut global est bien 'DONE'
-    if (finalFileDetails.status !== 'DONE') {
-        throw new Error(`Le traitement du fichier sur le serveur a échoué. Statut final: ${finalFileDetails.status || 'inconnu'}`);
-    }
-    
-    console.log("Étape 3 réussie. Fichier traité et finalisé avec succès. fileId:", finalFileDetails.fileId);
-    
-    // On retourne les détails finaux qui contiennent le fileId et versionId définitifs.
-    return finalFileDetails;
+  const verifyResponse = await fetch(verifyUrl, {
+    method: "GET",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!verifyResponse.ok) {
+    const errorText = await verifyResponse.text();
+    throw new Error(
+      `La vérification de l'upload a échoué. Statut: ${verifyResponse.status}, Réponse: ${errorText}`,
+    );
+  }
+
+  const finalFileDetails = await verifyResponse.json();
+
+  // On vérifie que le statut global est bien 'DONE'
+  if (finalFileDetails.status !== "DONE") {
+    throw new Error(
+      `Le traitement du fichier sur le serveur a échoué. Statut final: ${finalFileDetails.status || "inconnu"}`,
+    );
+  }
+
+  console.log(
+    "Étape 3 réussie. Fichier traité et finalisé avec succès. fileId:",
+    finalFileDetails.fileId,
+  );
+
+  // On retourne les détails finaux qui contiennent le fileId et versionId définitifs.
+  return finalFileDetails;
 }
 
 // Récupération de l'arborescence du projet Trimble
 
 async function fetchFolderContents(folderId, accessToken) {
-  
   const listItemsUrl = `https://app21.connect.trimble.com/tc/api/2.0/folders/${folderId}/items`;
 
   const response = await fetch(listItemsUrl, {
@@ -311,39 +345,10 @@ async function fetchFolderContents(folderId, accessToken) {
 }
 
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
-export { fetchVisaDocuments, fetchProjectGroups, saveConfigurationFile, fetchConfigurationFile, fetchFolderContents };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+export {
+  fetchVisaDocuments,
+  fetchProjectGroups,
+  saveConfigurationFile,
+  fetchConfigurationFile,
+  fetchFolderContents,
+};
