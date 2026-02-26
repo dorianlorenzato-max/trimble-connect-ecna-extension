@@ -78,7 +78,7 @@ function renderConfigPage(container) {
                 <button id="create-flux-btn" class="config-button">Créer un flux</button>
                 <button id="manage-flux-btn" class="config-button">Gérer les flux</button>
                 <button class="config-button" disabled>Droits d'accès (à venir)</button>
-                <button class="config-button" disabled>Affectation d'un flux (à venir)</button>
+                <button id="assign-flux-btn" class="config-button">Affectation d'un flux</button>
             </div>
 
             <div class="flux-list-container">
@@ -315,6 +315,7 @@ export {
   renderSuccess,
   renderAffectationPage,
 };
+
 
 
 
