@@ -18,6 +18,7 @@ import {
   renderSuccess,
   renderAffectationPage,
   updateAssignmentPanel,
+  renderVisaInterfacePage,
 } from "./ui.js";
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
@@ -97,8 +98,51 @@ import {
         triconnectAPI,
       );
       renderVisaTable(mainContentDiv, documents);
+      attachVisaTableEvents(documents);
     } catch (error) {
       console.error("Erreur lors de la récupération des documents :", error);
+      renderError(mainContentDiv, error);
+    }
+  }
+  // attache la table de visa
+  function attachVisaTableEvents(documents) {
+    const tableRows = document.querySelectorAll(".visa-table tbody tr");
+    tableRows.forEach((row, index) => {
+      const doc = documents[index];
+      if (doc) {
+        // S'assurer que le document existe
+        row.addEventListener("click", () => {
+          handleDocumentRowClick(doc);
+        });
+      }
+    });
+  }
+
+  // permet la selection de la lignepour visa
+  async function handleDocumentRowClick(doc) {
+    console.log("Document sélectionné :", doc);
+    renderLoading(mainContentDiv);
+
+    try {
+      // Pour l'instant, on affiche directement l'interface.
+      // Plus tard, nous ajouterons ici la récupération des données supplémentaires.
+      renderVisaInterfacePage(mainContentDiv, doc);
+
+      // Attacher les événements pour les boutons "Annuler" et "Enregistrer"
+      document
+        .getElementById("cancel-visa-btn")
+        .addEventListener("click", handleVisaButtonClick); // Retourne au tableau
+      // Le bouton "Enregistrer" ne fait rien pour l'instant
+      document.getElementById("save-visa-btn").addEventListener("click", () => {
+        alert(
+          "La fonction d'enregistrement sera implémentée à la prochaine étape.",
+        );
+      });
+    } catch (error) {
+      console.error(
+        "Erreur lors de l'affichage de l'interface de visa :",
+        error,
+      );
       renderError(mainContentDiv, error);
     }
   }
@@ -545,7 +589,7 @@ import {
     const selectElement = document.getElementById("flux-assignment-select");
     const selectedFluxName = selectElement.value;
     const folderId = selectedFolderInfo.id;
-    
+
     renderSaving(mainContentDiv);
 
     if (selectedFluxName) {
@@ -653,4 +697,3 @@ import {
     });
   }
 })();
-
