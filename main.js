@@ -542,11 +542,11 @@ import {
       return;
     }
 
-    renderSaving(mainContentDiv);
-
     const selectElement = document.getElementById("flux-assignment-select");
     const selectedFluxName = selectElement.value;
     const folderId = selectedFolderInfo.id;
+    
+    renderSaving(mainContentDiv);
 
     if (selectedFluxName) {
       // Ajouter ou mettre à jour l'affectation
@@ -653,3 +653,4 @@ import {
     });
   }
 })();
+
