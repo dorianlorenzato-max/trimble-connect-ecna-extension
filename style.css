@@ -43,14 +43,15 @@ body {
   border-radius: 5px;
   cursor: pointer;
   font-size: 1rem;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
 
 .header-banner button:hover {
   background-color: #e0e0e0;
   color: #003a72;
 }
-
 
 /* === STYLES POUR LE TABLEAU DES VISAS (SECTION RÉINTÉGRÉE) === */
 .visa-table-container {
@@ -84,25 +85,32 @@ body {
   background-color: #f1f1f1;
 }
 
-
 /* === STYLES UNIFIÉS POUR LES BOUTONS === */
-.button-primary, .button-secondary, .button-danger, .config-button {
+.button-primary,
+.button-secondary,
+.button-danger,
+.config-button {
   border: none;
   padding: 12px 20px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 1rem;
-  transition: background-color 0.3s ease, opacity 0.3s ease;
+  transition:
+    background-color 0.3s ease,
+    opacity 0.3s ease;
 }
 
-.button-primary, .config-button {
+.button-primary,
+.config-button {
   background-color: #005a70; /* Bleu-vert Eiffage */
   color: white;
 }
-.button-primary:hover, .config-button:hover {
+.button-primary:hover,
+.config-button:hover {
   background-color: #007a93;
 }
-.button-primary:disabled, .config-button:disabled {
+.button-primary:disabled,
+.config-button:disabled {
   background-color: #999;
   opacity: 0.7;
   cursor: not-allowed;
@@ -131,7 +139,8 @@ body {
 }
 
 /* === PAGE DE CONFIGURATION & GESTION DES FLUX === */
-.config-page-container, .flux-management-container {
+.config-page-container,
+.flux-management-container {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
@@ -158,7 +167,8 @@ body {
   border-collapse: collapse;
 }
 
-.flux-table th, .flux-table td {
+.flux-table th,
+.flux-table td {
   padding: 12px 15px;
   border-bottom: 1px solid #ddd;
   text-align: left;
@@ -194,7 +204,8 @@ body {
   margin-bottom: 25px;
 }
 
-.form-section label, .form-group label {
+.form-section label,
+.form-group label {
   display: block;
   font-weight: bold;
   margin-bottom: 8px;
@@ -248,7 +259,6 @@ body {
   color: #c9302c;
 }
 
-
 .step-content {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -264,9 +274,8 @@ body {
 }
 
 select[multiple] {
-    min-height: 120px;
+  min-height: 120px;
 }
-
 
 .add-step-wrapper {
   text-align: center;
@@ -301,17 +310,17 @@ select[multiple] {
 
 /* === MESSAGES DE RETOUR (Succès, Sauvegarde) === */
 .message-container {
-    padding: 20px;
-    border-radius: 8px;
-    text-align: center;
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
 }
 .message-container.success {
-    background-color: #d4edda;
-    border: 1px solid #c3e6cb;
-    color: #155724;
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
 }
 .message-container h2 {
-    margin-top: 0;
+  margin-top: 0;
 }
 /* === PAGE D'AFFECTATION (ARBORESCENCE) === */
 .affectation-page-container {
@@ -351,23 +360,76 @@ select[multiple] {
 
 /* Ajout d'une icône de dossier via un pseudo-élément */
 .folder-item .folder-name::before {
-  content: '📁'; /* Icône de dossier */
+  content: "📁"; /* Icône de dossier */
   margin-right: 8px;
   font-weight: normal;
 }
 
 .folder-item.collapsed > ul {
-    display: none;
+  display: none;
 }
 
 .folder-item-empty {
-    font-style: italic;
-    color: #888;
-    padding-left: 20px;
+  font-style: italic;
+  color: #888;
+  padding-left: 20px;
 }
 
 .loading-text {
-    font-weight: normal;
-    font-style: italic;
-    color: #555;
+  font-weight: normal;
+  font-style: italic;
+  color: #555;
+}
+.affectation-layout-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Deux colonnes de largeur égale */
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.folder-browser-container,
+.assignment-panel {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 20px;
+  min-height: 300px;
+}
+
+.folder-item.selected > .folder-name {
+  background-color: #005a70;
+  color: white;
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+
+.assignment-panel-placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  color: #888;
+}
+
+.assignment-panel-content h3 {
+  margin-top: 0;
+  color: #003a72;
+}
+
+.assignment-panel-content .selected-folder-name {
+  font-weight: bold;
+  font-size: 1.1rem;
+  background-color: #f0f0f0;
+  padding: 10px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+  word-break: break-all;
+}
+
+#flux-assignment-select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  margin-bottom: 20px;
 }
