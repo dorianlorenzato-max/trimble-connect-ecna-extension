@@ -5,6 +5,7 @@ import {
   saveConfigurationFile,
   fetchConfigurationFile,
   fetchFolderContents,
+  fetchUsersAndGroups,
 } from "./api.js";
 import {
   renderLoading,
@@ -124,19 +125,53 @@ import {
     renderLoading(mainContentDiv);
 
     try {
-      // Pour l'instant, on affiche directement l'interface.
-      // Plus tard, nous ajouterons ici la récupération des données supplémentaires.
-      renderVisaInterfacePage(mainContentDiv, doc);
+      // On lance toutes les récupérations de données en parallèle pour la performance
+      const [projectInfo, loggedInUser, config, assignments, userToGroupMap] =
+        await Promise.all([
+          triconnectAPI.project.getCurrentProject(),
+          triconnectAPI.user.getLoggedInUser(),
+          fetchConfigurationFile(
+            triconnectAPI,
+            globalAccessToken,
+            CONFIG_FILENAME,
+          ),
+          fetchConfigurationFile(
+            triconnectAPI,
+            globalAccessToken,
+            ASSIGNMENTS_FILENAME,
+          ),
+          fetchUsersAndGroups(
+            (await triconnectAPI.project.getCurrentProject()).id,
+            globalAccessToken,
+          ),
+        ]);
 
-      // Attacher les événements pour les boutons "Annuler" et "Enregistrer"
+      // On prépare les données pour l'interface
+      const visaData = {
+        doc: doc, // Les infos du document cliqué
+        projectName: projectInfo.name,
+        userName: `${loggedInUser.firstName} ${loggedInUser.lastName}`,
+        userGroup: userToGroupMap.get(loggedInUser.id) || "Groupe non trouvé",
+        fluxName: assignments[doc.parentId] || "Aucun flux affecté",
+        visaStates: config.visaStates || [],
+      };
+
+      // On affiche l'interface avec toutes les données
+      renderVisaInterfacePage(mainContentDiv, visaData);
+
+      // Attacher les événements pour les boutons
       document
         .getElementById("cancel-visa-btn")
-        .addEventListener("click", handleVisaButtonClick); // Retourne au tableau
-      // Le bouton "Enregistrer" ne fait rien pour l'instant
+        .addEventListener("click", handleVisaButtonClick);
       document.getElementById("save-visa-btn").addEventListener("click", () => {
         alert(
           "La fonction d'enregistrement sera implémentée à la prochaine étape.",
         );
+      });
+
+      // Attacher l'événement pour le bouton de visualisation
+      document.getElementById("view-doc-btn").addEventListener("click", () => {
+        triconnectAPI.ui.openInViewer(doc.id);
       });
     } catch (error) {
       console.error(
