@@ -472,10 +472,13 @@ import {
       const projectInfo = await triconnectAPI.project.getCurrentProject();
       renderAffectationPage(mainContentDiv, projectInfo.name);
 
-      const rootFolders = await fetchFolderContents(
-        projectInfo.rootId,
-        globalAccessToken,
-      );
+      console.log("Récupération de l'arborescence racine...");
+      const folderTree = await triconnectAPI.project.getFolderTree(projectInfo.id);
+      
+      // Le premier élément de folderTree est toujours le dossier racine.
+      const rootFolder = folderTree[0];
+      // Les sous-dossiers de la racine sont dans la propriété `children`.
+      const rootSubfolders = rootFolder.children || [];
 
       const treeRootElement = document.getElementById("folder-tree-root");
       treeRootElement.innerHTML = ""; // Nettoyer le message de chargement
@@ -562,4 +565,5 @@ import {
     });
   }
 })();
+
 
