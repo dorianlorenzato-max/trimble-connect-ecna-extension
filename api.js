@@ -364,7 +364,7 @@ async function fetchLoggedInUserDetails(accessToken) {
 
 async function fetchVisaPossibleStates(projectId, accessToken) {
   // L'URL pour obtenir les DÉFINITIONS de toutes les propriétés du projet
-  const propDefsApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/propdefs`;
+  const propDefsApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/psets`;
   const headers = { Authorization: `Bearer ${accessToken}` };
 
   const response = await fetch(propDefsApiUrl, { headers });
@@ -410,3 +410,4 @@ export {
   fetchLoggedInUserDetails,
   fetchVisaPossibleStates,
 };
+
