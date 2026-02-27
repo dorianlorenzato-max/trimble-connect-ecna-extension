@@ -390,7 +390,7 @@ function renderVisaInterfacePage(container, visaData) {
             <span>${userName}</span>
           </div>
           <div class="visa-data-bubble">
-            <label>Date du jour</label>
+            <label>Date de Visa</label>
             <span>${new Date().toLocaleDateString()}</span>
           </div>
         </div>
@@ -465,3 +465,4 @@ export {
   updateAssignmentPanel,
   renderVisaInterfacePage,
 };
+
