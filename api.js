@@ -362,6 +362,43 @@ async function fetchLoggedInUserDetails(accessToken) {
   return userDetails;
 }
 
+async function fetchVisaPossibleStates(projectId, accessToken) {
+  // L'URL pour obtenir les DÉFINITIONS de toutes les propriétés du projet
+  const propDefsApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/propdefs`;
+  const headers = { Authorization: `Bearer ${accessToken}` };
+
+  const response = await fetch(propDefsApiUrl, { headers });
+
+  if (!response.ok) {
+    throw new Error(
+      "Impossible de récupérer les définitions des Psets du projet.",
+    );
+  }
+
+  const propDefsData = await response.json();
+  const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
+
+  // On cherche la définition de notre PSet "Visa" par son ID
+  const visaPsetDef = propDefsData.items?.find(
+    (def) => def.id === visaPropertyId,
+  );
+
+  // Si on l'a trouvée et que c'est bien une énumération, on retourne ses valeurs possibles
+  if (visaPsetDef && visaPsetDef.spec.type === "enum_string") {
+    console.log(
+      "Définition du PSet 'Visa' trouvée, valeurs possibles :",
+      visaPsetDef.spec.enumValues,
+    );
+    return visaPsetDef.spec.enumValues;
+  }
+
+  // Si on ne trouve rien, on retourne un tableau vide pour éviter une erreur
+  console.warn(
+    "La définition du PSet 'Visa' n'a pas été trouvée ou n'est pas de type 'enum_string'.",
+  );
+  return [];
+}
+
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export {
   fetchVisaDocuments,
@@ -371,4 +408,5 @@ export {
   fetchFolderContents,
   fetchUsersAndGroups,
   fetchLoggedInUserDetails,
+  fetchVisaPossibleStates,
 };
