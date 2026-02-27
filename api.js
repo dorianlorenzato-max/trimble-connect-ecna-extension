@@ -197,7 +197,7 @@ async function fetchConfigurationFile(triconnectAPI, accessToken, filename) {
 async function saveConfigurationFile(
   triconnectAPI,
   accessToken,
-  configurationData,
+  dataToSave,
   filename,
 ) {
   const projectInfo = await triconnectAPI.project.getCurrentProject();
@@ -260,19 +260,28 @@ async function saveConfigurationFile(
   console.log("URL d'upload:", finalUploadUrl);
 
   // --- ÉTAPE 2 : TÉLÉVERSEMENT DU CONTENU ---
-  // On envoie le contenu réel du fichier vers l'URL pré-signée.
   console.log("Étape 2 : Téléversement du contenu du fichier via PUT...");
 
-  const jsonString = JSON.stringify(configurationData, null, 2);
-  const fileBlob = new Blob([jsonString], { type: "application/json" });
+  let fileBlob;
+  let contentType;
+
+  if (dataToSave instanceof Blob) {
+    // Si la donnée est déjà un Blob (comme notre PDF), on l'utilise directement
+    fileBlob = dataToSave;
+    contentType = dataToSave.type; // Ex: 'application/pdf'
+  } else {
+    // Sinon, on assume que c'est un objet JSON à convertir
+    const jsonString = JSON.stringify(dataToSave, null, 2);
+    fileBlob = new Blob([jsonString], { type: "application/json" });
+    contentType = "application/json";
+  }
 
   const uploadResponse = await fetch(finalUploadUrl, {
     method: "PUT",
     headers: {
-      // Très important : PAS de header 'Authorization' ici, comme demandé par la doc.
-      "Content-Type": "application/json",
+      "Content-Type": contentType, // On utilise le type de contenu dynamique
     },
-    body: fileBlob,
+    body: fileBlob, // On envoie le blob (JSON ou PDF)
   });
 
   if (!uploadResponse.ok) {
@@ -423,11 +432,3 @@ export {
   fetchLoggedInUserDetails,
   fetchVisaPossibleStates,
 };
-
-
-
-
-
-
-
-
