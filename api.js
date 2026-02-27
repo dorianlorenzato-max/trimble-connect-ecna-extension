@@ -32,6 +32,7 @@ async function fetchVisaDocuments(accessToken, triconnectAPI) {
 
     visaDocuments.push({
       id: file.id,
+      projectId: projectId,
       parentId: file.parentId,
       name: file.name,
       version: file.revision || "N/A",
@@ -421,6 +422,47 @@ async function fetchVisaPossibleStates(projectId, accessToken) {
   );
   return [];
 }
+
+//SAUVEGARDE DU STATUT APRES VISA
+async function updatePSetStatus(projectId, fileId, newStatus, accessToken) {
+  // Le point d'accès de l'API est le même que pour la lecture
+  const psetsApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/psets`;
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": "application/json",
+  };
+
+  const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
+  const currentFileFRN = `frn:tcfile:${fileId}`;
+
+  // On construit le corps de la requête (payload) avec la nouvelle valeur
+  const payload = {
+    link: currentFileFRN,
+    defId: "tcfiles",
+    props: {
+      [visaPropertyId]: newStatus,
+    },
+  };
+
+  const response = await fetch(psetsApiUrl, {
+    method: "PUT", // On utilise PUT pour mettre à jour
+    headers: headers,
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Erreur lors de la mise à jour du PSet:", errorText);
+    throw new Error(
+      `Impossible de mettre à jour le PSet pour le fichier ${fileId}.`,
+    );
+  }
+
+  console.log(
+    `PSet du fichier ${fileId} mis à jour avec le statut : ${newStatus}`,
+  );
+  return await response.json();
+}
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export {
   fetchVisaDocuments,
@@ -431,4 +473,5 @@ export {
   fetchUsersAndGroups,
   fetchLoggedInUserDetails,
   fetchVisaPossibleStates,
+  updatePSetStatus,
 };
