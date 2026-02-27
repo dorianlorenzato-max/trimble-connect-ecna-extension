@@ -344,6 +344,24 @@ async function fetchFolderContents(folderId, accessToken) {
   return foldersOnly;
 }
 
+// Récupère les détails de l'utilisateur actuellement connecté via l'API REST
+
+async function fetchLoggedInUserDetails(accessToken) {
+  const userApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/users/me`;
+  const headers = { Authorization: `Bearer ${accessToken}` };
+  const response = await fetch(userApiUrl, { headers });
+
+  if (!response.ok) {
+    throw new Error(
+      `Impossible de récupérer les détails de l'utilisateur connecté.`,
+    );
+  }
+
+  const userDetails = await response.json();
+  console.log("Détails de l'utilisateur connecté récupérés :", userDetails);
+  return userDetails;
+}
+
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export {
   fetchVisaDocuments,
@@ -352,5 +370,5 @@ export {
   fetchConfigurationFile,
   fetchFolderContents,
   fetchUsersAndGroups,
+  fetchLoggedInUserDetails,
 };
-
