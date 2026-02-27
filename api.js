@@ -426,44 +426,51 @@ async function fetchVisaPossibleStates(projectId, accessToken) {
 
 //SAUVEGARDE DU STATUT APRES VISA
 async function updatePSetStatus(projectId, fileId, newStatus, accessToken) {
-  // Le point d'accès de l'API est le même que pour la lecture
-  const psetsApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/psets`;
+  // 1. Définir les composants de l'URL comme dans la documentation
+  const libId = `tcproject:prod:${projectId}`;
+  const link = `frn:tcfile:${fileId}`;
+  const defId = "tcfiles";
+
+  // IMPORTANT : Le "link" contient des caractères spéciaux (:) qui doivent être encodés pour être dans une URL.
+  const encodedLink = encodeURIComponent(link);
+
+  // On construit l'URL du point d'accès PATCH
+  const psetUpdateApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/psets/${encodedLink}/${libId}/${defId}`;
+  
   const headers = {
     Authorization: `Bearer ${accessToken}`,
-    "Content-Type": "application/json",
+    'Content-Type': 'application/json',
   };
 
   const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
-  const currentFileFRN = `frn:tcfile:${fileId}`;
 
-  // On construit le corps de la requête (payload) avec la nouvelle valeur
+  // 2. Construire le corps de la requête (payload) pour la mise à jour partielle
   const payload = {
-    link: currentFileFRN,
-    defId: "tcfiles",
     props: {
       [visaPropertyId]: newStatus,
     },
   };
 
-  const response = await fetch(psetsApiUrl, {
-    method: "PUT", // On utilise PUT pour mettre à jour
+  console.log(`Mise à jour du PSet via PATCH sur : ${psetUpdateApiUrl}`);
+  console.log("Payload envoyé :", JSON.stringify(payload));
+
+  // 3. Exécuter la requête avec la méthode PATCH
+  const response = await fetch(psetUpdateApiUrl, {
+    method: 'PATCH',
     headers: headers,
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error("Erreur lors de la mise à jour du PSet:", errorText);
-    throw new Error(
-      `Impossible de mettre à jour le PSet pour le fichier ${fileId}.`,
-    );
+    console.error("Erreur lors de la mise à jour PATCH du PSet:", errorText);
+    throw new Error(`Impossible de mettre à jour le PSet via PATCH pour le fichier ${fileId}.`);
   }
 
-  console.log(
-    `PSet du fichier ${fileId} mis à jour avec le statut : ${newStatus}`,
-  );
+  console.log(`PSet du fichier ${fileId} mis à jour avec succès via PATCH. Statut : ${newStatus}`);
   return await response.json();
 }
+
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export {
   fetchVisaDocuments,
@@ -476,4 +483,5 @@ export {
   fetchVisaPossibleStates,
   updatePSetStatus,
 };
+
 
