@@ -363,43 +363,52 @@ async function fetchLoggedInUserDetails(accessToken) {
 }
 
 async function fetchVisaPossibleStates(projectId, accessToken) {
-  // L'URL pour obtenir les DÉFINITIONS de toutes les propriétés du projet
-  const propDefsApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/defs`;
+  // L'URL correcte pour obtenir les définitions, comme vous l'avez trouvée.
+  const defsApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/defs`;
 
-  const response = await fetch(propDefsApiUrl, {
+  const response = await fetch(defsApiUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Erreur lors de la récupération des définitions de PSet:", errorText);
     throw new Error(
       "Impossible de récupérer les définitions des Psets du projet.",
     );
   }
-  const propDefsData = await response.json();
+  
+  const defsData = await response.json();
+  console.log("Données de définitions de PSet reçues :", defsData);
 
-  const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
-  console.log("clef d'identification", accessToken);
-  console.log("Pset récupérés", propDefsData);
-  // On cherche la définition de notre PSet "Visa" par son ID
-  const visaPsetDef =
-    propDefsData.items?.props?.[visaPropertyId]?.enum || "Non défini";
-
-  // Si on l'a trouvée et que c'est bien une énumération, on retourne ses valeurs possibles
-  if (visaPsetDef && visaPsetDef.spec.type === "enum_string") {
-    console.log(
-      "Définition du PSet 'Visa' trouvée, valeurs possibles :",
-      visaPsetDef.spec.enumValues,
-    );
-    return visaPsetDef;
+  // 1. On cherche la définition de PSet qui s'applique aux fichiers ("tcfiles")
+  const tcfilesDef = defsData.items?.find(item => item.id === 'tcfiles');
+  
+  if (!tcfilesDef) {
+    console.warn("La définition de PSet pour 'tcfiles' n'a pas été trouvée.");
+    return [];
   }
 
-  // Si on ne trouve rien, on retourne un tableau vide pour éviter une erreur
+  // 2. Dans cette définition, on trouve la propriété "Visa" par son ID
+  const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
+  const visaProperty = tcfilesDef.props?.[visaPropertyId];
+
+  // 3. On vérifie si la propriété existe et si elle contient bien un tableau "enum"
+  if (visaProperty && Array.isArray(visaProperty.enum)) {
+    console.log(
+      "Définition du PSet 'Visa' trouvée, valeurs possibles :",
+      visaProperty.enum,
+    );
+    // 4. On retourne le tableau des valeurs possibles
+    return visaProperty.enum;
+  }
+
+  // Si on ne trouve rien, on retourne un tableau vide pour éviter une erreur.
   console.warn(
-    "La définition du PSet 'Visa' n'a pas été trouvée ou n'est pas de type 'enum_string'.",
+    "La propriété 'Visa' ou ses valeurs d'énumération n'ont pas été trouvées dans la définition 'tcfiles'.",
   );
   return [];
 }
-
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export {
   fetchVisaDocuments,
@@ -411,6 +420,7 @@ export {
   fetchLoggedInUserDetails,
   fetchVisaPossibleStates,
 };
+
 
 
 
