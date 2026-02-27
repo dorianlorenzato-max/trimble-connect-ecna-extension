@@ -729,15 +729,15 @@ import {
   // génération de l'interface et des données du PDF pour le visa
 
   async function handleSaveVisaClick(visaData) {
-    renderSaving(mainContentDiv);
-
-    try {
-      // 1. Récupérer les valeurs actuelles de l'interface
+     // 1. Récupérer les valeurs actuelles de l'interface
       const selectedStatus =
         document.getElementById("visa-status-select").value;
       const observations = document.getElementById("observations").value;
+      
+    renderSaving(mainContentDiv);
 
-      // 2. Initialiser jsPDF
+    try {
+     // 2. Initialiser jsPDF
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({
         orientation: "p", // portrait
@@ -860,3 +860,4 @@ import {
   // et utilisez `parentFolderId` au lieu de 'MkvA_YZPfBk'
   // const initiateUploadUrl = `${apiBaseUrl}/files/fs/upload?parentId=${parentFolderId}&parentType=FOLDER`;
 })();
+
