@@ -7,6 +7,7 @@ import {
   fetchFolderContents,
   fetchUsersAndGroups,
   fetchLoggedInUserDetails,
+  fetchVisaPossibleStates,
 } from "./api.js";
 import {
   renderLoading,
@@ -126,25 +127,19 @@ import {
     renderLoading(mainContentDiv);
 
     try {
-      // On lance toutes les récupérations de données en parallèle pour la performance
-      const [projectInfo, loggedInUser, config, assignments, userToGroupMap] =
+      const projectInfo = await triconnectAPI.project.getCurrentProject();
+
+      // On lance les récupérations de données en parallèle
+      const [loggedInUser, assignments, userToGroupMap, visaStates] =
         await Promise.all([
-          triconnectAPI.project.getCurrentProject(),
           fetchLoggedInUserDetails(globalAccessToken),
-          fetchConfigurationFile(
-            triconnectAPI,
-            globalAccessToken,
-            CONFIG_FILENAME,
-          ),
           fetchConfigurationFile(
             triconnectAPI,
             globalAccessToken,
             ASSIGNMENTS_FILENAME,
           ),
-          fetchUsersAndGroups(
-            (await triconnectAPI.project.getCurrentProject()).id,
-            globalAccessToken,
-          ),
+          fetchUsersAndGroups(projectInfo.id, globalAccessToken),
+          fetchVisaPossibleStates(projectInfo.id, globalAccessToken),
         ]);
 
       // On prépare les données pour l'interface
@@ -154,7 +149,7 @@ import {
         userName: `${loggedInUser.firstName} ${loggedInUser.lastName}`,
         userGroup: userToGroupMap.get(loggedInUser.id) || "Groupe non trouvé",
         fluxName: assignments[doc.parentId] || "Aucun flux affecté",
-        visaStates: config.visaStates || [],
+        visaStates: visaStates || [],
       };
 
       // On affiche l'interface avec toutes les données
@@ -171,9 +166,9 @@ import {
       });
 
       // Attacher l'événement pour le bouton de visualisation
-      document.getElementById('view-doc-btn').addEventListener('click', () => {
+      document.getElementById("view-doc-btn").addEventListener("click", () => {
         const viewerUrl = `https://web.connect.trimble.com/projects/${projectInfo.id}/viewer/2D?id=${doc.id}&version=${doc.id}`;
-        window.open(viewerUrl, '_blank');
+        window.open(viewerUrl, "_blank");
       });
     } catch (error) {
       console.error(
@@ -734,5 +729,3 @@ import {
     });
   }
 })();
-
-
