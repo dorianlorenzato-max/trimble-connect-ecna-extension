@@ -378,6 +378,7 @@ async function fetchVisaPossibleStates(projectId, accessToken) {
   const propDefsData = await response.json();
   const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
   console.log("Pset récupérés", propDefsData);
+  console.log("clef d'identification",accessToken);
   // On cherche la définition de notre PSet "Visa" par son ID
   const visaPsetDef = propDefsData.items?.find(
     (def) => def.id === visaPropertyId,
@@ -410,5 +411,6 @@ export {
   fetchLoggedInUserDetails,
   fetchVisaPossibleStates,
 };
+
 
 
