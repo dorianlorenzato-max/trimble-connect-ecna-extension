@@ -364,25 +364,25 @@ async function fetchLoggedInUserDetails(accessToken) {
 
 async function fetchVisaPossibleStates(projectId, accessToken) {
   // L'URL pour obtenir les DÉFINITIONS de toutes les propriétés du projet
-  const propDefsApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/psets`;
-  const headers = { Authorization: `Bearer ${accessToken}` };
+  const propDefsApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/defs`;
 
-  const response = await fetch(propDefsApiUrl, { headers });
+  const response = await fetch(propDefsApiUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
 
   if (!response.ok) {
     throw new Error(
       "Impossible de récupérer les définitions des Psets du projet.",
     );
   }
-
   const propDefsData = await response.json();
+
   const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
+  console.log("clef d'identification", accessToken);
   console.log("Pset récupérés", propDefsData);
-  console.log("clef d'identification",accessToken);
   // On cherche la définition de notre PSet "Visa" par son ID
-  const visaPsetDef = propDefsData.items?.find(
-    (def) => def.id === visaPropertyId,
-  );
+  const visaPsetDef =
+    propDefsData.items?.props?.[visaPropertyId]?.enum || "Non défini";
 
   // Si on l'a trouvée et que c'est bien une énumération, on retourne ses valeurs possibles
   if (visaPsetDef && visaPsetDef.spec.type === "enum_string") {
@@ -390,7 +390,7 @@ async function fetchVisaPossibleStates(projectId, accessToken) {
       "Définition du PSet 'Visa' trouvée, valeurs possibles :",
       visaPsetDef.spec.enumValues,
     );
-    return visaPsetDef.spec.enumValues;
+    return visaPsetDef;
   }
 
   // Si on ne trouve rien, on retourne un tableau vide pour éviter une erreur
@@ -411,6 +411,7 @@ export {
   fetchLoggedInUserDetails,
   fetchVisaPossibleStates,
 };
+
 
 
 
