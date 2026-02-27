@@ -6,6 +6,7 @@ import {
   fetchConfigurationFile,
   fetchFolderContents,
   fetchUsersAndGroups,
+  fetchLoggedInUserDetails,
 } from "./api.js";
 import {
   renderLoading,
@@ -129,7 +130,7 @@ import {
       const [projectInfo, loggedInUser, config, assignments, userToGroupMap] =
         await Promise.all([
           triconnectAPI.project.getCurrentProject(),
-          triconnectAPI.user.getLoggedInUser(),
+          fetchLoggedInUserDetails(globalAccessToken),
           fetchConfigurationFile(
             triconnectAPI,
             globalAccessToken,
