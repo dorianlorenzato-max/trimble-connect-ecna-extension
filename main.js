@@ -8,6 +8,7 @@ import {
   fetchUsersAndGroups,
   fetchLoggedInUserDetails,
   fetchVisaPossibleStates,
+  updatePSetStatus,
 } from "./api.js";
 import {
   renderLoading,
@@ -729,15 +730,14 @@ import {
   // génération de l'interface et des données du PDF pour le visa
 
   async function handleSaveVisaClick(visaData) {
-     // 1. Récupérer les valeurs actuelles de l'interface
-      const selectedStatus =
-        document.getElementById("visa-status-select").value;
-      const observations = document.getElementById("observations").value;
-      
+    // 1. Récupérer les valeurs actuelles de l'interface
+    const selectedStatus = document.getElementById("visa-status-select").value;
+    const observations = document.getElementById("observations").value;
+
     renderSaving(mainContentDiv);
 
     try {
-     // 2. Initialiser jsPDF
+      // 2. Initialiser jsPDF
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({
         orientation: "p", // portrait
@@ -831,15 +831,27 @@ import {
       // 4. Générer le Blob du PDF
       const pdfBlob = doc.output("blob");
       const newFilename = `VISA-${visaData.doc.name}`;
+      console.log(
+        "Lancement de la sauvegarde du PDF et de la mise à jour du PSet en parallèle...",
+      );
 
-      // 5. Téléverser le fichier PDF
-      await saveConfigurationFile(
+      // 5. Téléverser le fichier PDF + mettre à jour le pset
+      const updatePSetTask = updatePSetStatus(
+        visaData.doc.projectId, // Nous devons ajouter projectId aux données du document
+        visaData.doc.id,
+        selectedStatus,
+        globalAccessToken,
+      );
+
+      const savePdfTask = saveConfigurationFile(
         triconnectAPI,
         globalAccessToken,
         pdfBlob,
         newFilename,
-        visaData.doc.parentId, // Nous devons passer l'ID du dossier parent !
+        visaData.doc.parentId,
       );
+
+      await Promise.all([updatePSetTask, savePdfTask]);
 
       renderSuccess(
         mainContentDiv,
@@ -863,5 +875,3 @@ import {
   // et utilisez `parentFolderId` au lieu de 'MkvA_YZPfBk'
   // const initiateUploadUrl = `${apiBaseUrl}/files/fs/upload?parentId=${parentFolderId}&parentType=FOLDER`;
 })();
-
-
