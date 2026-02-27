@@ -761,7 +761,10 @@ import {
         doc.setFont("helvetica", "bold");
         doc.text(label, x + 3, y + 6);
         doc.setFont("helvetica", "normal");
-        doc.text(value, x + 3, y + 12);
+        const stringValue = String(value || "");
+
+        const textLines = doc.splitTextToSize(stringValue, width - 6);
+        doc.text(textLines, x + 3, y + 12);
       };
 
       // --- Colonne de gauche ---
@@ -860,4 +863,5 @@ import {
   // et utilisez `parentFolderId` au lieu de 'MkvA_YZPfBk'
   // const initiateUploadUrl = `${apiBaseUrl}/files/fs/upload?parentId=${parentFolderId}&parentType=FOLDER`;
 })();
+
 
