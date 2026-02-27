@@ -393,6 +393,7 @@ async function fetchVisaPossibleStates(projectId, accessToken) {
 
   const defsData = await response.json();
   console.log("Données de définitions de PSet reçues :", defsData);
+  console.log("code d'accès :", accessToken);
 
   // 1. On cherche la définition de PSet qui s'applique aux fichiers ("tcfiles")
   const tcfilesDef = defsData.items?.find((item) => item.id === "tcfiles");
@@ -475,3 +476,4 @@ export {
   fetchVisaPossibleStates,
   updatePSetStatus,
 };
+
