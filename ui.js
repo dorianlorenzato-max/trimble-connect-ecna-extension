@@ -370,7 +370,7 @@ function renderVisaInterfacePage(container, visaData) {
   const { doc, projectName, userName, userGroup, fluxName, visaStates } =
     visaData;
   // Données pour l'exemple
-  const visaStatusOptions = ["BPE", "REJ", "BPA", "VI", "SO"]
+  const visaStatusOptions = visaStates
     .map((status) => `<option value="${status}">${status}</option>`)
     .join("");
 
@@ -383,11 +383,11 @@ function renderVisaInterfacePage(container, visaData) {
         <div class="visa-col">
           <div class="visa-data-bubble">
             <label>Nom du Groupe de l'utilisateur</label>
-            <span>Groupe à récupérer</span>
+            <span>${userGroup}</span>
           </div>
           <div class="visa-data-bubble">
             <label>Nom de l'utilisateur</label>
-            <span>Utilisateur à récupérer</span>
+            <span>${userName}</span>
           </div>
           <div class="visa-data-bubble">
             <label>Date du jour</label>
@@ -399,7 +399,7 @@ function renderVisaInterfacePage(container, visaData) {
         <div class="visa-col">
           <div class="visa-data-bubble">
             <label>Nom du projet</label>
-            <span>Projet à récupérer</span>
+            <span>${projectName}</span>
           </div>
           <div class="visa-data-bubble">
             <label>État du Visa</label>
@@ -418,7 +418,7 @@ function renderVisaInterfacePage(container, visaData) {
         <div class="visa-col">
           <div class="visa-data-bubble">
             <label>Nom du flux de visa</label>
-            <span>Flux à récupérer</span>
+            <span>${fluxName}</span>
           </div>
           <div class="visa-data-bubble">
             <label>Indice du document</label>
