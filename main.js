@@ -171,8 +171,9 @@ import {
       });
 
       // Attacher l'événement pour le bouton de visualisation
-      document.getElementById("view-doc-btn").addEventListener("click", () => {
-        triconnectAPI.ui.openInViewer(doc.id);
+      document.getElementById('view-doc-btn').addEventListener('click', () => {
+        const viewerUrl = `https://web.connect.trimble.com/projects/${projectInfo.id}/viewer/2D?id=${doc.id}&version=${doc.id}`;
+        triconnectAPI.ui.openNewTab(viewerUrl);
       });
     } catch (error) {
       console.error(
@@ -733,3 +734,4 @@ import {
     });
   }
 })();
+
