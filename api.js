@@ -351,4 +351,6 @@ export {
   saveConfigurationFile,
   fetchConfigurationFile,
   fetchFolderContents,
+  fetchUsersAndGroups,
 };
+
