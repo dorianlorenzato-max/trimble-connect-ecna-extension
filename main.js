@@ -173,7 +173,7 @@ import {
       // Attacher l'événement pour le bouton de visualisation
       document.getElementById('view-doc-btn').addEventListener('click', () => {
         const viewerUrl = `https://web.connect.trimble.com/projects/${projectInfo.id}/viewer/2D?id=${doc.id}&version=${doc.id}`;
-        triconnectAPI.ui.openNewTab(viewerUrl);
+        window.open(viewerUrl, '_blank');
       });
     } catch (error) {
       console.error(
@@ -734,4 +734,5 @@ import {
     });
   }
 })();
+
 
