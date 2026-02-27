@@ -778,7 +778,7 @@ import {
       );
       drawBubble("Nom de l'utilisateur", visaData.userName, 15, 50, 60, 15);
       drawBubble(
-        "Date du jour",
+        "Date de Visa",
         new Date().toLocaleDateString(),
         15,
         70,
@@ -787,7 +787,7 @@ import {
       );
 
       // --- Colonne centrale ---
-      drawBubble("Nom du projet", visaData.projectName, 85, 30, 110, 15);
+      drawBubble("Nom du projet", visaData.projectName, 85, 30, 50, 15);
       drawBubble("État du Visa", selectedStatus, 85, 50, 50, 15);
       drawBubble(
         "Nom du fichier",
@@ -875,3 +875,4 @@ import {
   // et utilisez `parentFolderId` au lieu de 'MkvA_YZPfBk'
   // const initiateUploadUrl = `${apiBaseUrl}/files/fs/upload?parentId=${parentFolderId}&parentType=FOLDER`;
 })();
+
