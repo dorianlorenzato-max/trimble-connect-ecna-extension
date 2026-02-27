@@ -387,30 +387,30 @@ async function fetchVisaPossibleStates(projectId, accessToken) {
   // 1. On cherche la définition de PSet qui s'applique aux fichiers ("tcfiles")
   //const tcfilesDef = defsData.items?.find((item) => item.id === "tcfiles");
 
- // if (!tcfilesDef) {
+  // if (!tcfilesDef) {
   //  console.warn("La définition de PSet pour 'tcfiles' n'a pas été trouvée.");
   //  return [];
   //}
 
   // 2. Dans cette définition, on trouve la propriété "Visa" par son ID
   const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
-  const visaProperty = defsData.schema?.props?.[visaPropertyId];
+  const visaProperty = defsData.schema?.props?.[visaPropertyId].enum;
 
   // 3. On vérifie si la propriété existe et si elle contient bien un tableau "enum"
-  if (visaProperty && Array.isArray(visaProperty.enum)) {
-    console.log(
-      "Définition du PSet 'Visa' trouvée, valeurs possibles :",
-      visaProperty.enum,
-    );
+  //if (visaProperty && Array.isArray(visaProperty.enum)) {
+  //  console.log(
+   //   "Définition du PSet 'Visa' trouvée, valeurs possibles :",
+   //   visaProperty.enum,
+   // );
     // 4. On retourne le tableau des valeurs possibles
-    return visaProperty.enum;
-  }
+    return visaProperty;
+ // }
 
   // Si on ne trouve rien, on retourne un tableau vide pour éviter une erreur.
-  console.warn(
-    "La propriété 'Visa' ou ses valeurs d'énumération n'ont pas été trouvées dans la définition 'tcfiles'.",
-  );
-  return [];
+  //console.warn(
+  //  "La propriété 'Visa' ou ses valeurs d'énumération n'ont pas été trouvées dans la définition 'tcfiles'.",
+ // );
+ // return [];
 }
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export {
@@ -423,6 +423,7 @@ export {
   fetchLoggedInUserDetails,
   fetchVisaPossibleStates,
 };
+
 
 
 
