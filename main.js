@@ -160,9 +160,7 @@ import {
         .getElementById("cancel-visa-btn")
         .addEventListener("click", handleVisaButtonClick);
       document.getElementById("save-visa-btn").addEventListener("click", () => {
-        alert(
-          "La fonction d'enregistrement sera implémentée à la prochaine étape.",
-        );
+        handleSaveVisaClick(visaData);
       });
 
       // Attacher l'événement pour le bouton de visualisation
@@ -728,4 +726,137 @@ import {
       });
     });
   }
+  // génération de l'interface et des données du PDF pour le visa
+
+  async function handleSaveVisaClick(visaData) {
+    renderSaving(mainContentDiv);
+
+    try {
+      // 1. Récupérer les valeurs actuelles de l'interface
+      const selectedStatus =
+        document.getElementById("visa-status-select").value;
+      const observations = document.getElementById("observations").value;
+
+      // 2. Initialiser jsPDF
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({
+        orientation: "p", // portrait
+        unit: "mm", // millimètres
+        format: "a4", // format A4
+      });
+
+      // 3. Construire le contenu du PDF
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.text("Fiche de Visa", 105, 20, { align: "center" });
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+
+      // --- Définir une fonction pour dessiner nos bulles pour éviter la répétition ---
+      const drawBubble = (label, value, x, y, width, height) => {
+        doc.setDrawColor(201, 214, 224); // Gris-bleu clair pour les bordures
+        doc.setFillColor(240, 245, 249); // Bleu très clair pour le fond
+        doc.roundedRect(x, y, width, height, 3, 3, "FD"); // FD = Fill and Draw
+        doc.setFont("helvetica", "bold");
+        doc.text(label, x + 3, y + 6);
+        doc.setFont("helvetica", "normal");
+        doc.text(value, x + 3, y + 12);
+      };
+
+      // --- Colonne de gauche ---
+      drawBubble(
+        "Nom du Groupe de l'utilisateur",
+        visaData.userGroup,
+        15,
+        30,
+        60,
+        15,
+      );
+      drawBubble("Nom de l'utilisateur", visaData.userName, 15, 50, 60, 15);
+      drawBubble(
+        "Date du jour",
+        new Date().toLocaleDateString(),
+        15,
+        70,
+        60,
+        15,
+      );
+
+      // --- Colonne centrale ---
+      drawBubble("Nom du projet", visaData.projectName, 85, 30, 110, 15);
+      drawBubble("État du Visa", selectedStatus, 85, 50, 50, 15);
+      drawBubble(
+        "Nom du fichier",
+        doc.splitTextToSize(visaData.doc.name, 105),
+        85,
+        70,
+        110,
+        20,
+      ); // Gère les noms de fichiers longs
+
+      // --- Colonne de droite ---
+      drawBubble("Nom du flux de visa", visaData.fluxName, 145, 50, 50, 15);
+      drawBubble("Indice du document", visaData.doc.version, 145, 70, 50, 15);
+      drawBubble(
+        "Dernière date de dépôt",
+        visaData.doc.depositDate,
+        145,
+        95,
+        50,
+        15,
+      );
+      drawBubble(
+        "Nom du dernier dépositaire",
+        visaData.doc.depositorName,
+        145,
+        120,
+        50,
+        15,
+      );
+
+      // --- Section Observations ---
+      drawBubble(
+        "Observations",
+        doc.splitTextToSize(observations, 180),
+        15,
+        145,
+        180,
+        60,
+      );
+
+      // 4. Générer le Blob du PDF
+      const pdfBlob = doc.output("blob");
+      const newFilename = `VISA-${visaData.doc.name}`;
+
+      // 5. Téléverser le fichier PDF
+      await saveConfigurationFile(
+        triconnectAPI,
+        globalAccessToken,
+        pdfBlob,
+        newFilename,
+        visaData.doc.parentId, // Nous devons passer l'ID du dossier parent !
+      );
+
+      renderSuccess(
+        mainContentDiv,
+        `La fiche de visa "${newFilename}" a été enregistrée avec succès.`,
+      );
+      setTimeout(handleVisaButtonClick, 2000); // Revenir à la liste des visas
+    } catch (error) {
+      console.error(
+        "Échec de la génération ou de la sauvegarde du PDF :",
+        error,
+      );
+      renderError(mainContentDiv, error);
+    }
+  }
+
+  // Nous devons aussi légèrement modifier la signature de saveConfigurationFile pour accepter le parentId
+  // Dans api.js, changez :
+  // async function saveConfigurationFile(triconnectAPI, accessToken, dataToSave, filename)
+  // en :
+  // async function saveConfigurationFile(triconnectAPI, accessToken, dataToSave, filename, parentFolderId)
+  // et utilisez `parentFolderId` au lieu de 'MkvA_YZPfBk'
+  // const initiateUploadUrl = `${apiBaseUrl}/files/fs/upload?parentId=${parentFolderId}&parentType=FOLDER`;
 })();
