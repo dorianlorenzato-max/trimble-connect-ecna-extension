@@ -372,26 +372,29 @@ async function fetchVisaPossibleStates(projectId, accessToken) {
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error("Erreur lors de la récupération des définitions de PSet:", errorText);
+    console.error(
+      "Erreur lors de la récupération des définitions de PSet:",
+      errorText,
+    );
     throw new Error(
       "Impossible de récupérer les définitions des Psets du projet.",
     );
   }
-  
+
   const defsData = await response.json();
   console.log("Données de définitions de PSet reçues :", defsData);
 
   // 1. On cherche la définition de PSet qui s'applique aux fichiers ("tcfiles")
-  const tcfilesDef = defsData.items?.find(item => item.id === 'tcfiles');
-  
-  if (!tcfilesDef) {
-    console.warn("La définition de PSet pour 'tcfiles' n'a pas été trouvée.");
-    return [];
-  }
+  //const tcfilesDef = defsData.items?.find((item) => item.id === "tcfiles");
+
+ // if (!tcfilesDef) {
+  //  console.warn("La définition de PSet pour 'tcfiles' n'a pas été trouvée.");
+  //  return [];
+  //}
 
   // 2. Dans cette définition, on trouve la propriété "Visa" par son ID
   const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
-  const visaProperty = tcfilesDef.props?.[visaPropertyId];
+  const visaProperty = defsData.schema?.props?.[visaPropertyId];
 
   // 3. On vérifie si la propriété existe et si elle contient bien un tableau "enum"
   if (visaProperty && Array.isArray(visaProperty.enum)) {
@@ -420,6 +423,7 @@ export {
   fetchLoggedInUserDetails,
   fetchVisaPossibleStates,
 };
+
 
 
 
