@@ -10,6 +10,7 @@ import {
   fetchVisaPossibleStates,
   updatePSetStatus,
   getRootFolders,
+  getConfigFolderId,
 } from "./api.js";
 import {
   renderLoading,
@@ -35,6 +36,7 @@ import {
 
   let triconnectAPI;
   let globalAccessToken = null;
+  let configFolderId = null;
   let currentProjectGroups = []; // Pour stocker les groupes et éviter de les re-fetcher
   let currentEditedFluxName = null; // Pour suivre si nous éditons un flux existant
 
@@ -51,6 +53,7 @@ import {
       const config = await fetchConfigurationFile(
         triconnectAPI,
         globalAccessToken,
+        configFolderId,
         CONFIG_FILENAME,
       );
       const flows = config ? config.flux : [];
@@ -138,6 +141,7 @@ import {
           fetchConfigurationFile(
             triconnectAPI,
             globalAccessToken,
+            configFolderId,
             ASSIGNMENTS_FILENAME,
           ),
           fetchUsersAndGroups(projectInfo.id, globalAccessToken),
@@ -230,6 +234,7 @@ import {
       const config = await fetchConfigurationFile(
         triconnectAPI,
         globalAccessToken,
+        configFolderId,
         CONFIG_FILENAME,
       );
       const flows = config ? config.flux : []; // Récupérer tous les flux
@@ -260,6 +265,7 @@ import {
       const existingConfig = await fetchConfigurationFile(
         triconnectAPI,
         globalAccessToken,
+        configFolderId,
         CONFIG_FILENAME,
       );
       if (!existingConfig || !existingConfig.flux) {
@@ -276,6 +282,7 @@ import {
         globalAccessToken,
         finalConfigurationData,
         CONFIG_FILENAME,
+        configFolderId,
       );
 
       renderSuccess(
@@ -307,6 +314,7 @@ import {
       const existingConfig = await fetchConfigurationFile(
         triconnectAPI,
         globalAccessToken,
+        configFolderId,
         CONFIG_FILENAME,
       );
       if (!existingConfig || !existingConfig.flux) {
@@ -399,6 +407,7 @@ import {
       const existingConfig = await fetchConfigurationFile(
         triconnectAPI,
         globalAccessToken,
+        configFolderId,
         CONFIG_FILENAME,
       );
 
@@ -447,6 +456,7 @@ import {
         globalAccessToken,
         finalConfigurationData,
         CONFIG_FILENAME,
+        configFolderId,
       );
 
       renderSuccess(
@@ -491,27 +501,20 @@ import {
   try {
     mainContentDiv.innerHTML = `<p>Connexion à Trimble Connect...</p>`;
 
-    triconnectAPI = await TrimbleConnectWorkspace.connect(
-      window.parent,
-      (event, data) => {
-        console.log("Événement Trimble Connect reçu : ", event, data);
-      },
-      30000,
-    );
+    triconnectAPI = await TrimbleConnectWorkspace.connect(/*...*/);
 
     mainContentDiv.innerHTML = `<p>Récupération des permissions...</p>`;
 
     const fetchedToken =
       await triconnectAPI.extension.requestPermission("accesstoken");
-    if (typeof fetchedToken !== "string" || fetchedToken.length === 0) {
-      throw new Error(
-        "L'Access Token Trimble Connect est invalide ou n'a pas pu être récupéré.",
-      );
-    }
     globalAccessToken = fetchedToken;
 
-    if (!TRIMBLE_CLIENT_ID) {
-      throw new Error("L'ID Client Trimble n'est pas configuré.");
+    mainContentDiv.innerHTML = `<p>Recherche du dossier de configuration...</p>`;
+    configFolderId = await getConfigFolderId(triconnectAPI, globalAccessToken);
+    if (!configFolderId) {
+      throw new Error(
+        "Le dossier 'Configuration_Visa' est introuvable. L'application ne peut pas continuer.",
+      );
     }
 
     // Configuration du menu dans l'UI de Trimble Connect
@@ -526,23 +529,8 @@ import {
       .getElementById("visasBtn")
       .addEventListener("click", handleVisaButtonClick);
     document
-      .getElementById("dashboardBtn").addEventListener("click", async () => {
-        console.log("Bouton 'Tableau de Bord' cliqué pour le test.");
-        renderLoading(mainContentDiv);
-        try {
-          const rootFolders = await getRootFolders(triconnectAPI, globalAccessToken);
-          console.log("Dossiers trouvés à la racine du projet :", rootFolders);
-          mainContentDiv.innerHTML = `
-            <h1>Test de lecture des dossiers racines</h1>
-            <p>La liste des dossiers trouvés à la racine du projet a été affichée dans la console du navigateur.</p>
-            <p>Vérifiez qu'un dossier nommé <strong>Configuration_Visa</strong> existe bien.</p>
-            <pre style="background-color: #eee; padding: 10px; border-radius: 5px;">${JSON.stringify(rootFolders, null, 2)}</pre>
-          `;
-        } catch (error) {
-          console.error("Erreur lors du test de récupération des dossiers racines :", error);
-          renderError(mainContentDiv, error);
-        }
-      });
+      .getElementById("dashboardBtn")
+      .addEventListener("click", () => renderWelcome(mainContentDiv));
     document
       .getElementById("configBtn")
       .addEventListener("click", handleConfigClick);
@@ -576,11 +564,13 @@ import {
           fetchConfigurationFile(
             triconnectAPI,
             globalAccessToken,
+            configFolderId,
             CONFIG_FILENAME,
           ),
           fetchConfigurationFile(
             triconnectAPI,
             globalAccessToken,
+            configFolderId,
             ASSIGNMENTS_FILENAME,
           ),
           // TODO modifier l'ID du dossier racine
@@ -657,6 +647,7 @@ import {
         globalAccessToken,
         currentAssignments,
         ASSIGNMENTS_FILENAME,
+        configFolderId,
       );
       renderSuccess(
         mainContentDiv,
@@ -862,6 +853,7 @@ import {
       const savePdfTask = saveConfigurationFile(
         triconnectAPI,
         globalAccessToken,
+        configFolderId,
         pdfBlob,
         newFilename,
         visaData.doc.parentId,
@@ -882,14 +874,4 @@ import {
       renderError(mainContentDiv, error);
     }
   }
-
-  // Nous devons aussi légèrement modifier la signature de saveConfigurationFile pour accepter le parentId
-  // Dans api.js, changez :
-  // async function saveConfigurationFile(triconnectAPI, accessToken, dataToSave, filename)
-  // en :
-  // async function saveConfigurationFile(triconnectAPI, accessToken, dataToSave, filename, parentFolderId)
-  // et utilisez `parentFolderId` au lieu de 'MkvA_YZPfBk'
-  // const initiateUploadUrl = `${apiBaseUrl}/files/fs/upload?parentId=${parentFolderId}&parentType=FOLDER`;
 })();
-
-
