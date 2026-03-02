@@ -9,8 +9,8 @@ import {
   fetchLoggedInUserDetails,
   fetchVisaPossibleStates,
   updatePSetStatus,
-  getRootFolders,
   getConfigFolderId,
+  getRootFolders,
 } from "./api.js";
 import {
   renderLoading,
@@ -100,6 +100,8 @@ import {
       const documents = await fetchVisaDocuments(
         globalAccessToken,
         triconnectAPI,
+        configFolderId,
+        ASSIGNMENTS_FILENAME,
       );
       renderVisaTable(mainContentDiv, documents);
       attachVisaTableEvents(documents);
@@ -834,4 +836,3 @@ import {
     });
   }
 })();
-
