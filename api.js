@@ -472,15 +472,29 @@ async function updatePSetStatus(projectId, fileId, newStatus, accessToken) {
 }
 
 async function getRootFolders(triconnectAPI, accessToken) {
-  // On récupère d'abord les informations du projet pour trouver l'ID du dossier racine
-  const projectInfo = await triconnectAPI.project.getCurrentProject();
-  const rootFolderId = projectInfo.rootFolderId;
+  // 1. Obtenir l'ID du projet via l'API Workspace
+  const basicProjectInfo = await triconnectAPI.project.getCurrentProject();
+  const projectId = basicProjectInfo.id;
 
-  if (!rootFolderId) {
-    throw new Error("Impossible de trouver l'ID du dossier racine du projet.");
+  // 2. Utiliser cet ID pour appeler l'API REST et obtenir les détails complets
+  const projectDetailsApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/projects/${projectId}`;
+  const response = await fetch(projectDetailsApiUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok) {
+    throw new Error("Impossible de récupérer les détails complets du projet via l'API REST.");
   }
 
-  // On utilise la fonction fetchFolderContents que nous avons déjà, mais avec l'ID de la racine
+  const fullProjectInfo = await response.json();
+  const rootFolderId = fullProjectInfo.rootFolderId; // Cette fois, la propriété existera
+
+  // 3. Le reste de la logique est identique
+  if (!rootFolderId) {
+    console.error("L'objet projet détaillé de l'API REST ne contient pas de rootFolderId :", fullProjectInfo);
+    throw new Error("Impossible de trouver l'ID du dossier racine dans les détails du projet.");
+  }
+
   console.log(`Recherche des dossiers dans la racine du projet (ID: ${rootFolderId})...`);
   return await fetchFolderContents(rootFolderId, accessToken);
 }
@@ -499,6 +513,7 @@ export {
   updatePSetStatus,
   getRootFolders,
 };
+
 
 
 
