@@ -13,7 +13,7 @@ async function fetchVisaDocuments(accessToken, triconnectAPI) {
     accessToken,
     // Note: configFolderId sera passé depuis main.js lors de l'appel
     // Pour l'instant, on utilise l'ID en dur pour les tests, nous le rendrons dynamique ensuite.
-    "8VnUi2FJ3hA", // TODO: Remplacer par configFolderId
+    configFolderId, // TODO: Remplacer par configFolderId
     "flux-assignments.json", // Le nom du fichier d'affectations
   );
   const assignedFolderIds = Object.keys(assignmentsConfig || {}); // Récupère tous les IDs de dossiers qui ont une affectation
@@ -402,3 +402,4 @@ export {
   getRootFolders,
   getConfigFolderId,
 };
+
