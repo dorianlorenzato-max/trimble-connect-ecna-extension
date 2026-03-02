@@ -471,6 +471,21 @@ async function updatePSetStatus(projectId, fileId, newStatus, accessToken) {
   return await response.json();
 }
 
+async function getRootFolders(triconnectAPI, accessToken) {
+  // On récupère d'abord les informations du projet pour trouver l'ID du dossier racine
+  const projectInfo = await triconnectAPI.project.getCurrentProject();
+  const rootFolderId = projectInfo.rootFolderId;
+
+  if (!rootFolderId) {
+    throw new Error("Impossible de trouver l'ID du dossier racine du projet.");
+  }
+
+  // On utilise la fonction fetchFolderContents que nous avons déjà, mais avec l'ID de la racine
+  console.log(`Recherche des dossiers dans la racine du projet (ID: ${rootFolderId})...`);
+  return await fetchFolderContents(rootFolderId, accessToken);
+}
+
+
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export {
   fetchVisaDocuments,
@@ -482,6 +497,8 @@ export {
   fetchLoggedInUserDetails,
   fetchVisaPossibleStates,
   updatePSetStatus,
+  getRootFolders,
 };
+
 
 
