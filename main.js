@@ -175,7 +175,7 @@ import {
 
   // génération de l'interface et des données du PDF pour le visa
 
-   async function handleSaveVisaClick(visaData) {
+  async function handleSaveVisaClick(visaData) {
     const selectedStatus = document.getElementById("visa-status-select").value;
     const observations = document.getElementById("observations").value;
     renderSaving(mainContentDiv);
@@ -183,42 +183,93 @@ import {
     try {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
-      
-      doc.setFont("helvetica", "bold").setFontSize(16).text("Fiche de Visa", 105, 20, { align: "center" });
+
+      doc
+        .setFont("helvetica", "bold")
+        .setFontSize(16)
+        .text("Fiche de Visa", 105, 20, { align: "center" });
       doc.setFont("helvetica", "normal").setFontSize(10);
-      
+
       const drawBubble = (label, value, x, y, width, height) => {
-        doc.setDrawColor(201, 214, 224).setFillColor(240, 245, 249).roundedRect(x, y, width, height, 3, 3, "FD");
+        doc
+          .setDrawColor(201, 214, 224)
+          .setFillColor(240, 245, 249)
+          .roundedRect(x, y, width, height, 3, 3, "FD");
         doc.setFont("helvetica", "bold").text(label, x + 3, y + 6);
         const stringValue = String(value || "");
         const textLines = doc.splitTextToSize(stringValue, width - 6);
         doc.setFont("helvetica", "normal").text(textLines, x + 3, y + 12);
       };
 
-      drawBubble("Nom du Groupe de l'utilisateur", visaData.userGroup, 15, 30, 60, 15);
+      drawBubble(
+        "Nom du Groupe de l'utilisateur",
+        visaData.userGroup,
+        15,
+        30,
+        60,
+        15,
+      );
       drawBubble("Nom de l'utilisateur", visaData.userName, 15, 50, 60, 15);
-      drawBubble("Date de Visa", new Date().toLocaleDateString(), 15, 70, 60, 15);
+      drawBubble(
+        "Date de Visa",
+        new Date().toLocaleDateString(),
+        15,
+        70,
+        60,
+        15,
+      );
       drawBubble("Nom du projet", visaData.projectName, 85, 30, 110, 15);
       drawBubble("État du Visa", selectedStatus, 85, 50, 50, 15);
       drawBubble("Nom du fichier", visaData.doc.name, 85, 70, 110, 20);
       drawBubble("Nom du flux de visa", visaData.fluxName, 145, 50, 50, 15);
       drawBubble("Indice du document", visaData.doc.version, 145, 70, 50, 15);
-      drawBubble("Dernière date de dépôt", visaData.doc.depositDate, 145, 95, 50, 15);
-      drawBubble("Nom du dernier dépositaire", visaData.doc.depositorName, 145, 120, 50, 15);
+      drawBubble(
+        "Dernière date de dépôt",
+        visaData.doc.depositDate,
+        145,
+        95,
+        50,
+        15,
+      );
+      drawBubble(
+        "Nom du dernier dépositaire",
+        visaData.doc.depositorName,
+        145,
+        120,
+        50,
+        15,
+      );
       drawBubble("Observations", observations, 15, 145, 180, 60);
 
       const pdfBlob = doc.output("blob");
       const newFilename = `VISA-${visaData.doc.name}`;
 
-      const updatePSetTask = updatePSetStatus(visaData.doc.projectId, visaData.doc.id, selectedStatus, globalAccessToken);
-      const savePdfTask = saveConfigurationFile(triconnectAPI, globalAccessToken, pdfBlob, newFilename, visaData.doc.parentId);
-      
+      const updatePSetTask = updatePSetStatus(
+        visaData.doc.projectId,
+        visaData.doc.id,
+        selectedStatus,
+        globalAccessToken,
+      );
+      const savePdfTask = saveConfigurationFile(
+        triconnectAPI,
+        globalAccessToken,
+        pdfBlob,
+        newFilename,
+        visaData.doc.parentId,
+      );
+
       await Promise.all([updatePSetTask, savePdfTask]);
 
-      renderSuccess(mainContentDiv, `La fiche de visa a été enregistrée et le statut du document a été mis à jour.`);
+      renderSuccess(
+        mainContentDiv,
+        `La fiche de visa a été enregistrée et le statut du document a été mis à jour.`,
+      );
       setTimeout(handleVisaButtonClick, 2000);
     } catch (error) {
-      console.error("Échec de la génération, sauvegarde ou mise à jour :", error);
+      console.error(
+        "Échec de la génération, sauvegarde ou mise à jour :",
+        error,
+      );
       renderError(mainContentDiv, error);
     }
   }
@@ -246,7 +297,6 @@ import {
     try {
       // Récupérer la configuration la plus récente
       const config = await fetchConfigurationFile(
-        triconnectAPI,
         globalAccessToken,
         configFolderId,
         CONFIG_FILENAME,
@@ -334,7 +384,6 @@ import {
       ); // Récupérer les groupes
 
       const config = await fetchConfigurationFile(
-        triconnectAPI,
         globalAccessToken,
         configFolderId,
         CONFIG_FILENAME,
@@ -365,7 +414,6 @@ import {
     renderSaving(mainContentDiv); // Afficher un message de "suppression en cours"
     try {
       const existingConfig = await fetchConfigurationFile(
-        triconnectAPI,
         globalAccessToken,
         configFolderId,
         CONFIG_FILENAME,
@@ -414,7 +462,6 @@ import {
     renderLoading(mainContentDiv);
     try {
       const existingConfig = await fetchConfigurationFile(
-        triconnectAPI,
         globalAccessToken,
         configFolderId,
         CONFIG_FILENAME,
@@ -507,7 +554,6 @@ import {
     try {
       // ÉTAPE 1: LIRE la configuration existante
       const existingConfig = await fetchConfigurationFile(
-        triconnectAPI,
         globalAccessToken,
         configFolderId,
         CONFIG_FILENAME,
@@ -617,13 +663,11 @@ import {
       const [fluxConfig, assignmentsConfig, rootSubfolders] = await Promise.all(
         [
           fetchConfigurationFile(
-            triconnectAPI,
             globalAccessToken,
             configFolderId,
             CONFIG_FILENAME,
           ),
           fetchConfigurationFile(
-            triconnectAPI,
             globalAccessToken,
             configFolderId,
             ASSIGNMENTS_FILENAME,
