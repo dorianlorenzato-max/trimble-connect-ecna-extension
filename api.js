@@ -39,7 +39,7 @@ async function fetchVisaDocuments(
 
   //  Enrichir chaque fichier avec les informations de PSet, de dépositaire, etc.
   const visaDocuments = [];
-  for (const file of pdfFiles) {
+  for (const file of allpdfFiles) {
     const status = await fetchFilePSetStatus(projectId, file.id, accessToken);
     const depositorId = file.modifiedBy ? file.modifiedBy.id : null;
     const depositorName = file.modifiedBy
@@ -404,5 +404,6 @@ export {
   getRootFolders,
   getConfigFolderId,
 };
+
 
 
