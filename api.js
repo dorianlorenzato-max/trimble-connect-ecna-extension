@@ -3,18 +3,20 @@
  */
 
 // Fonction principale pour récupérer et agréger toutes les données nécessaires aux visas.
-async function fetchVisaDocuments(accessToken, triconnectAPI) {
+async function fetchVisaDocuments(
+  accessToken,
+  triconnectAPI,
+  configFolderId,
+  assignmentsFilename,
+) {
   const projectInfo = await triconnectAPI.project.getCurrentProject();
   const projectId = projectInfo.id;
+
   const userToGroupMap = await fetchUsersAndGroups(projectId, accessToken);
-  // TODO: Rendre ce dossier dynamique
-  //const pdfFiles = await fetchPDFFilesInFolder("9QpmVaoiJOc", accessToken);
   const assignmentsConfig = await fetchConfigurationFile(
     accessToken,
-    // Note: configFolderId sera passé depuis main.js lors de l'appel
-    // Pour l'instant, on utilise l'ID en dur pour les tests, nous le rendrons dynamique ensuite.
-    configFolderId, // TODO: Remplacer par configFolderId
-    "flux-assignments.json", // Le nom du fichier d'affectations
+    configFolderId,
+    assignmentsFilename,
   );
   const assignedFolderIds = Object.keys(assignmentsConfig || {}); // Récupère tous les IDs de dossiers qui ont une affectation
 
@@ -402,4 +404,5 @@ export {
   getRootFolders,
   getConfigFolderId,
 };
+
 
