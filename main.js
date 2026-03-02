@@ -9,6 +9,7 @@ import {
   fetchLoggedInUserDetails,
   fetchVisaPossibleStates,
   updatePSetStatus,
+  getRootFolders,
 } from "./api.js";
 import {
   renderLoading,
@@ -525,8 +526,23 @@ import {
       .getElementById("visasBtn")
       .addEventListener("click", handleVisaButtonClick);
     document
-      .getElementById("dashboardBtn")
-      .addEventListener("click", () => renderWelcome(mainContentDiv));
+      .getElementById("dashboardBtn").addEventListener("click", async () => {
+        console.log("Bouton 'Tableau de Bord' cliqué pour le test.");
+        renderLoading(mainContentDiv);
+        try {
+          const rootFolders = await getRootFolders(triconnectAPI, globalAccessToken);
+          console.log("Dossiers trouvés à la racine du projet :", rootFolders);
+          mainContentDiv.innerHTML = `
+            <h1>Test de lecture des dossiers racines</h1>
+            <p>La liste des dossiers trouvés à la racine du projet a été affichée dans la console du navigateur.</p>
+            <p>Vérifiez qu'un dossier nommé <strong>Configuration_Visa</strong> existe bien.</p>
+            <pre style="background-color: #eee; padding: 10px; border-radius: 5px;">${JSON.stringify(rootFolders, null, 2)}</pre>
+          `;
+        } catch (error) {
+          console.error("Erreur lors du test de récupération des dossiers racines :", error);
+          renderError(mainContentDiv, error);
+        }
+      });
     document
       .getElementById("configBtn")
       .addEventListener("click", handleConfigClick);
@@ -875,4 +891,5 @@ import {
   // et utilisez `parentFolderId` au lieu de 'MkvA_YZPfBk'
   // const initiateUploadUrl = `${apiBaseUrl}/files/fs/upload?parentId=${parentFolderId}&parentType=FOLDER`;
 })();
+
 
