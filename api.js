@@ -134,7 +134,7 @@ async function fetchProjectGroups(projectId, accessToken) {
 // lecture du fichier JSON pour la configuration des flux
 
 async function fetchConfigurationFile(triconnectAPI, accessToken, filename) {
-  const folderId = "MkvA_YZPfBk";
+  //const folderId = "MkvA_YZPfBk";
   const apiBaseUrl = "https://app21.connect.trimble.com/tc/api/2.0";
 
   try {
@@ -193,17 +193,18 @@ async function fetchConfigurationFile(triconnectAPI, accessToken, filename) {
   }
 }
 
-//Sauvegarde un objet de configuration dans un fichier JSON à la racine du projet.
+//Sauvegarde un objet de configuration dans un fichier JSON dans le dossier de configuration
 
 async function saveConfigurationFile(
   triconnectAPI,
   accessToken,
   dataToSave,
   filename,
+  rootFolderId,
 ) {
   const projectInfo = await triconnectAPI.project.getCurrentProject();
   //TODO modifier le nom du fichier pour qu'il soit directement récupéré du projet
-  const rootFolderId = "MkvA_YZPfBk";
+  //const rootFolderId = "MkvA_YZPfBk";
   if (!rootFolderId) {
     console.error(
       "ERREUR : Impossible de trouver l'ID du dossier racine (rootFolderId) dans l'objet projet:",
@@ -436,10 +437,10 @@ async function updatePSetStatus(projectId, fileId, newStatus, accessToken) {
 
   // On construit l'URL du point d'accès PATCH
   const psetUpdateApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/psets/${encodedLink}/${libId}/${defId}`;
-  
+
   const headers = {
     Authorization: `Bearer ${accessToken}`,
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   };
 
   const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
@@ -456,7 +457,7 @@ async function updatePSetStatus(projectId, fileId, newStatus, accessToken) {
 
   // 3. Exécuter la requête avec la méthode PATCH
   const response = await fetch(psetUpdateApiUrl, {
-    method: 'PATCH',
+    method: "PATCH",
     headers: headers,
     body: JSON.stringify(payload),
   });
@@ -464,41 +465,70 @@ async function updatePSetStatus(projectId, fileId, newStatus, accessToken) {
   if (!response.ok) {
     const errorText = await response.text();
     console.error("Erreur lors de la mise à jour PATCH du PSet:", errorText);
-    throw new Error(`Impossible de mettre à jour le PSet via PATCH pour le fichier ${fileId}.`);
+    throw new Error(
+      `Impossible de mettre à jour le PSet via PATCH pour le fichier ${fileId}.`,
+    );
   }
 
-  console.log(`PSet du fichier ${fileId} mis à jour avec succès via PATCH. Statut : ${newStatus}`);
+  console.log(
+    `PSet du fichier ${fileId} mis à jour avec succès via PATCH. Statut : ${newStatus}`,
+  );
   return await response.json();
 }
 
+// Récupération de l'id racine et de des Id des dossiers pour sauvegarder les json
+
 async function getRootFolders(triconnectAPI, accessToken) {
-  // 1. Obtenir l'ID du projet via l'API Workspace
   const basicProjectInfo = await triconnectAPI.project.getCurrentProject();
   const projectId = basicProjectInfo.id;
 
-  // 2. Utiliser cet ID pour appeler l'API REST et obtenir les détails complets
   const projectDetailsApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/projects/${projectId}`;
   const response = await fetch(projectDetailsApiUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
   if (!response.ok) {
-    throw new Error("Impossible de récupérer les détails complets du projet via l'API REST.");
+    throw new Error(
+      "Impossible de récupérer les détails complets du projet via l'API REST.",
+    );
   }
 
   const fullProjectInfo = await response.json();
-  const rootFolderId = fullProjectInfo.rootId; // Cette fois, la propriété existera
+  const rootFolderId = fullProjectInfo.rootId;
 
-  // 3. Le reste de la logique est identique
   if (!rootFolderId) {
-    console.error("L'objet projet détaillé de l'API REST ne contient pas de rootFolderId :", fullProjectInfo);
-    throw new Error("Impossible de trouver l'ID du dossier racine dans les détails du projet.");
+    console.error(
+      "L'objet projet détaillé de l'API REST ne contient pas de rootFolderId :",
+      fullProjectInfo,
+    );
+    throw new Error(
+      "Impossible de trouver l'ID du dossier racine dans les détails du projet.",
+    );
   }
 
-  console.log(`Recherche des dossiers dans la racine du projet (ID: ${rootFolderId})...`);
   return await fetchFolderContents(rootFolderId, accessToken);
 }
 
+export async function getConfigFolderId(triconnectAPI, accessToken) {
+  const configFolderName = "Configuration_Visa";
+  const rootFolders = await getRootFolders(triconnectAPI, accessToken);
+
+  const configFolder = rootFolders.find(
+    (folder) => folder.name === configFolderName,
+  );
+
+  if (configFolder) {
+    console.log(
+      `Dossier de configuration trouvé : ${configFolder.name} (ID: ${configFolder.id})`,
+    );
+    return configFolder.id;
+  } else {
+    console.error(
+      `Erreur critique : Le dossier nommé "${configFolderName}" est introuvable à la racine du projet.`,
+    );
+    return null;
+  }
+}
 
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export {
@@ -512,9 +542,5 @@ export {
   fetchVisaPossibleStates,
   updatePSetStatus,
   getRootFolders,
+  getConfigFolderId,
 };
-
-
-
-
-
