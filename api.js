@@ -8,8 +8,34 @@ async function fetchVisaDocuments(accessToken, triconnectAPI) {
   const projectId = projectInfo.id;
   const userToGroupMap = await fetchUsersAndGroups(projectId, accessToken);
   // TODO: Rendre ce dossier dynamique
-  const pdfFiles = await fetchPDFFilesInFolder("9QpmVaoiJOc", accessToken);
+  //const pdfFiles = await fetchPDFFilesInFolder("9QpmVaoiJOc", accessToken);
+  const assignmentsConfig = await fetchConfigurationFile(
+    accessToken,
+    // Note: configFolderId sera passé depuis main.js lors de l'appel
+    // Pour l'instant, on utilise l'ID en dur pour les tests, nous le rendrons dynamique ensuite.
+    "8VnUi2FJ3hA", // TODO: Remplacer par configFolderId
+    "flux-assignments.json", // Le nom du fichier d'affectations
+  );
+  const assignedFolderIds = Object.keys(assignmentsConfig || {}); // Récupère tous les IDs de dossiers qui ont une affectation
 
+  let allPdfFiles = [];
+  // Pour chaque dossier avec un flux affecté, récupérer ses fichiers PDF
+  for (const folderId of assignedFolderIds) {
+    try {
+      const pdfFilesInFolder = await fetchPDFFilesInFolder(
+        folderId,
+        accessToken,
+      );
+      allPdfFiles = allPdfFiles.concat(pdfFilesInFolder);
+    } catch (error) {
+      console.warn(
+        `Impossible de récupérer les fichiers du dossier ${folderId}. Il se peut qu'il n'existe plus ou que les permissions soient insuffisantes.`,
+        error,
+      );
+    }
+  }
+
+  //  Enrichir chaque fichier avec les informations de PSet, de dépositaire, etc.
   const visaDocuments = [];
   for (const file of pdfFiles) {
     const status = await fetchFilePSetStatus(projectId, file.id, accessToken);
@@ -101,7 +127,7 @@ async function fetchFilePSetStatus(projectId, fileId, accessToken) {
   const relevantPSet = psetsData.items?.find(
     (pset) => pset.link === currentFileFRN && pset.defId === "tcfiles",
   );
-  return relevantPSet?.props?.[visaPropertyId] || "Non défini";
+  return relevantPSet?.props?.[visaPropertyId] || "En Cours";
 }
 
 // Récupère uniquement la liste des groupes d'un projet
