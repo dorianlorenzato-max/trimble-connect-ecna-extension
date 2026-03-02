@@ -487,7 +487,7 @@ async function getRootFolders(triconnectAPI, accessToken) {
   }
 
   const fullProjectInfo = await response.json();
-  const rootFolderId = fullProjectInfo.rootFolderId; // Cette fois, la propriété existera
+  const rootFolderId = fullProjectInfo.rootId; // Cette fois, la propriété existera
 
   // 3. Le reste de la logique est identique
   if (!rootFolderId) {
@@ -513,6 +513,7 @@ export {
   updatePSetStatus,
   getRootFolders,
 };
+
 
 
 
