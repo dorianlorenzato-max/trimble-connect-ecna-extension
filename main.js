@@ -9,7 +9,6 @@ import {
   fetchLoggedInUserDetails,
   fetchVisaPossibleStates,
   updatePSetStatus,
-  getRootFolders,
   getConfigFolderId,
 } from "./api.js";
 import {
@@ -45,7 +44,203 @@ import {
   let currentAssignments = {};
   let selectedFolderInfo = null;
 
+  // --- INITIALISATION DE L'EXTENSION ---
+  try {
+    mainContentDiv.innerHTML = `<p>Connexion à Trimble Connect...</p>`;
+    triconnectAPI = await TrimbleConnectWorkspace.connect(
+      window.parent,
+      (event, data) => {},
+      30000,
+    );
+
+    mainContentDiv.innerHTML = `<p>Récupération des permissions...</p>`;
+    globalAccessToken =
+      await triconnectAPI.extension.requestPermission("accesstoken");
+    if (!globalAccessToken) throw new Error("L'Access Token est invalide.");
+
+    mainContentDiv.innerHTML = `<p>Recherche du dossier de configuration...</p>`;
+    configFolderId = await getConfigFolderId(triconnectAPI, globalAccessToken);
+    if (!configFolderId)
+      throw new Error("Le dossier 'Configuration_Visa' est introuvable.");
+
+    // Configuration du menu dans l'UI de Trimble Connect
+    triconnectAPI.ui.setMenu({
+      title: "ECNA Gestion Visa",
+      icon: "https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/logoEiffage.png",
+      command: "ecna_gestion_visa_clicked",
+    });
+
+    // Attacher les événements aux boutons principaux de la bannière
+    document
+      .getElementById("visasBtn")
+      .addEventListener("click", handleVisaButtonClick);
+    document
+      .getElementById("dashboardBtn")
+      .addEventListener("click", () => renderWelcome(mainContentDiv));
+    document
+      .getElementById("configBtn")
+      .addEventListener("click", handleConfigClick);
+
+    // Afficher l'accueil
+    renderWelcome(mainContentDiv);
+  } catch (error) {
+    console.error(
+      "Erreur critique lors de l'initialisation de l'extension :",
+      error,
+    );
+    renderError(mainContentDiv, error);
+  }
+
+  // --- GESTIONNAIRE D'ÉVÉNEMENT POUR LE BOUTON VISA ---
+
+  async function handleVisaButtonClick() {
+    renderLoading(mainContentDiv);
+    try {
+      const documents = await fetchVisaDocuments(
+        globalAccessToken,
+        triconnectAPI,
+      );
+      renderVisaTable(mainContentDiv, documents);
+      attachVisaTableEvents(documents);
+    } catch (error) {
+      console.error("Erreur lors de la récupération des documents :", error);
+      renderError(mainContentDiv, error);
+    }
+  }
+
+  // attache la table de visa
+
+  function attachVisaTableEvents(documents) {
+    const tableRows = document.querySelectorAll(".visa-table tbody tr");
+    tableRows.forEach((row, index) => {
+      const doc = documents[index];
+      if (doc) {
+        // S'assurer que le document existe
+        row.addEventListener("click", () => {
+          handleDocumentRowClick(doc);
+        });
+      }
+    });
+  }
+
+  // permet la selection de la lignepour visa
+
+  async function handleDocumentRowClick(doc) {
+    renderLoading(mainContentDiv);
+    try {
+      const projectInfo = await triconnectAPI.project.getCurrentProject();
+      const [loggedInUser, assignments, userToGroupMap, visaStates] =
+        await Promise.all([
+          fetchLoggedInUserDetails(globalAccessToken),
+          fetchConfigurationFile(
+            globalAccessToken,
+            configFolderId,
+            ASSIGNMENTS_FILENAME,
+          ),
+          fetchUsersAndGroups(projectInfo.id, globalAccessToken),
+          fetchVisaPossibleStates(projectInfo.id, globalAccessToken),
+        ]);
+
+      const visaData = {
+        doc: doc,
+        projectName: projectInfo.name,
+        userName: `${loggedInUser.firstName} ${loggedInUser.lastName}`,
+        userGroup: userToGroupMap.get(loggedInUser.id) || "Groupe non trouvé",
+        fluxName: assignments
+          ? assignments[doc.parentId] || "Aucun flux affecté"
+          : "Aucun flux affecté",
+        visaStates: visaStates || [],
+      };
+
+      renderVisaInterfacePage(mainContentDiv, visaData);
+
+      document
+        .getElementById("cancel-visa-btn")
+        .addEventListener("click", handleVisaButtonClick);
+      document
+        .getElementById("save-visa-btn")
+        .addEventListener("click", () => handleSaveVisaClick(visaData));
+      document.getElementById("view-doc-btn").addEventListener("click", () => {
+        const viewerUrl = `https://web.connect.trimble.com/projects/${projectInfo.id}/viewer/2D?id=${doc.id}&version=${doc.id}`;
+        window.open(viewerUrl, "_blank");
+      });
+    } catch (error) {
+      console.error(
+        "Erreur lors de l'affichage de l'interface de visa :",
+        error,
+      );
+      renderError(mainContentDiv, error);
+    }
+  }
+
+  // génération de l'interface et des données du PDF pour le visa
+
+   async function handleSaveVisaClick(visaData) {
+    const selectedStatus = document.getElementById("visa-status-select").value;
+    const observations = document.getElementById("observations").value;
+    renderSaving(mainContentDiv);
+
+    try {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+      
+      doc.setFont("helvetica", "bold").setFontSize(16).text("Fiche de Visa", 105, 20, { align: "center" });
+      doc.setFont("helvetica", "normal").setFontSize(10);
+      
+      const drawBubble = (label, value, x, y, width, height) => {
+        doc.setDrawColor(201, 214, 224).setFillColor(240, 245, 249).roundedRect(x, y, width, height, 3, 3, "FD");
+        doc.setFont("helvetica", "bold").text(label, x + 3, y + 6);
+        const stringValue = String(value || "");
+        const textLines = doc.splitTextToSize(stringValue, width - 6);
+        doc.setFont("helvetica", "normal").text(textLines, x + 3, y + 12);
+      };
+
+      drawBubble("Nom du Groupe de l'utilisateur", visaData.userGroup, 15, 30, 60, 15);
+      drawBubble("Nom de l'utilisateur", visaData.userName, 15, 50, 60, 15);
+      drawBubble("Date de Visa", new Date().toLocaleDateString(), 15, 70, 60, 15);
+      drawBubble("Nom du projet", visaData.projectName, 85, 30, 110, 15);
+      drawBubble("État du Visa", selectedStatus, 85, 50, 50, 15);
+      drawBubble("Nom du fichier", visaData.doc.name, 85, 70, 110, 20);
+      drawBubble("Nom du flux de visa", visaData.fluxName, 145, 50, 50, 15);
+      drawBubble("Indice du document", visaData.doc.version, 145, 70, 50, 15);
+      drawBubble("Dernière date de dépôt", visaData.doc.depositDate, 145, 95, 50, 15);
+      drawBubble("Nom du dernier dépositaire", visaData.doc.depositorName, 145, 120, 50, 15);
+      drawBubble("Observations", observations, 15, 145, 180, 60);
+
+      const pdfBlob = doc.output("blob");
+      const newFilename = `VISA-${visaData.doc.name}`;
+
+      const updatePSetTask = updatePSetStatus(visaData.doc.projectId, visaData.doc.id, selectedStatus, globalAccessToken);
+      const savePdfTask = saveConfigurationFile(triconnectAPI, globalAccessToken, pdfBlob, newFilename, visaData.doc.parentId);
+      
+      await Promise.all([updatePSetTask, savePdfTask]);
+
+      renderSuccess(mainContentDiv, `La fiche de visa a été enregistrée et le statut du document a été mis à jour.`);
+      setTimeout(handleVisaButtonClick, 2000);
+    } catch (error) {
+      console.error("Échec de la génération, sauvegarde ou mise à jour :", error);
+      renderError(mainContentDiv, error);
+    }
+  }
+
+  // --- GESTIONNAIRE POUR AFFICHER LA PAGE DE CONFIGURATION ---
+  function handleConfigClick() {
+    renderConfigPage(mainContentDiv);
+
+    document
+      .getElementById("create-flux-btn")
+      .addEventListener("click", handleCreateFluxClick);
+    document
+      .getElementById("manage-flux-btn")
+      .addEventListener("click", handleManageFluxClick);
+
+    document
+      .getElementById("assign-flux-btn")
+      .addEventListener("click", handleAssignFluxClick);
+  }
+
   // Fonction utilitaire pour rafraîchir la page de gestion des flux
+
   async function refreshManageFluxPage() {
     renderLoading(mainContentDiv);
     try {
@@ -88,99 +283,6 @@ import {
     document
       .getElementById("back-to-config-btn")
       .addEventListener("click", handleConfigClick);
-  }
-
-  // --- GESTIONNAIRE D'ÉVÉNEMENT POUR LE BOUTON VISA ---
-  async function handleVisaButtonClick() {
-    if (!globalAccessToken || !triconnectAPI) {
-      renderError(
-        mainContentDiv,
-        new Error("L'extension n'est pas correctement initialisée."),
-      );
-      return;
-    }
-    renderLoading(mainContentDiv);
-    try {
-      const documents = await fetchVisaDocuments(
-        globalAccessToken,
-        triconnectAPI,
-      );
-      renderVisaTable(mainContentDiv, documents);
-      attachVisaTableEvents(documents);
-    } catch (error) {
-      console.error("Erreur lors de la récupération des documents :", error);
-      renderError(mainContentDiv, error);
-    }
-  }
-  // attache la table de visa
-  function attachVisaTableEvents(documents) {
-    const tableRows = document.querySelectorAll(".visa-table tbody tr");
-    tableRows.forEach((row, index) => {
-      const doc = documents[index];
-      if (doc) {
-        // S'assurer que le document existe
-        row.addEventListener("click", () => {
-          handleDocumentRowClick(doc);
-        });
-      }
-    });
-  }
-
-  // permet la selection de la lignepour visa
-  async function handleDocumentRowClick(doc) {
-    console.log("Document sélectionné :", doc);
-    renderLoading(mainContentDiv);
-
-    try {
-      const projectInfo = await triconnectAPI.project.getCurrentProject();
-
-      // On lance les récupérations de données en parallèle
-      const [loggedInUser, assignments, userToGroupMap, visaStates] =
-        await Promise.all([
-          fetchLoggedInUserDetails(globalAccessToken),
-          fetchConfigurationFile(
-            triconnectAPI,
-            globalAccessToken,
-            configFolderId,
-            ASSIGNMENTS_FILENAME,
-          ),
-          fetchUsersAndGroups(projectInfo.id, globalAccessToken),
-          fetchVisaPossibleStates(projectInfo.id, globalAccessToken),
-        ]);
-
-      // On prépare les données pour l'interface
-      const visaData = {
-        doc: doc, // Les infos du document cliqué
-        projectName: projectInfo.name,
-        userName: `${loggedInUser.firstName} ${loggedInUser.lastName}`,
-        userGroup: userToGroupMap.get(loggedInUser.id) || "Groupe non trouvé",
-        fluxName: assignments[doc.parentId] || "Aucun flux affecté",
-        visaStates: visaStates || [],
-      };
-
-      // On affiche l'interface avec toutes les données
-      renderVisaInterfacePage(mainContentDiv, visaData);
-
-      // Attacher les événements pour les boutons
-      document
-        .getElementById("cancel-visa-btn")
-        .addEventListener("click", handleVisaButtonClick);
-      document.getElementById("save-visa-btn").addEventListener("click", () => {
-        handleSaveVisaClick(visaData);
-      });
-
-      // Attacher l'événement pour le bouton de visualisation
-      document.getElementById("view-doc-btn").addEventListener("click", () => {
-        const viewerUrl = `https://web.connect.trimble.com/projects/${projectInfo.id}/viewer/2D?id=${doc.id}&version=${doc.id}`;
-        window.open(viewerUrl, "_blank");
-      });
-    } catch (error) {
-      console.error(
-        "Erreur lors de l'affichage de l'interface de visa :",
-        error,
-      );
-      renderError(mainContentDiv, error);
-    }
   }
 
   // --- GESTIONNAIRE POUR LE BOUTON DE CREATION DE FLUX ---
@@ -497,53 +599,6 @@ import {
     assignButton.addEventListener("click", handleAssignFluxClick);
   }
 
-  // --- INITIALISATION DE L'EXTENSION ---
-  try {
-    mainContentDiv.innerHTML = `<p>Connexion à Trimble Connect...</p>`;
-
-    triconnectAPI = await TrimbleConnectWorkspace.connect(/*...*/);
-
-    mainContentDiv.innerHTML = `<p>Récupération des permissions...</p>`;
-
-    const fetchedToken =
-      await triconnectAPI.extension.requestPermission("accesstoken");
-    globalAccessToken = fetchedToken;
-
-    mainContentDiv.innerHTML = `<p>Recherche du dossier de configuration...</p>`;
-    configFolderId = await getConfigFolderId(triconnectAPI, globalAccessToken);
-    if (!configFolderId) {
-      throw new Error(
-        "Le dossier 'Configuration_Visa' est introuvable. L'application ne peut pas continuer.",
-      );
-    }
-
-    // Configuration du menu dans l'UI de Trimble Connect
-    triconnectAPI.ui.setMenu({
-      title: "ECNA Gestion Visa",
-      icon: "https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/logoEiffage.png",
-      command: "ecna_gestion_visa_clicked",
-    });
-
-    // Attacher les événements aux boutons principaux de la bannière
-    document
-      .getElementById("visasBtn")
-      .addEventListener("click", handleVisaButtonClick);
-    document
-      .getElementById("dashboardBtn")
-      .addEventListener("click", () => renderWelcome(mainContentDiv));
-    document
-      .getElementById("configBtn")
-      .addEventListener("click", handleConfigClick);
-
-    // Afficher l'accueil
-    renderWelcome(mainContentDiv);
-  } catch (error) {
-    console.error(
-      "Erreur critique lors de l'initialisation de l'extension :",
-      error,
-    );
-    renderError(mainContentDiv, error);
-  }
   // --- GESTIONNAIRE D'ÉVÉNEMENT POUR LE BOUTON D'AFFECTATION DES FLUX---
   async function handleAssignFluxClick() {
     if (!globalAccessToken || !triconnectAPI) {
@@ -733,145 +788,5 @@ import {
         }
       });
     });
-  }
-  // génération de l'interface et des données du PDF pour le visa
-
-  async function handleSaveVisaClick(visaData) {
-    // 1. Récupérer les valeurs actuelles de l'interface
-    const selectedStatus = document.getElementById("visa-status-select").value;
-    const observations = document.getElementById("observations").value;
-
-    renderSaving(mainContentDiv);
-
-    try {
-      // 2. Initialiser jsPDF
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({
-        orientation: "p", // portrait
-        unit: "mm", // millimètres
-        format: "a4", // format A4
-      });
-
-      // 3. Construire le contenu du PDF
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(16);
-      doc.text("Fiche de Visa", 105, 20, { align: "center" });
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-
-      // --- Définir une fonction pour dessiner nos bulles pour éviter la répétition ---
-      const drawBubble = (label, value, x, y, width, height) => {
-        doc.setDrawColor(201, 214, 224); // Gris-bleu clair pour les bordures
-        doc.setFillColor(240, 245, 249); // Bleu très clair pour le fond
-        doc.roundedRect(x, y, width, height, 3, 3, "FD"); // FD = Fill and Draw
-        doc.setFont("helvetica", "bold");
-        doc.text(label, x + 3, y + 6);
-        doc.setFont("helvetica", "normal");
-        const stringValue = String(value || "");
-
-        const textLines = doc.splitTextToSize(stringValue, width - 6);
-        doc.text(textLines, x + 3, y + 12);
-      };
-
-      // --- Colonne de gauche ---
-      drawBubble(
-        "Nom du Groupe de l'utilisateur",
-        visaData.userGroup,
-        15,
-        30,
-        60,
-        15,
-      );
-      drawBubble("Nom de l'utilisateur", visaData.userName, 15, 50, 60, 15);
-      drawBubble(
-        "Date de Visa",
-        new Date().toLocaleDateString(),
-        15,
-        70,
-        60,
-        15,
-      );
-
-      // --- Colonne centrale ---
-      drawBubble("Nom du projet", visaData.projectName, 85, 30, 50, 15);
-      drawBubble("État du Visa", selectedStatus, 85, 50, 50, 15);
-      drawBubble(
-        "Nom du fichier",
-        doc.splitTextToSize(visaData.doc.name, 105),
-        85,
-        70,
-        110,
-        20,
-      ); // Gère les noms de fichiers longs
-
-      // --- Colonne de droite ---
-      drawBubble("Nom du flux de visa", visaData.fluxName, 145, 50, 50, 15);
-      drawBubble("Indice du document", visaData.doc.version, 145, 70, 50, 15);
-      drawBubble(
-        "Dernière date de dépôt",
-        visaData.doc.depositDate,
-        145,
-        95,
-        50,
-        15,
-      );
-      drawBubble(
-        "Nom du dernier dépositaire",
-        visaData.doc.depositorName,
-        145,
-        120,
-        50,
-        15,
-      );
-
-      // --- Section Observations ---
-      drawBubble(
-        "Observations",
-        doc.splitTextToSize(observations, 180),
-        15,
-        145,
-        180,
-        60,
-      );
-
-      // 4. Générer le Blob du PDF
-      const pdfBlob = doc.output("blob");
-      const newFilename = `VISA-${visaData.doc.name}`;
-      console.log(
-        "Lancement de la sauvegarde du PDF et de la mise à jour du PSet en parallèle...",
-      );
-
-      // 5. Téléverser le fichier PDF + mettre à jour le pset
-      const updatePSetTask = updatePSetStatus(
-        visaData.doc.projectId, // Nous devons ajouter projectId aux données du document
-        visaData.doc.id,
-        selectedStatus,
-        globalAccessToken,
-      );
-
-      const savePdfTask = saveConfigurationFile(
-        triconnectAPI,
-        globalAccessToken,
-        configFolderId,
-        pdfBlob,
-        newFilename,
-        visaData.doc.parentId,
-      );
-
-      await Promise.all([updatePSetTask, savePdfTask]);
-
-      renderSuccess(
-        mainContentDiv,
-        `La fiche de visa "${newFilename}" a été enregistrée avec succès.`,
-      );
-      setTimeout(handleVisaButtonClick, 2000); // Revenir à la liste des visas
-    } catch (error) {
-      console.error(
-        "Échec de la génération ou de la sauvegarde du PDF :",
-        error,
-      );
-      renderError(mainContentDiv, error);
-    }
   }
 })();
