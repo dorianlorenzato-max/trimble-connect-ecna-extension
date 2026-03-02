@@ -9,6 +9,7 @@ import {
   fetchLoggedInUserDetails,
   fetchVisaPossibleStates,
   updatePSetStatus,
+  getRootFolders,
   getConfigFolderId,
 } from "./api.js";
 import {
@@ -672,8 +673,7 @@ import {
             configFolderId,
             ASSIGNMENTS_FILENAME,
           ),
-          // TODO modifier l'ID du dossier racine
-          fetchFolderContents("MkvA_YZPfBk", globalAccessToken),
+          getRootFolders(triconnectAPI, globalAccessToken),
         ],
       );
 
@@ -834,3 +834,4 @@ import {
     });
   }
 })();
+
