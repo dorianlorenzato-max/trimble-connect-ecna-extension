@@ -47,6 +47,8 @@ import {
     field: "depositDate", // Tri par défaut
     direction: "desc", // Descendant pour que le plus récent soit en haut
   };
+  let currentPage = 1;
+  let itemsPerPage = 10; // Valeur par défaut
 
   // Variables pour la page d'affectation
   let allProjectFlows = [];
@@ -112,7 +114,8 @@ import {
         ASSIGNMENTS_FILENAME,
       );
       activeFilters = {};
-      applyFiltersAndSortAndRenderTable(); // Nouvelle fonction centrale
+      currentPage = 1;
+      applyFiltersAndSortAndRenderTable();
     } catch (error) {
       console.error("Erreur lors de la récupération des documents :", error);
       renderError(mainContentDiv, error);
@@ -159,11 +162,24 @@ import {
       });
     }
 
-    // 3. Rendre la table et attacher les événements
-    renderVisaTable(mainContentDiv, processedDocuments);
-    attachVisaTableEvents(processedDocuments);
+    // 3. Appliquer la pagination
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const documentsForCurrentPage = processedDocuments.slice(
+      startIndex,
+      endIndex,
+    );
 
-    // 4. Mettre à jour l'état visuel des icônes
+    // 4. Rendre la table avec les nouvelles informations
+    renderVisaTable(
+      mainContentDiv,
+      documentsForCurrentPage, // Les lignes à afficher
+      processedDocuments.length, // Le total après filtrage
+      { currentPage, itemsPerPage }, // L'état de pagination
+    );
+    attachVisaTableEvents(documentsForCurrentPage);
+
+    // 5. Mettre à jour les visuels (inchangé)
     updateVisuals();
   }
 
@@ -223,6 +239,23 @@ import {
         applyFiltersAndSortAndRenderTable();
       });
     });
+    // Boutons de taille de page (10, 20, 50)
+    document.querySelectorAll(".page-size-btn").forEach((button) => {
+      button.addEventListener("click", () => {
+        itemsPerPage = parseInt(button.dataset.size);
+        currentPage = 1; // Toujours revenir à la première page
+        applyFiltersAndSortAndRenderTable();
+      });
+    });
+
+    // Boutons de numéro de page (1, 2, ...)
+    document.querySelectorAll(".pagination-btn").forEach((button) => {
+      button.addEventListener("click", () => {
+        currentPage = parseInt(button.dataset.page);
+        applyFiltersAndSortAndRenderTable();
+      });
+    });
+
     const visaTableElement = document.querySelector(".visa-table");
     if (visaTableElement) {
       attachResizableTableEvents(visaTableElement);
