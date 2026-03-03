@@ -612,3 +612,20 @@ select[multiple] {
   border-top: 1px solid #eee;
   padding-top: 8px;
 }
+
+/* Rend le contenu du header cliquable pour le tri */
+.th-content.sortable {
+  cursor: pointer;
+  display: inline-flex; /* Permet d'aligner le texte et les icônes */
+  align-items: center;
+}
+
+/* Style pour l'icône de tri (la flèche) */
+.sort-icon {
+  margin: 0 5px; /* Espace autour de la flèche de tri */
+  color: #007bff; /* Bleu pour la visibilité */
+  font-size: 0.8em;
+  width: 10px; /* Donne une largeur fixe pour éviter les décalages */
+  text-align: center;
+  display: inline-block;
+}
