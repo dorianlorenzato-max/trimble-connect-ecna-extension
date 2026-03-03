@@ -29,23 +29,39 @@ function renderWelcome(container) {
 // Construit et affiche le tableau des visas
 function renderVisaTable(container, visaDocuments) {
   const headers = [
-    { text: "Nom du document", filterable: false, field: "name" },
-    { text: "Version", filterable: true, field: "version" },
-    { text: "Lot", filterable: true, field: "lot" },
-    { text: "Nom du dépositaire", filterable: true, field: "depositorName" },
-    { text: "Date de dépôt", filterable: true, field: "depositDate" },
-    { text: "Statut", filterable: true, field: "status" },
+    {
+      text: "Nom du document",
+      filterable: false,
+      sortable: true,
+      field: "name",
+    },
+    { text: "Version", filterable: true, sortable: true, field: "version" },
+    { text: "Lot", filterable: true, sortable: true, field: "lot" },
+    {
+      text: "Nom du dépositaire",
+      filterable: true,
+      sortable: true,
+      field: "depositorName",
+    },
+    {
+      text: "Date de dépôt",
+      filterable: true,
+      sortable: true,
+      field: "depositDate",
+    },
+    { text: "Statut", filterable: true, sortable: true, field: "status" },
   ];
 
   const tableHeaders = headers
     .map(
       (header, index) => `
         <th data-column-index="${index}" data-field="${header.field}">
-            <div class="th-content">
+            <div class="th-content ${header.sortable ? "sortable" : ""}">
                 ${header.text}
+                <span class="sort-icon"></span>  <!-- Conteneur pour la flèche de tri -->
                 ${
                   header.filterable
-                    ? `<span class="filter-icon" data-field="${header.field}">&#x25BC;</span>` // Icône flèche vers le bas
+                    ? `<span class="filter-icon" data-field="${header.field}">&#x25BC;</span>`
                     : ""
                 }
             </div>
