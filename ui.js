@@ -71,7 +71,7 @@ function renderVisaTable(container, visaDocuments) {
     )
     .join("");
 
-  let tableRows = documentsToShow
+  let tableRows = visaDocuments
     .map(
       (doc) => `
         <tr>
@@ -86,7 +86,7 @@ function renderVisaTable(container, visaDocuments) {
     )
     .join("");
 
-  if (documentsToShow.length === 0) {
+  if (visaDocuments.length === 0) {
     tableRows = `<tr><td colspan="6" style="text-align:center;">Aucun document à afficher.</td></tr>`;
   }
 
