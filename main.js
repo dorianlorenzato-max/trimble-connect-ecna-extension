@@ -109,8 +109,6 @@ import {
       );
       activeFilters = {};
       applyFiltersAndRenderTable();
-      renderVisaTable(mainContentDiv, documents);
-      attachVisaTableEvents(documents);
 
       const visaTableElement = document.querySelector(".visa-table");
       if (visaTableElement) {
