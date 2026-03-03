@@ -26,6 +26,7 @@ import {
   updateAssignmentPanel,
   renderVisaInterfacePage,
   attachResizableTableEvents,
+  renderFilterPopup,
 } from "./ui.js";
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
@@ -40,6 +41,8 @@ import {
   let configFolderId = null;
   let currentProjectGroups = []; // Pour stocker les groupes et éviter de les re-fetcher
   let currentEditedFluxName = null; // Pour suivre si nous éditons un flux existant
+  let allOriginalVisaDocuments = []; //  Stocke les documents non filtrés
+  let activeFilters = {}; //Stocke les filtres actifs par colonne
 
   // Variables pour la page d'affectation
   let allProjectFlows = [];
@@ -98,12 +101,14 @@ import {
   async function handleVisaButtonClick() {
     renderLoading(mainContentDiv);
     try {
-      const documents = await fetchVisaDocuments(
+      allOriginalVisaDocuments = await fetchVisaDocuments(
         globalAccessToken,
         triconnectAPI,
         configFolderId,
         ASSIGNMENTS_FILENAME,
       );
+      activeFilters = {};
+      applyFiltersAndRenderTable();
       renderVisaTable(mainContentDiv, documents);
       attachVisaTableEvents(documents);
 
@@ -111,10 +116,41 @@ import {
       if (visaTableElement) {
         attachResizableTableEvents(visaTableElement);
       }
-      
     } catch (error) {
       console.error("Erreur lors de la récupération des documents :", error);
       renderError(mainContentDiv, error);
+    }
+  }
+
+  //Applique les filtres actifs et rafraîchit l'affichage du tableau.
+
+  function applyFiltersAndRenderTable() {
+    let filteredDocuments = [...allOriginalVisaDocuments]; // Commence avec tous les documents
+
+    for (const field in activeFilters) {
+      const selectedValues = activeFilters[field];
+      if (selectedValues && selectedValues.length > 0) {
+        filteredDocuments = filteredDocuments.filter(
+          (doc) => selectedValues.includes(String(doc[field])), // Convertir en string pour comparaison
+        );
+      }
+    }
+
+    renderVisaTable(mainContentDiv, filteredDocuments);
+    attachVisaTableEvents(filteredDocuments); // Ré-attache les écouteurs pour les lignes cliquables
+
+    // Mettre à jour l'état visuel des icônes de filtre
+    for (const field in activeFilters) {
+      const icon = document.querySelector(
+        `.filter-icon[data-field="${field}"]`,
+      );
+      if (icon) {
+        if (activeFilters[field] && activeFilters[field].length > 0) {
+          icon.classList.add("active");
+        } else {
+          icon.classList.remove("active");
+        }
+      }
     }
   }
 
@@ -131,6 +167,43 @@ import {
         });
       }
     });
+    document.querySelectorAll(".filter-icon").forEach((icon) => {
+      icon.addEventListener("click", (event) => {
+        event.stopPropagation(); // Empêche le clic sur l'icône de déclencher le clic sur la ligne
+        const columnField = icon.dataset.field;
+        handleFilterIconClick(icon, columnField);
+      });
+    });
+    const visaTableElement = document.querySelector(".visa-table");
+    if (visaTableElement) {
+      attachResizableTableEvents(visaTableElement);
+    }
+  }
+
+  // fonction pour les pop up et filtres dans le tableau des visas
+  async function handleFilterIconClick(iconElement, columnField) {
+    const uniqueValues = [
+      ...new Set(
+        allOriginalVisaDocuments.map((doc) => String(doc[columnField])),
+      ),
+    ].sort();
+
+    renderFilterPopup(
+      iconElement,
+      columnField,
+      uniqueValues,
+      activeFilters[columnField] || [], // Valeurs déjà sélectionnées
+      (field, values) => {
+        // Callback onApply
+        activeFilters[field] = values;
+        applyFiltersAndRenderTable();
+      },
+      (field) => {
+        // Callback onClear
+        delete activeFilters[field];
+        applyFiltersAndRenderTable();
+      },
+    );
   }
 
   // permet la selection de la lignepour visa
