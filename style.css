@@ -552,4 +552,64 @@ select[multiple] {
   white-space: nowrap; /* Empêche le retour à la ligne automatique */
   text-overflow: ellipsis; /* Ajoute des points de suspension si le texte est trop long */
 }
+/* Style pour l'icône de filtre */
+.filter-icon {
+  margin-left: 5px; /* Espace entre le texte du TH et l'icône */
+  cursor: pointer;
+  font-size: 0.9em; /* Taille de l'icône */
+  color: #888; /* Couleur par défaut */
+  transition: color 0.2s ease;
+  vertical-align: middle; /* Alignement avec le texte */
+}
+
+.filter-icon:hover {
+  color: #000; /* Assombrir au survol */
+}
+
+/* Style pour l'icône de filtre active */
+.filter-icon.active {
+  color: #ff8c00; /* Orange vif quand le filtre est actif */
+}
+
+/* Style de base pour la popup de filtre */
+.filter-popup {
+  position: absolute;
+  background-color: #fff;
+  border: 1px solid #ddd;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  padding: 10px;
+  z-index: 20; /* S'assure qu'il est au-dessus du reste du contenu */
+  min-width: 200px;
+  max-height: 300px;
+  overflow-y: auto;
+  display: none; /* Caché par défaut */
+  flex-direction: column;
+  gap: 8px;
+  border-radius: 5px;
+}
+
+.filter-popup.active {
+  display: flex; /* Affiché quand actif */
+}
+
+.filter-popup label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: normal;
+  font-size: 0.9em;
+}
+
+.filter-popup input[type="checkbox"] {
+  margin-right: 5px;
+}
+
+.filter-popup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+  border-top: 1px solid #eee;
+  padding-top: 8px;
+}
 
