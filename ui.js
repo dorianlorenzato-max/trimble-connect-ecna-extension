@@ -28,22 +28,27 @@ function renderWelcome(container) {
 
 // Construit et affiche le tableau des visas
 function renderVisaTable(container, visaDocuments) {
-  // Définissez les en-têtes du tableau ici pour les réutiliser
   const headers = [
-    "Nom du document",
-    "Version",
-    "Lot",
-    "Nom du dépositaire",
-    "Date de dépôt",
-    "Statut",
+    { text: "Nom du document", filterable: false, field: "name" },
+    { text: "Version", filterable: true, field: "version" },
+    { text: "Lot", filterable: true, field: "lot" },
+    { text: "Nom du dépositaire", filterable: true, field: "depositorName" },
+    { text: "Date de dépôt", filterable: true, field: "depositDate" },
+    { text: "Statut", filterable: true, field: "status" },
   ];
 
-  // Générez les TH avec les resizers
   const tableHeaders = headers
     .map(
-      (headerText, index) => `
-        <th data-column-index="${index}">
-            <div class="th-content">${headerText}</div>
+      (header, index) => `
+        <th data-column-index="${index}" data-field="${header.field}">
+            <div class="th-content">
+                ${header.text}
+                ${
+                  header.filterable
+                    ? `<span class="filter-icon" data-field="${header.field}">&#x25BC;</span>` // Icône flèche vers le bas
+                    : ""
+                }
+            </div>
             <div class="resizer"></div>
         </th>
     `,
@@ -533,6 +538,76 @@ function attachResizableTableEvents(table) {
   });
 }
 
+// fonction pour la pop-up pour les filtres des colonnes dans le tabelau des visas
+
+function renderFilterPopup(
+  targetElement,
+  columnField,
+  uniqueValues,
+  activeFilters,
+  onApply,
+  onClear,
+) {
+  // Supprime toute popup existante pour s'assurer qu'il n'y en a qu'une
+  document.querySelectorAll(".filter-popup").forEach((popup) => popup.remove());
+
+  const popup = document.createElement("div");
+  popup.className = "filter-popup active"; // Active pour être visible
+  popup.dataset.field = columnField;
+
+  const checkboxes = uniqueValues
+    .map(
+      (value) => `
+    <label>
+      <input type="checkbox" value="${value}" ${activeFilters.includes(value) ? "checked" : ""}>
+      ${value}
+    </label>
+  `,
+    )
+    .join("");
+
+  popup.innerHTML = `
+    <div>${checkboxes}</div>
+    <div class="filter-popup-actions">
+      <button class="button-secondary button-small filter-clear-btn">Effacer</button>
+      <button class="button-primary button-small filter-apply-btn">Appliquer</button>
+    </div>
+  `;
+
+  // Positionne la popup juste en dessous de l'icône
+  const rect = targetElement.getBoundingClientRect();
+  popup.style.top = `${rect.bottom + window.scrollY + 5}px`;
+  popup.style.left = `${rect.left + window.scrollX}px`;
+
+  document.body.appendChild(popup);
+
+  // Attacher les événements des boutons
+  popup.querySelector(".filter-apply-btn").addEventListener("click", () => {
+    const selectedValues = Array.from(
+      popup.querySelectorAll('input[type="checkbox"]:checked'),
+    ).map((cb) => cb.value);
+    onApply(columnField, selectedValues);
+    popup.remove();
+  });
+
+  popup.querySelector(".filter-clear-btn").addEventListener("click", () => {
+    onClear(columnField);
+    popup.remove();
+  });
+
+  // Fermer la popup si on clique en dehors
+  function handleClickOutside(event) {
+    if (
+      !popup.contains(event.target) &&
+      !targetElement.contains(event.target)
+    ) {
+      popup.remove();
+      window.removeEventListener("click", handleClickOutside);
+    }
+  }
+  window.addEventListener("click", handleClickOutside);
+}
+
 // Exporter toutes les fonctions désormais
 export {
   renderLoading,
@@ -548,4 +623,5 @@ export {
   updateAssignmentPanel,
   renderVisaInterfacePage,
   attachResizableTableEvents,
+  renderFilterPopup,
 };
