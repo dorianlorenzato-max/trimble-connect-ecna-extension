@@ -91,6 +91,9 @@ import {
     document
       .getElementById("configBtn")
       .addEventListener("click", handleConfigClick);
+    document
+      .getElementById("documentBtn")
+      .addEventListener("click", () => renderWelcome(mainContentDiv));
 
     // Afficher l'accueil
     renderWelcome(mainContentDiv);
@@ -117,9 +120,9 @@ import {
       currentPage = 1;
       applyFiltersAndSortAndRenderTable();
       const visaTableElement = document.querySelector(".visa-table");
-    if (visaTableElement) {
-      attachResizableTableEvents(visaTableElement);
-    }
+      if (visaTableElement) {
+        attachResizableTableEvents(visaTableElement);
+      }
     } catch (error) {
       console.error("Erreur lors de la récupération des documents :", error);
       renderError(mainContentDiv, error);
