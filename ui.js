@@ -27,84 +27,69 @@ function renderWelcome(container) {
 }
 
 // Construit et affiche le tableau des visas
-function renderVisaTable(container, visaDocuments) {
+function renderVisaTable(container, visaDocuments, totalFilteredDocuments, paginationState) {
+  // On extrait les variables de l'état de pagination
+  const { currentPage, itemsPerPage } = paginationState;
+  
+  // La partie de génération des en-têtes est inchangée
   const headers = [
-    {
-      text: "Nom du document",
-      filterable: false,
-      sortable: true,
-      field: "name",
-    },
+    { text: "Nom du document", filterable: false, sortable: true, field: "name" },
     { text: "Version", filterable: true, sortable: true, field: "version" },
     { text: "Lot", filterable: true, sortable: true, field: "lot" },
-    {
-      text: "Nom du dépositaire",
-      filterable: true,
-      sortable: true,
-      field: "depositorName",
-    },
-    {
-      text: "Date de dépôt",
-      filterable: true,
-      sortable: true,
-      field: "depositDate",
-    },
+    { text: "Nom du dépositaire", filterable: true, sortable: true, field: "depositorName" },
+    { text: "Date de dépôt", filterable: true, sortable: true, field: "depositDate" },
     { text: "Statut", filterable: true, sortable: true, field: "status" },
   ];
 
-  const tableHeaders = headers
-    .map(
-      (header, index) => `
-        <th data-column-index="${index}" data-field="${header.field}">
-            <div class="th-content ${header.sortable ? "sortable" : ""}">
-                ${header.text}
-                <span class="sort-icon"></span>  <!-- Conteneur pour la flèche de tri -->
-                ${
-                  header.filterable
-                    ? `<span class="filter-icon" data-field="${header.field}">&#x25BC;</span>`
-                    : ""
-                }
-            </div>
-            <div class="resizer"></div>
-        </th>
-    `,
-    )
-    .join("");
+  const tableHeaders = headers.map((header, index) => `
+    <th data-column-index="${index}" data-field="${header.field}">
+        <div class="th-content ${header.sortable ? 'sortable' : ''}">
+            ${header.text}
+            <span class="sort-icon"></span>
+            ${header.filterable ? `<span class="filter-icon" data-field="${header.field}">&#x25BC;</span>` : ""}
+        </div>
+        <div class="resizer"></div>
+    </th>
+  `).join('');
 
-  let tableRows = visaDocuments
-    .map(
-      (doc) => `
-        <tr>
-            <td data-column-index="0">${doc.name || ""}</td>
-            <td data-column-index="1">${doc.version || ""}</td>
-            <td data-column-index="2">${doc.lot || ""}</td>
-            <td data-column-index="3">${doc.depositorName || ""}</td>
-            <td data-column-index="4">${doc.depositDate || ""}</td>
-            <td data-column-index="5">${doc.status || ""}</td>
-        </tr>
-    `,
-    )
-    .join("");
+  // Génération des lignes pour la page actuelle
+  let tableRows = visaDocuments.map(doc => `
+      <tr>
+        <td data-column-index="0">${doc.name || ""}</td>
+        <td data-column-index="1">${doc.version || ""}</td>
+        <td data-column-index="2">${doc.lot || ""}</td>
+        <td data-column-index="3">${doc.depositorName || ""}</td>
+        <td data-column-index="4">${doc.depositDate || ""}</td>
+        <td data-column-index="5">${doc.status || ""}</td>
+      </tr>
+    `).join('');
 
   if (visaDocuments.length === 0) {
     tableRows = `<tr><td colspan="6" style="text-align:center;">Aucun document à afficher.</td></tr>`;
   }
 
-  const totalPages = Math.ceil(totalFilteredDocuments / itemsPerPage);
+  // --- Génération du pied de page de pagination ---
+  const totalPages = Math.ceil(totalFilteredDocuments / itemsPerPage) || 1; // || 1 pour éviter une page 0
 
-  // Contrôles pour la taille de la page
   const pageSizes = [10, 20, 50];
-  const pageSizeButtons = pageSizes
-    .map(
-      (size) =>
-        `<button class="page-size-btn ${size === itemsPerPage ? "active" : ""}" data-size="${size}">${size}</button>`,
-    )
-    .join("");
+  const pageSizeButtons = pageSizes.map(size => 
+    `<button class="page-size-btn ${size === itemsPerPage ? 'active' : ''}" data-size="${size}">${size}</button>`
+  ).join('');
 
-  // Boutons pour les numéros de page
-  let pageButtons = "";
-  for (let i = 1; i <= totalPages; i++) {
-    pageButtons += `<button class="pagination-btn ${i === currentPage ? "active" : ""}" data-page="${i}">${i}</button>`;
+  let pageButtons = '';
+  // Logique pour afficher un nombre raisonnable de boutons de page (ex: 7 boutons max)
+  let startPage = Math.max(1, currentPage - 3);
+  let endPage = Math.min(totalPages, currentPage + 3);
+  
+  if (currentPage - 1 < 3) {
+      endPage = Math.min(totalPages, 7);
+  }
+  if (totalPages - currentPage < 3) {
+      startPage = Math.max(1, totalPages - 6);
+  }
+  
+  for (let i = startPage; i <= endPage; i++) {
+    pageButtons += `<button class="pagination-btn ${i === currentPage ? 'active' : ''}" data-page="${i}">${i}</button>`;
   }
 
   container.innerHTML = `
@@ -126,8 +111,11 @@ function renderVisaTable(container, visaDocuments) {
             <div class="page-size-controls">${pageSizeButtons}</div>
             <div class="pagination-info">${totalFilteredDocuments} élément(s) trouvé(s)</div>
             <div class="pagination-controls">
-                <span>Page ${currentPage} sur ${totalPages}</span>
+                <button class="pagination-btn" data-page="1" ${currentPage === 1 ? 'disabled' : ''}>&lt;&lt;</button>
+                <button class="pagination-btn" data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}>&lt;</button>
                 ${pageButtons}
+                <button class="pagination-btn" data-page="${currentPage + 1}" ${currentPage === totalPages ? 'disabled' : ''}>&gt;</button>
+                <button class="pagination-btn" data-page="${totalPages}" ${currentPage === totalPages ? 'disabled' : ''}>&gt;&gt;</button>
             </div>
         </div>
     </div>
