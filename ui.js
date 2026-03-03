@@ -47,21 +47,23 @@ function renderVisaTable(
   // --- HTML pour la légende ---
   const legendHtml = `
     <div class="visa-legend">
-      <h3>Légende des statuts de Visa:</h3>
-      <div class="legend-item">
-        <span class="legend-color-box status-vso">VSO</span> Validé Sans Observation
-      </div>
-      <div class="legend-item">
-        <span class="legend-color-box status-vao">VAO</span> Validé Avec Observation
-      </div>
-      <div class="legend-item">
-        <span class="legend-color-box status-en-cours">En cours</span> En cours de Visa
-      </div>
-      <div class="legend-item">
-        <span class="legend-color-box status-ref">REF</span> Refusé
-      </div>
-      <div class="legend-item">
-        <span class="legend-color-box status-so">SO</span> Sans Objet
+      <h3>Légende des statuts:</h3>
+      <div class="legend-items-grid">
+        <div class="legend-item">
+          <span class="legend-color-box status-vso">VSO</span> Validé Sans Observation
+        </div>
+        <div class="legend-item">
+          <span class="legend-color-box status-ref">REF</span> Refusé
+        </div>
+        <div class="legend-item">
+          <span class="legend-color-box status-vao">VAO</span> Validé Avec Observation
+        </div>
+        <div class="legend-item">
+          <span class="legend-color-box status-so">SO</span> Sans Objet
+        </div>
+        <div class="legend-item">
+          <span class="legend-color-box status-en-cours">En cours</span> En cours de Visa
+        </div>
       </div>
     </div>
   `;
