@@ -25,6 +25,7 @@ import {
   renderAffectationPage,
   updateAssignmentPanel,
   renderVisaInterfacePage,
+  attachResizableTableEvents,
 } from "./ui.js";
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
@@ -105,6 +106,12 @@ import {
       );
       renderVisaTable(mainContentDiv, documents);
       attachVisaTableEvents(documents);
+
+      const visaTableElement = document.querySelector(".visa-table");
+      if (visaTableElement) {
+        attachResizableTableEvents(visaTableElement);
+      }
+      
     } catch (error) {
       console.error("Erreur lors de la récupération des documents :", error);
       renderError(mainContentDiv, error);
