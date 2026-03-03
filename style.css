@@ -729,6 +729,11 @@ select[multiple] {
   margin-right: 10px;
   border: 1px solid rgba(0, 0, 0, 0.2);
 }
+.legend-items-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Crée deux colonnes de taille égale */
+  gap: 5px 15px; /* Espace vertical et horizontal entre les items */
+}
 
 /* === COULEURS DES STATUTS (à la fois pour la légende et le tableau) === */
 
