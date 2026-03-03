@@ -513,16 +513,23 @@ select[multiple] {
   top: 0;
   bottom: 0; /* S'étend sur toute la hauteur */
   width: 5px; /* Largeur de la zone de clic */
-  background: transparent; /* Invisible par défaut */
+  background-color: rgba(
+    0,
+    0,
+    0,
+    0.05
+  ); /* Très légère couleur pour la visibilité par défaut */
   cursor: col-resize; /* Curseur de redimensionnement horizontal */
   z-index: 1; /* S'assure qu'il est au-dessus du contenu de la colonne */
+  border-right: 1px solid #ccc; /* Ligne verticale fine pour séparer les colonnes */
 }
 
 /* Feedback visuel lors du survol ou du redimensionnement */
 .resizer:hover,
 .resizing .resizer {
   background-color: #007bff; /* Un bleu pour indiquer l'activité */
-  opacity: 0.5; /* Rendu semi-transparent */
+  opacity: 0.7; /* Rendu légèrement plus opaque */
+  border-right: 1px solid #007bff; /* La bordure devient bleue au survol */
 }
 
 /* Prévient la sélection de texte pendant le redimensionnement */
@@ -545,3 +552,4 @@ select[multiple] {
   white-space: nowrap; /* Empêche le retour à la ligne automatique */
   text-overflow: ellipsis; /* Ajoute des points de suspension si le texte est trop long */
 }
+
