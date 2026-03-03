@@ -28,16 +28,38 @@ function renderWelcome(container) {
 
 // Construit et affiche le tableau des visas
 function renderVisaTable(container, visaDocuments) {
+  // Définissez les en-têtes du tableau ici pour les réutiliser
+  const headers = [
+    "Nom du document",
+    "Version",
+    "Lot",
+    "Nom du dépositaire",
+    "Date de dépôt",
+    "Statut",
+  ];
+
+  // Générez les TH avec les resizers
+  const tableHeaders = headers
+    .map(
+      (headerText, index) => `
+        <th data-column-index="${index}">
+            <div class="th-content">${headerText}</div>
+            <div class="resizer"></div>
+        </th>
+    `,
+    )
+    .join("");
+
   let tableRows = visaDocuments
     .map(
       (doc) => `
         <tr>
-            <td>${doc.name || ""}</td>
-            <td>${doc.version || ""}</td>
-            <td>${doc.lot || ""}</td>
-            <td>${doc.depositorName || ""}</td>
-            <td>${doc.depositDate || ""}</td>
-            <td>${doc.status || ""}</td>
+            <td data-column-index="0">${doc.name || ""}</td>
+            <td data-column-index="1">${doc.version || ""}</td>
+            <td data-column-index="2">${doc.lot || ""}</td>
+            <td data-column-index="3">${doc.depositorName || ""}</td>
+            <td data-column-index="4">${doc.depositDate || ""}</td>
+            <td data-column-index="5">${doc.status || ""}</td>
         </tr>
     `,
     )
@@ -53,12 +75,7 @@ function renderVisaTable(container, visaDocuments) {
             <table class="visa-table">
                 <thead>
                     <tr>
-                        <th>Nom du document</th>
-                        <th>Version</th>
-                        <th>Lot</th>
-                        <th>Nom du dépositaire</th>
-                        <th>Date de dépôt</th>
-                        <th>Statut</th>
+                        ${tableHeaders} <!-- Utilisez les en-têtes générés -->
                     </tr>
                 </thead>
                 <tbody>
@@ -450,6 +467,72 @@ function renderVisaInterfacePage(container, visaData) {
   `;
 }
 
+//Fonction pour rendre les colonne modifiable en largeur
+
+function attachResizableTableEvents(table) {
+  const headers = Array.from(table.querySelectorAll("th"));
+  const resizers = Array.from(table.querySelectorAll(".resizer"));
+
+  let currentResizer;
+  let startX;
+  let startWidth;
+  let currentColumnIndex;
+
+  function handleMouseDown(e) {
+    currentResizer = e.target;
+    currentColumnIndex = parseInt(
+      currentResizer.parentElement.dataset.columnIndex,
+    );
+
+    // Obtenez la TH de la colonne à redimensionner
+    const columnHeader = headers[currentColumnIndex];
+
+    startX = e.clientX;
+    startWidth = columnHeader.offsetWidth; // Largeur initiale de la TH
+
+    // Ajoutez une classe au corps pour changer le curseur globalement et empêcher la sélection de texte
+    document.body.classList.add("resizing");
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  }
+
+  function handleMouseMove(e) {
+    if (!currentResizer) return;
+
+    const columnHeader = headers[currentColumnIndex];
+    const newWidth = startWidth + (e.clientX - startX);
+
+    // Définir une largeur minimale pour éviter les colonnes trop petites
+    if (newWidth > 50) {
+      // Largeur minimale de 50px
+      columnHeader.style.width = `${newWidth}px`;
+      columnHeader.style.minWidth = `${newWidth}px`; // Assure que la largeur est maintenue
+      columnHeader.style.maxWidth = `${newWidth}px`; // Fixe la largeur
+
+      // Appliquer la même largeur à toutes les cellules TD de cette colonne
+      table
+        .querySelectorAll(`td[data-column-index="${currentColumnIndex}"]`)
+        .forEach((td) => {
+          td.style.width = `${newWidth}px`;
+          td.style.minWidth = `${newWidth}px`;
+          td.style.maxWidth = `${newWidth}px`;
+        });
+    }
+  }
+
+  function handleMouseUp() {
+    currentResizer = null;
+    document.body.classList.remove("resizing");
+    window.removeEventListener("mousemove", handleMouseMove);
+    window.removeEventListener("mouseup", handleMouseUp);
+  }
+
+  resizers.forEach((resizer) => {
+    resizer.addEventListener("mousedown", handleMouseDown);
+  });
+}
+
 // Exporter toutes les fonctions désormais
 export {
   renderLoading,
@@ -464,5 +547,5 @@ export {
   renderAffectationPage,
   updateAssignmentPanel,
   renderVisaInterfacePage,
+  attachResizableTableEvents,
 };
-
