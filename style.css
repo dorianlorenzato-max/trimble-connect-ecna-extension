@@ -506,3 +506,42 @@ select[multiple] {
   padding-top: 20px;
   grid-column: 1 / -1;
 }
+/* Style pour les poignées de redimensionnement */
+.resizer {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0; /* S'étend sur toute la hauteur */
+  width: 5px; /* Largeur de la zone de clic */
+  background: transparent; /* Invisible par défaut */
+  cursor: col-resize; /* Curseur de redimensionnement horizontal */
+  z-index: 1; /* S'assure qu'il est au-dessus du contenu de la colonne */
+}
+
+/* Feedback visuel lors du survol ou du redimensionnement */
+.resizer:hover,
+.resizing .resizer {
+  background-color: #007bff; /* Un bleu pour indiquer l'activité */
+  opacity: 0.5; /* Rendu semi-transparent */
+}
+
+/* Prévient la sélection de texte pendant le redimensionnement */
+.resizing {
+  user-select: none;
+}
+
+/* Assure que les TH sont des conteneurs pour les resizers positionnés absolument */
+.visa-table th {
+  /* position: sticky est déjà position: relative, donc c'est bon */
+  /* Ajouter overflow: hidden pour éviter que le texte ne déborde si la colonne est réduite */
+  overflow: hidden;
+  /* Important: Le width doit être géré par JavaScript ou être fluide */
+  width: auto;
+}
+
+/* Applique la largeur aux TD du tableau pour que la colonne entière soit affectée */
+.visa-table td {
+  overflow: hidden;
+  white-space: nowrap; /* Empêche le retour à la ligne automatique */
+  text-overflow: ellipsis; /* Ajoute des points de suspension si le texte est trop long */
+}
