@@ -27,42 +27,103 @@ function renderWelcome(container) {
 }
 
 // Construit et affiche le tableau des visas
-function renderVisaTable(container, visaDocuments, totalFilteredDocuments, paginationState) {
+function renderVisaTable(
+  container,
+  visaDocuments,
+  totalFilteredDocuments,
+  paginationState,
+) {
   // On extrait les variables de l'état de pagination
   const { currentPage, itemsPerPage } = paginationState;
-  
+  const statusClassMap = {
+    VSO: "status-vso",
+    VAO: "status-vao",
+    "En Cours": "status-en-cours",
+    REF: "status-ref",
+    SO: "status-so",
+  };
+  const defaultStatusClass = "status-default";
+
+  // --- HTML pour la légende ---
+  const legendHtml = `
+    <div class="visa-legend">
+      <h3>Légende des statuts de Visa:</h3>
+      <div class="legend-item">
+        <span class="legend-color-box status-vso">VSO</span> Validé Sans Observation
+      </div>
+      <div class="legend-item">
+        <span class="legend-color-box status-vao">VAO</span> Validé Avec Observation
+      </div>
+      <div class="legend-item">
+        <span class="legend-color-box status-en-cours">En cours</span> En cours de Visa
+      </div>
+      <div class="legend-item">
+        <span class="legend-color-box status-ref">REF</span> Refusé
+      </div>
+      <div class="legend-item">
+        <span class="legend-color-box status-so">SO</span> Sans Objet
+      </div>
+    </div>
+  `;
+
   // La partie de génération des en-têtes est inchangée
   const headers = [
-    { text: "Nom du document", filterable: false, sortable: true, field: "name" },
+    {
+      text: "Nom du document",
+      filterable: false,
+      sortable: true,
+      field: "name",
+    },
     { text: "Version", filterable: true, sortable: true, field: "version" },
     { text: "Lot", filterable: true, sortable: true, field: "lot" },
-    { text: "Nom du dépositaire", filterable: true, sortable: true, field: "depositorName" },
-    { text: "Date de dépôt", filterable: true, sortable: true, field: "depositDate" },
+    {
+      text: "Nom du dépositaire",
+      filterable: true,
+      sortable: true,
+      field: "depositorName",
+    },
+    {
+      text: "Date de dépôt",
+      filterable: true,
+      sortable: true,
+      field: "depositDate",
+    },
     { text: "Statut", filterable: true, sortable: true, field: "status" },
   ];
 
-  const tableHeaders = headers.map((header, index) => `
+  const tableHeaders = headers
+    .map(
+      (header, index) => `
     <th data-column-index="${index}" data-field="${header.field}">
-        <div class="th-content ${header.sortable ? 'sortable' : ''}">
+        <div class="th-content ${header.sortable ? "sortable" : ""}">
             ${header.text}
             <span class="sort-icon"></span>
             ${header.filterable ? `<span class="filter-icon" data-field="${header.field}">&#x25BC;</span>` : ""}
         </div>
         <div class="resizer"></div>
     </th>
-  `).join('');
+  `,
+    )
+    .join("");
 
   // Génération des lignes pour la page actuelle
-  let tableRows = visaDocuments.map(doc => `
-      <tr>
-        <td data-column-index="0">${doc.name || ""}</td>
-        <td data-column-index="1">${doc.version || ""}</td>
-        <td data-column-index="2">${doc.lot || ""}</td>
-        <td data-column-index="3">${doc.depositorName || ""}</td>
-        <td data-column-index="4">${doc.depositDate || ""}</td>
-        <td data-column-index="5">${doc.status || ""}</td>
-      </tr>
-    `).join('');
+  let tableRows = visaDocuments
+    .map((doc) => {
+      const statusClass = statusClassMap[doc.status] || defaultStatusClass;
+      return `
+        <tr>
+          <td data-column-index="0">${doc.name || ""}</td>
+          <td data-column-index="1">${doc.version || ""}</td>
+          <td data-column-index="2">${doc.lot || ""}</td>
+          <td data-column-index="3">${doc.depositorName || ""}</td>
+          <td data-column-index="4">${doc.depositDate || ""}</td>
+          <td data-column-index="5">
+            <span class="status-cell-tag ${statusClass}">${doc.status || "N/A"}</span>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
 
   if (visaDocuments.length === 0) {
     tableRows = `<tr><td colspan="6" style="text-align:center;">Aucun document à afficher.</td></tr>`;
@@ -72,28 +133,34 @@ function renderVisaTable(container, visaDocuments, totalFilteredDocuments, pagin
   const totalPages = Math.ceil(totalFilteredDocuments / itemsPerPage) || 1; // || 1 pour éviter une page 0
 
   const pageSizes = [10, 20, 50];
-  const pageSizeButtons = pageSizes.map(size => 
-    `<button class="page-size-btn ${size === itemsPerPage ? 'active' : ''}" data-size="${size}">${size}</button>`
-  ).join('');
+  const pageSizeButtons = pageSizes
+    .map(
+      (size) =>
+        `<button class="page-size-btn ${size === itemsPerPage ? "active" : ""}" data-size="${size}">${size}</button>`,
+    )
+    .join("");
 
-  let pageButtons = '';
+  let pageButtons = "";
   // Logique pour afficher un nombre raisonnable de boutons de page (ex: 7 boutons max)
   let startPage = Math.max(1, currentPage - 3);
   let endPage = Math.min(totalPages, currentPage + 3);
-  
+
   if (currentPage - 1 < 3) {
-      endPage = Math.min(totalPages, 7);
+    endPage = Math.min(totalPages, 7);
   }
   if (totalPages - currentPage < 3) {
-      startPage = Math.max(1, totalPages - 6);
+    startPage = Math.max(1, totalPages - 6);
   }
-  
+
   for (let i = startPage; i <= endPage; i++) {
-    pageButtons += `<button class="pagination-btn ${i === currentPage ? 'active' : ''}" data-page="${i}">${i}</button>`;
+    pageButtons += `<button class="pagination-btn ${i === currentPage ? "active" : ""}" data-page="${i}">${i}</button>`;
   }
 
   container.innerHTML = `
-    <h1>Suivi des Documents à Visas</h1>
+    <div class="visa-page-header">
+        <h1>Suivi des Documents à Visas</h1>
+        ${legendHtml}
+    </div>
     <div class="visa-table-container">
         <div class="visa-table-body-wrapper">
             <table class="visa-table">
@@ -111,11 +178,11 @@ function renderVisaTable(container, visaDocuments, totalFilteredDocuments, pagin
             <div class="page-size-controls">${pageSizeButtons}</div>
             <div class="pagination-info">${totalFilteredDocuments} élément(s) trouvé(s)</div>
             <div class="pagination-controls">
-                <button class="pagination-btn" data-page="1" ${currentPage === 1 ? 'disabled' : ''}>&lt;&lt;</button>
-                <button class="pagination-btn" data-page="${currentPage - 1}" ${currentPage === 1 ? 'disabled' : ''}>&lt;</button>
+                <button class="pagination-btn" data-page="1" ${currentPage === 1 ? "disabled" : ""}>&lt;&lt;</button>
+                <button class="pagination-btn" data-page="${currentPage - 1}" ${currentPage === 1 ? "disabled" : ""}>&lt;</button>
                 ${pageButtons}
-                <button class="pagination-btn" data-page="${currentPage + 1}" ${currentPage === totalPages ? 'disabled' : ''}>&gt;</button>
-                <button class="pagination-btn" data-page="${totalPages}" ${currentPage === totalPages ? 'disabled' : ''}>&gt;&gt;</button>
+                <button class="pagination-btn" data-page="${currentPage + 1}" ${currentPage === totalPages ? "disabled" : ""}>&gt;</button>
+                <button class="pagination-btn" data-page="${totalPages}" ${currentPage === totalPages ? "disabled" : ""}>&gt;&gt;</button>
             </div>
         </div>
     </div>
