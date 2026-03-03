@@ -683,3 +683,90 @@ select[multiple] {
   text-align: center;
   display: inline-block;
 }
+
+/* === LÉGENDE DES STATUTS === */
+.visa-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start; /* Aligner en haut */
+  margin-bottom: 15px;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.visa-page-header h1 {
+  margin: 0; /* Retire la marge par défaut du h1 */
+}
+
+.visa-legend {
+  border: 1px solid #c9d6e0;
+  border-radius: 8px;
+  padding: 10px 15px;
+  background-color: #f8f9fa;
+  font-size: 0.9em;
+}
+
+.visa-legend h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.legend-color-box {
+  display: inline-block;
+  width: 60px; /* Largeur de la bulle */
+  padding: 3px 0;
+  border-radius: 15px; /* Pour un effet "pilule" */
+  text-align: center;
+  font-weight: bold;
+  color: #fff; /* Couleur du texte dans la bulle */
+  margin-right: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+/* === COULEURS DES STATUTS (à la fois pour la légende et le tableau) === */
+
+/* Validé Sans Observation */
+.status-vso {
+  background-color: #28a745;
+  color: white;
+}
+/* Validé Avec Observation */
+.status-vao {
+  background-color: #ffc107;
+  color: #212529;
+}
+/* En cours */
+.status-en-cours {
+  background-color: #fd7e14;
+  color: white;
+}
+/* Refusé */
+.status-ref {
+  background-color: #dc3545;
+  color: white;
+}
+/* Sans Objet */
+.status-so {
+  background-color: #6c757d;
+  color: white;
+}
+/* Statut par défaut / Non défini */
+.status-default {
+  background-color: #e9ecef;
+  color: #495057;
+}
+
+/* Style pour la cellule de statut dans le tableau */
+.status-cell-tag {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+}
