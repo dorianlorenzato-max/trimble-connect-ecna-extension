@@ -12,45 +12,50 @@ async function fetchVisaDocuments(
   const projectInfo = await triconnectAPI.project.getCurrentProject();
   const projectId = projectInfo.id;
 
-  const userToGroupMap = await fetchUsersAndGroups(projectId, accessToken);
-  const assignmentsConfig = await fetchConfigurationFile(
-    accessToken,
-    configFolderId,
-    assignmentsFilename,
-  );
-  const assignedFolderIds = Object.keys(assignmentsConfig || {}); // Récupère tous les IDs de dossiers qui ont une affectation
+  // Récupérer TOUTES les données nécessaires en parallèle au début
+  const [
+    userToGroupMap,
+    assignmentsConfig,
+    allProjectPSets, 
+  ] = await Promise.all([
+    fetchUsersAndGroups(projectId, accessToken),
+    fetchConfigurationFile(accessToken, configFolderId, assignmentsFilename),
+    fetch(
+      `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/psets`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    ).then((res) => (res.ok ? res.json() : { items: [] })),
+  ]);
 
-  let allPdfFiles = [];
-  // Pour chaque dossier avec un flux affecté, récupérer ses fichiers PDF
-  for (const folderId of assignedFolderIds) {
-    try {
-      const pdfFilesInFolder = await fetchPDFFilesInFolder(
-        folderId,
-        accessToken,
-      );
-      allPdfFiles = allPdfFiles.concat(pdfFilesInFolder);
-    } catch (error) {
-      console.warn(
-        `Impossible de récupérer les fichiers du dossier ${folderId}. Il se peut qu'il n'existe plus ou que les permissions soient insuffisantes.`,
-        error,
-      );
+  // On transforme les Psets en une Map pour un accès instantané
+  const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
+  const psetMap = new Map();
+  allProjectPSets.items?.forEach(pset => {
+    if (pset.link && pset.props?.[visaPropertyId]) {
+      psetMap.set(pset.link, pset.props[visaPropertyId]);
     }
-  }
+  });
 
-  //  Enrichir chaque fichier avec les informations de PSet, de dépositaire, etc.
+  const assignedFolderIds = Object.keys(assignmentsConfig || {});
+  const pdfFilePromises = assignedFolderIds.map(folderId =>
+    fetchPDFFilesInFolder(folderId, accessToken).catch(error => {
+      console.warn(`Impossible de récupérer les fichiers du dossier ${folderId}.`, error);
+      return []; // Retourne un tableau vide en cas d'erreur pour ne pas bloquer les autres
+    })
+  );
+
+  const nestedPdfFiles = await Promise.all(pdfFilePromises);
+  const allPdfFiles = nestedPdfFiles.flat(); 
+
   const visaDocuments = [];
   for (const file of allPdfFiles) {
-    const status = await fetchFilePSetStatus(projectId, file.id, accessToken);
+
+    const currentFileFRN = `frn:tcfile:${file.id}`;
+    const status = psetMap.get(currentFileFRN) || "En Cours";
+
     const depositorId = file.modifiedBy ? file.modifiedBy.id : null;
-    const depositorName = file.modifiedBy
-      ? `${file.modifiedBy.firstName || ""} ${file.modifiedBy.lastName || ""}`.trim()
-      : "Inconnu";
-    const depositDate = file.modifiedOn
-      ? new Date(file.modifiedOn).toLocaleDateString()
-      : "Date inconnue";
-    const lot = depositorId
-      ? userToGroupMap.get(depositorId) || "Non assigné"
-      : "Non assigné";
+    const depositorName = file.modifiedBy ? `${file.modifiedBy.firstName || ""} ${file.modifiedBy.lastName || ""}`.trim() : "Inconnu";
+    const depositDate = file.modifiedOn ? new Date(file.modifiedOn).toLocaleDateString() : "Date inconnue";
+    const lot = depositorId ? userToGroupMap.get(depositorId) || "Non assigné" : "Non assigné";
 
     visaDocuments.push({
       id: file.id,
@@ -404,7 +409,3 @@ export {
   getRootFolders,
   getConfigFolderId,
 };
-
-
-
-
