@@ -43,6 +43,10 @@ import {
   let currentEditedFluxName = null; // Pour suivre si nous éditons un flux existant
   let allOriginalVisaDocuments = []; //  Stocke les documents non filtrés
   let activeFilters = {}; //Stocke les filtres actifs par colonne
+  let sortState = {
+    field: "depositDate", // Tri par défaut
+    direction: "desc", // Descendant pour que le plus récent soit en haut
+  };
 
   // Variables pour la page d'affectation
   let allProjectFlows = [];
@@ -108,12 +112,7 @@ import {
         ASSIGNMENTS_FILENAME,
       );
       activeFilters = {};
-      applyFiltersAndRenderTable();
-
-      const visaTableElement = document.querySelector(".visa-table");
-      if (visaTableElement) {
-        attachResizableTableEvents(visaTableElement);
-      }
+      applyFiltersAndSortAndRenderTable(); // Nouvelle fonction centrale
     } catch (error) {
       console.error("Erreur lors de la récupération des documents :", error);
       renderError(mainContentDiv, error);
@@ -122,54 +121,106 @@ import {
 
   //Applique les filtres actifs et rafraîchit l'affichage du tableau.
 
-  function applyFiltersAndRenderTable() {
-    let filteredDocuments = [...allOriginalVisaDocuments]; // Commence avec tous les documents
+  function applyFiltersAndSortAndRenderTable() {
+    let processedDocuments = [...allOriginalVisaDocuments];
 
+    // 1. Appliquer les filtres (logique existante)
     for (const field in activeFilters) {
       const selectedValues = activeFilters[field];
       if (selectedValues && selectedValues.length > 0) {
-        filteredDocuments = filteredDocuments.filter(
-          (doc) => selectedValues.includes(String(doc[field])), // Convertir en string pour comparaison
+        processedDocuments = processedDocuments.filter((doc) =>
+          selectedValues.includes(String(doc[field])),
         );
       }
     }
 
-    renderVisaTable(mainContentDiv, filteredDocuments);
-    attachVisaTableEvents(filteredDocuments); // Ré-attache les écouteurs pour les lignes cliquables
+    // 2. Appliquer le tri (nouvelle logique)
+    const { field, direction } = sortState;
+    if (field) {
+      processedDocuments.sort((a, b) => {
+        const valA = a[field];
+        const valB = b[field];
+        let comparison = 0;
 
-    // Mettre à jour l'état visuel des icônes de filtre
-    for (const field in activeFilters) {
-      const icon = document.querySelector(
-        `.filter-icon[data-field="${field}"]`,
-      );
-      if (icon) {
-        if (activeFilters[field] && activeFilters[field].length > 0) {
-          icon.classList.add("active");
+        if (field === "depositDate") {
+          // Pour les dates, il faut les parser pour un tri correct
+          const dateA = new Date(valA.split("/").reverse().join("-"));
+          const dateB = new Date(valB.split("/").reverse().join("-"));
+          comparison = dateA - dateB;
+        } else if (field === "version") {
+          // Pour les versions numériques
+          comparison = Number(valA) - Number(valB);
         } else {
-          icon.classList.remove("active");
+          // Pour tout le reste (texte)
+          comparison = String(valA).localeCompare(String(valB));
         }
+
+        return direction === "asc" ? comparison : -comparison;
+      });
+    }
+
+    // 3. Rendre la table et attacher les événements
+    renderVisaTable(mainContentDiv, processedDocuments);
+    attachVisaTableEvents(processedDocuments);
+
+    // 4. Mettre à jour l'état visuel des icônes
+    updateVisuals();
+  }
+
+  // FONCTION POUR METTRE À JOUR LES VISUELS
+
+  function updateVisuals() {
+    // Mettre à jour les icônes de filtre (code existant)
+    document.querySelectorAll(".filter-icon").forEach((icon) => {
+      const field = icon.dataset.field;
+      if (activeFilters[field] && activeFilters[field].length > 0) {
+        icon.classList.add("active");
+      } else {
+        icon.classList.remove("active");
       }
+    });
+
+    // Mettre à jour les icônes de tri (nouveau code)
+    document
+      .querySelectorAll(".sort-icon")
+      .forEach((icon) => (icon.innerHTML = "")); // Vide toutes les flèches
+    const activeSortIcon = document.querySelector(
+      `.th-content[data-field="${sortState.field}"] .sort-icon`,
+    );
+    if (activeSortIcon) {
+      activeSortIcon.innerHTML = sortState.direction === "asc" ? "▲" : "▼";
     }
   }
 
-  // attache la table de visa
+  // attache la table de visa et tri par ordre alphabétique
 
   function attachVisaTableEvents(documents) {
-    const tableRows = document.querySelectorAll(".visa-table tbody tr");
-    tableRows.forEach((row, index) => {
-      const doc = documents[index];
-      if (doc) {
-        // S'assurer que le document existe
-        row.addEventListener("click", () => {
-          handleDocumentRowClick(doc);
-        });
-      }
+    document.querySelectorAll(".visa-table tbody tr").forEach((row, index) => {
+      if (documents[index])
+        row.addEventListener("click", () =>
+          handleDocumentRowClick(documents[index]),
+        );
     });
+
     document.querySelectorAll(".filter-icon").forEach((icon) => {
       icon.addEventListener("click", (event) => {
-        event.stopPropagation(); // Empêche le clic sur l'icône de déclencher le clic sur la ligne
-        const columnField = icon.dataset.field;
-        handleFilterIconClick(icon, columnField);
+        event.stopPropagation();
+        handleFilterIconClick(icon, icon.dataset.field);
+      });
+    });
+
+    document.querySelectorAll(".th-content.sortable").forEach((header) => {
+      header.addEventListener("click", () => {
+        const field = header.parentElement.dataset.field;
+        if (sortState.field === field) {
+          // Si on clique sur la même colonne, on inverse la direction
+          sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
+        } else {
+          // Si on clique sur une nouvelle colonne, on trie par défaut en ascendant
+          sortState.field = field;
+          sortState.direction = "asc";
+        }
+        applyFiltersAndSortAndRenderTable();
       });
     });
     const visaTableElement = document.querySelector(".visa-table");
@@ -194,12 +245,12 @@ import {
       (field, values) => {
         // Callback onApply
         activeFilters[field] = values;
-        applyFiltersAndRenderTable();
+        applyFiltersAndSortAndRenderTable();
       },
       (field) => {
         // Callback onClear
         delete activeFilters[field];
-        applyFiltersAndRenderTable();
+        applyFiltersAndSortAndRenderTable();
       },
     );
   }
