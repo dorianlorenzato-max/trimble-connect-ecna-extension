@@ -71,7 +71,7 @@ function renderVisaTable(container, visaDocuments) {
     )
     .join("");
 
-  let tableRows = visaDocuments
+  let tableRows = documentsToShow
     .map(
       (doc) => `
         <tr>
@@ -86,17 +86,35 @@ function renderVisaTable(container, visaDocuments) {
     )
     .join("");
 
-  if (visaDocuments.length === 0) {
-    tableRows = `<tr><td colspan="6" style="text-align:center;">Aucun document PDF trouvé.</td></tr>`;
+  if (documentsToShow.length === 0) {
+    tableRows = `<tr><td colspan="6" style="text-align:center;">Aucun document à afficher.</td></tr>`;
+  }
+
+  const totalPages = Math.ceil(totalFilteredDocuments / itemsPerPage);
+
+  // Contrôles pour la taille de la page
+  const pageSizes = [10, 20, 50];
+  const pageSizeButtons = pageSizes
+    .map(
+      (size) =>
+        `<button class="page-size-btn ${size === itemsPerPage ? "active" : ""}" data-size="${size}">${size}</button>`,
+    )
+    .join("");
+
+  // Boutons pour les numéros de page
+  let pageButtons = "";
+  for (let i = 1; i <= totalPages; i++) {
+    pageButtons += `<button class="pagination-btn ${i === currentPage ? "active" : ""}" data-page="${i}">${i}</button>`;
   }
 
   container.innerHTML = `
-        <h1>Suivi des Documents à Visas</h1>
-        <div class="visa-table-container">
+    <h1>Suivi des Documents à Visas</h1>
+    <div class="visa-table-container">
+        <div class="visa-table-body-wrapper">
             <table class="visa-table">
                 <thead>
                     <tr>
-                        ${tableHeaders} <!-- Utilisez les en-têtes générés -->
+                        ${tableHeaders}
                     </tr>
                 </thead>
                 <tbody>
@@ -104,7 +122,16 @@ function renderVisaTable(container, visaDocuments) {
                 </tbody>
             </table>
         </div>
-    `;
+        <div class="visa-table-footer">
+            <div class="page-size-controls">${pageSizeButtons}</div>
+            <div class="pagination-info">${totalFilteredDocuments} élément(s) trouvé(s)</div>
+            <div class="pagination-controls">
+                <span>Page ${currentPage} sur ${totalPages}</span>
+                ${pageButtons}
+            </div>
+        </div>
+    </div>
+  `;
 }
 
 // Affiche la page principale de configuration (avec les boutons Créer et Gérer)
