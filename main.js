@@ -126,7 +126,7 @@ import {
             configFolderId,
             CONFIG_FILENAME,
           ),
-          fetchProjectGroups(projectInfo.id, globalAccessToken), // Récupérer tous les groupes du projet
+          fetchProjectGroups(projectInfo.id, globalAccessToken),
         ]);
 
       let loggedInUserGroupIds = [];
@@ -149,12 +149,25 @@ import {
         }
       }
 
+      let viseurGroups = [];
+      if (mode === "documents") {
+        const allViseurGroupIds = new Set(
+          allFluxDefinitions.flatMap((flux) =>
+            flux.steps.flatMap((step) => step.groupIds),
+          ),
+        );
+
+        viseurGroups = allGroupsInProject
+          .filter((group) => allViseurGroupIds.has(group.id))
+          .sort((a, b) => a.name.localeCompare(b.name)); // Tri alphabétique
+      }
+
       const fetchOptions = {
-        mode: currentViewMode,
-        loggedInUserId: loggedInUser.id,
-        loggedInUserGroupIds: loggedInUserGroupIds,
-        allFluxDefinitions: allFluxDefinitions,
-        configFilename: CONFIG_FILENAME, 
+        mode,
+        loggedInUserGroupIds,
+        allFluxDefinitions,
+        // On passe la liste des groupes au fetch pour une future utilisation
+        viseurGroups: viseurGroups,
       };
 
       const documents = await fetchVisaDocuments(
@@ -168,7 +181,7 @@ import {
       allOriginalVisaDocuments = documents;
       activeFilters = {};
       currentPage = 1;
-      applyFiltersAndSortAndRenderTable();
+      applyFiltersAndSortAndRenderTable(viseurGroups);
     } catch (error) {
       console.error(
         `Erreur lors de la récupération des données pour le mode "${mode}" :`,
@@ -180,7 +193,7 @@ import {
 
   //Applique les filtres actifs et rafraîchit l'affichage du tableau.
 
-  function applyFiltersAndSortAndRenderTable() {
+  function applyFiltersAndSortAndRenderTable(viseurGroups = []) {
     let processedDocuments = [...allOriginalVisaDocuments];
 
     // 1. Appliquer les filtres (logique existante)
@@ -233,11 +246,12 @@ import {
     }
     renderVisaTable(
       mainContentDiv,
-      documentsForCurrentPage, // Les lignes à afficher
-      processedDocuments.length, // Le total après filtrage
-      { currentPage, itemsPerPage }, // L'état de pagination
+      documentsForCurrentPage,
+      processedDocuments.length,
+      { currentPage, itemsPerPage },
       currentViewMode,
       emptyMessage,
+      viseurGroups,
     );
     attachVisaTableEvents(
       documentsForCurrentPage,
