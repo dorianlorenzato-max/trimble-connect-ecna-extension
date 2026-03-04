@@ -39,6 +39,7 @@ import {
   let triconnectAPI;
   let globalAccessToken = null;
   let configFolderId = null;
+  let currentViewMode = "missions"; // stock le mode pour afficher le bon tableau
   let currentProjectGroups = []; // Pour stocker les groupes et éviter de les re-fetcher
   let currentEditedFluxName = null; // Pour suivre si nous éditons un flux existant
   let allOriginalVisaDocuments = []; //  Stocke les documents non filtrés
@@ -84,8 +85,8 @@ import {
 
     // Attacher les événements aux boutons principaux de la bannière
     document
-      .getElementById("visasBtn")
-      .addEventListener("click", handleVisaButtonClick);
+      .getElementById("missionsBtn")
+      .addEventListener("click", () => handleTableDisplay("missions"));
     document
       .getElementById("dashboardBtn")
       .addEventListener("click", () => renderWelcome(mainContentDiv));
@@ -94,7 +95,7 @@ import {
       .addEventListener("click", handleConfigClick);
     document
       .getElementById("documentBtn")
-      .addEventListener("click", () => renderWelcome(mainContentDiv));
+      .addEventListener("click", () => handleTableDisplay("documents"));
 
     // Afficher l'accueil
     renderWelcome(mainContentDiv);
@@ -108,32 +109,35 @@ import {
 
   // --- GESTIONNAIRE D'ÉVÉNEMENT POUR LE BOUTON VISA ---
 
-  async function handleVisaButtonClick() {
+  async function handleTableDisplay(mode) {
+    currentViewMode = mode;
     renderLoading(mainContentDiv);
     try {
       const projectInfo = await triconnectAPI.project.getCurrentProject();
-      allOriginalVisaDocuments = await fetchVisaDocuments(
+      const documents = await fetchVisaDocuments(
         globalAccessToken,
         triconnectAPI,
         configFolderId,
         ASSIGNMENTS_FILENAME,
+        { mode: currentViewMode },
       );
+
+      allOriginalVisaDocuments = documents;
       activeFilters = {};
       currentPage = 1;
-      applyFiltersAndSortAndRenderTable(projectInfo.id);
-      const visaTableElement = document.querySelector(".visa-table");
-      if (visaTableElement) {
-        attachResizableTableEvents(visaTableElement);
-      }
+      applyFiltersAndSortAndRenderTable(projectInfo.id, currentViewMode);
     } catch (error) {
-      console.error("Erreur lors de la récupération des documents :", error);
+      console.error(
+        `Erreur lors de la récupération des données pour le mode "${mode}" :`,
+        error,
+      );
       renderError(mainContentDiv, error);
     }
   }
 
   //Applique les filtres actifs et rafraîchit l'affichage du tableau.
 
-  function applyFiltersAndSortAndRenderTable(projectId) {
+  function applyFiltersAndSortAndRenderTable(projectId, mode) {
     let processedDocuments = [...allOriginalVisaDocuments];
 
     // 1. Appliquer les filtres (logique existante)
@@ -185,8 +189,9 @@ import {
       documentsForCurrentPage, // Les lignes à afficher
       processedDocuments.length, // Le total après filtrage
       { currentPage, itemsPerPage }, // L'état de pagination
+      mode,
     );
-    attachVisaTableEvents(documentsForCurrentPage, projectId);
+    attachVisaTableEvents(documentsForCurrentPage, projectId, mode);
 
     // 5. Mettre à jour les visuels (inchangé)
     updateVisuals();
@@ -219,12 +224,19 @@ import {
 
   // attache la table de visa et tri par ordre alphabétique
 
-  function attachVisaTableEvents(documents, projectId) {
+  function attachVisaTableEvents(documents, projectId, mode) {
     document.querySelectorAll(".visa-table tbody tr").forEach((row, index) => {
-      if (documents[index])
-        row.addEventListener("click", () =>
-          handleDocumentRowClick(documents[index]),
-        );
+      const doc = documents[index];
+      if (doc) {
+        row.addEventListener("click", () => {
+          if (mode === "documents") {
+            const viewerUrl = `https://web.connect.trimble.com/projects/${projectId}/viewer/2D?id=${doc.id}&version=${doc.id}`;
+            window.open(viewerUrl, "_blank");
+          } else {
+            handleDocumentRowClick(doc);
+          }
+        });
+      }
     });
 
     document.querySelectorAll(".filter-icon").forEach((icon) => {
