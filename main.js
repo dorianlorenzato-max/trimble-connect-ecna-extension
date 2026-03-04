@@ -40,6 +40,7 @@ import {
   let globalAccessToken = null;
   let configFolderId = null;
   let currentViewMode = "missions"; // stock le mode pour afficher le bon tableau
+  let currentProjectId = null; // Stocke l'ID du projet actuel
   let currentProjectGroups = []; // Pour stocker les groupes et éviter de les re-fetcher
   let currentEditedFluxName = null; // Pour suivre si nous éditons un flux existant
   let allOriginalVisaDocuments = []; //  Stocke les documents non filtrés
@@ -114,6 +115,7 @@ import {
     renderLoading(mainContentDiv);
     try {
       const projectInfo = await triconnectAPI.project.getCurrentProject();
+      currentProjectId = projectInfo.id;
       const documents = await fetchVisaDocuments(
         globalAccessToken,
         triconnectAPI,
@@ -125,7 +127,7 @@ import {
       allOriginalVisaDocuments = documents;
       activeFilters = {};
       currentPage = 1;
-      applyFiltersAndSortAndRenderTable(projectInfo.id, currentViewMode);
+      applyFiltersAndSortAndRenderTable();
     } catch (error) {
       console.error(
         `Erreur lors de la récupération des données pour le mode "${mode}" :`,
@@ -137,7 +139,7 @@ import {
 
   //Applique les filtres actifs et rafraîchit l'affichage du tableau.
 
-  function applyFiltersAndSortAndRenderTable(projectId, mode) {
+  function applyFiltersAndSortAndRenderTable() {
     let processedDocuments = [...allOriginalVisaDocuments];
 
     // 1. Appliquer les filtres (logique existante)
@@ -189,9 +191,9 @@ import {
       documentsForCurrentPage, // Les lignes à afficher
       processedDocuments.length, // Le total après filtrage
       { currentPage, itemsPerPage }, // L'état de pagination
-      mode,
+      currentViewMode,
     );
-    attachVisaTableEvents(documentsForCurrentPage, projectId, mode);
+    attachVisaTableEvents(documentsForCurrentPage, projectId, currentViewMode);
 
     // 5. Mettre à jour les visuels (inchangé)
     updateVisuals();
