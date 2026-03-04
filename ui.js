@@ -34,6 +34,7 @@ function renderVisaTable(
   paginationState,
   mode,
   emptyMessage = null,
+  viseurGroups = [],
 ) {
   // On extrait les variables de l'état de pagination
   const { currentPage, itemsPerPage } = paginationState;
@@ -79,7 +80,7 @@ function renderVisaTable(
   } else {
     pageTitle = "Tableau de Bord"; // Fallback
   }
-  const headers = [
+  const standardHeaders = [
     { text: "", filterable: false, sortable: false, field: "action" },
     {
       text: "Nom du document",
@@ -105,48 +106,68 @@ function renderVisaTable(
     { text: "Statut", filterable: true, sortable: true, field: "status" },
   ];
 
-  const tableHeaders = headers
-    .map(
-      (header, index) => `
-    <th data-column-index="${index}" data-field="${header.field}" 
-        class="${header.field === "action" ? "action-col" : ""} ${header.field === "name" ? "sticky-column-name" : ""}">
+  let headerRow1 = "";
+  let headerRow2 = "";
+  let totalColumns = standardHeaders.length;
+
+  // Génération des en-têtes standard
+  standardHeaders.forEach((header, index) => {
+    headerRow1 += `
+      <th rowspan="${mode === "documents" ? "2" : "1"}" data-column-index="${index}" data-field="${header.field}" 
+          class="${header.field === "action" ? "action-col" : ""} ${header.field === "name" ? "sticky-column-name" : ""}">
         <div class="th-content ${header.sortable ? "sortable" : ""}">
             ${header.text}
             <span class="sort-icon"></span>
             ${header.filterable ? `<span class="filter-icon" data-field="${header.field}">&#x25BC;</span>` : ""}
         </div>
-        <div class="resizer"></div>
-    </th>
-  `,
-    )
-    .join("");
+        ${header.field !== "action" ? '<div class="resizer"></div>' : ""}
+      </th>
+    `;
+  });
+
+  // Génération des en-têtes dynamiques pour les viseurs (uniquement en mode "documents")
+  if (mode === "documents") {
+    viseurGroups.forEach((group) => {
+      headerRow1 += `<th colspan="3" class="group-header">${group.name}</th>`;
+      headerRow2 += `
+        <th class="sub-header">Pour le</th>
+        <th class="sub-header">Visé le</th>
+        <th class="sub-header">Visa</th>
+      `;
+    });
+    totalColumns += viseurGroups.length * 3;
+  }
 
   // Génération des lignes pour la page actuelle
 
   let tableRows = visaDocuments
     .map((doc) => {
       const statusClass = statusClassMap[doc.status] || defaultStatusClass;
+      let dynamicCells = "";
+      if (mode === "documents") {
+        // Pour chaque groupe de viseurs, ajoute 3 cellules vides
+        viseurGroups.forEach(() => {
+          dynamicCells += "<td></td><td></td><td></td>";
+        });
+      }
+
       return `
         <tr>
-          <td class="action-col" data-column-index="0">
-            <span class="view-doc-icon" data-doc-id="${doc.id}" title="Visualiser le document">👁️</span>
-          </td>
+          <td class="action-col" data-column-index="0"><span class="view-doc-icon" data-doc-id="${doc.id}" title="Visualiser le document">👁️</span></td>
           <td data-column-index="1" class="sticky-column-name">${doc.name || ""}</td>
           <td data-column-index="2">${doc.version || ""}</td>
           <td data-column-index="3">${doc.lot || ""}</td>
           <td data-column-index="4">${doc.depositorName || ""}</td>
           <td data-column-index="5">${doc.depositDate || ""}</td>
-          <td data-column-index="6">
-            <span class="status-cell-tag ${statusClass}">${doc.status || "N/A"}</span>
-          </td>
+          <td data-column-index="6"><span class="status-cell-tag ${statusClass}">${doc.status || "N/A"}</span></td>
+          ${dynamicCells}
         </tr>
       `;
     })
     .join("");
 
   if (visaDocuments.length === 0) {
-    // Corrigez le colspan si le nombre de colonnes change, ici de 6 à 7
-    tableRows = `<tr><td colspan="7" style="text-align:center;">${emptyMessage || "Aucun document à afficher."}</td></tr>`;
+    tableRows = `<tr><td colspan="${totalColumns}" style="text-align:center;">${emptyMessage || "Aucun document à afficher."}</td></tr>`;
   }
 
   // --- Génération du pied de page de pagination ---
@@ -185,13 +206,10 @@ function renderVisaTable(
         <div class="visa-table-body-wrapper">
             <table class="visa-table">
                 <thead>
-                    <tr>
-                        ${tableHeaders}
-                    </tr>
+                    <tr>${headerRow1}</tr>
+                    ${mode === "documents" ? `<tr>${headerRow2}</tr>` : ""}
                 </thead>
-                <tbody>
-                    ${tableRows}
-                </tbody>
+                <tbody>${tableRows}</tbody>
             </table>
         </div>
         <div class="visa-table-footer">
