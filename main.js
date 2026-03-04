@@ -30,7 +30,7 @@ import {
 } from "./ui.js";
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
-document.addEventListener('DOMContentLoaded', async () => { 
+(async function () {
   const mainContentDiv = document.getElementById("mainContent");
   const CONFIG_FILENAME = "ecna-visa-config.json"; // Nom du fichier de configuration des flux
   const ASSIGNMENTS_FILENAME = "flux-assignments.json"; // Nom pour fichier d'affectation des flux aux dossier
@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Attacher les événements aux boutons principaux de la bannière
     document
-      .getElementById("visasBtn")
+      .getElementById("visaBtn")
       .addEventListener("click", () => handleTableDisplay("missions"));
     document
       .getElementById("dashboardBtn")
@@ -193,7 +193,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       { currentPage, itemsPerPage }, // L'état de pagination
       currentViewMode,
     );
-    attachVisaTableEvents(documentsForCurrentPage, projectId, currentViewMode);
+    attachVisaTableEvents(
+      documentsForCurrentPage,
+      currentProjectId,
+      currentViewMode,
+    );
 
     // 5. Mettre à jour les visuels (inchangé)
     updateVisuals();
@@ -1034,4 +1038,3 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 })();
-
