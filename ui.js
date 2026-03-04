@@ -86,6 +86,7 @@ function renderVisaTable(
       filterable: false,
       sortable: true,
       field: "name",
+      sticky: true,
     },
     { text: "Version", filterable: true, sortable: true, field: "version" },
     { text: "Lot", filterable: true, sortable: true, field: "lot" },
@@ -107,7 +108,8 @@ function renderVisaTable(
   const tableHeaders = headers
     .map(
       (header, index) => `
-    <th data-column-index="${index}" data-field="${header.field}" class="${header.field === "action" ? "action-col" : ""}">
+    <th data-column-index="${index}" data-field="${header.field}" 
+        class="${header.field === "action" ? "action-col" : ""} ${header.sticky ? "sticky-column" : ""}"> <!-- AJOUT DE LA CLASSE -->
         <div class="th-content ${header.sortable ? "sortable" : ""}">
             ${header.text}
             <span class="sort-icon"></span>
@@ -125,15 +127,15 @@ function renderVisaTable(
       const statusClass = statusClassMap[doc.status] || defaultStatusClass;
       return `
         <tr>
-        <td class="action-col" data-column-index="0">
+          <td class="action-col" data-column-index="0">
             <span class="view-doc-icon" data-doc-id="${doc.id}" title="Visualiser le document">👁️</span>
           </td>
-          <td data-column-index="1">${doc.name || ""}</td>
-          <td data-column-index="2">${doc.version || ""}</td>
-          <td data-column-index="3">${doc.lot || ""}</td>
-          <td data-column-index="4">${doc.depositorName || ""}</td>
-          <td data-column-index="5">${doc.depositDate || ""}</td>
-          <td data-column-index="6">
+          <td data-column-index="1" class="sticky-column">${doc.name || ""}</td> <!-- Index 1 et classe sticky-column -->
+          <td data-column-index="2">${doc.version || ""}</td> <!-- Index 2 -->
+          <td data-column-index="3">${doc.lot || ""}</td> <!-- Index 3 -->
+          <td data-column-index="4">${doc.depositorName || ""}</td> <!-- Index 4 -->
+          <td data-column-index="5">${doc.depositDate || ""}</td> <!-- Index 5 -->
+          <td data-column-index="6"> <!-- Index 6 -->
             <span class="status-cell-tag ${statusClass}">${doc.status || "N/A"}</span>
           </td>
         </tr>
@@ -142,7 +144,8 @@ function renderVisaTable(
     .join("");
 
   if (visaDocuments.length === 0) {
-    tableRows = `<tr><td colspan="7" style="text-align:center;">Aucun document à afficher.</td></tr>`;
+    // Corrigez le colspan si le nombre de colonnes change, ici de 6 à 7
+    tableRows = `<tr><td colspan="7" style="text-align:center;">${emptyMessage || "Aucun document à afficher."}</td></tr>`;
   }
 
   // --- Génération du pied de page de pagination ---
