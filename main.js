@@ -30,7 +30,7 @@ import {
 } from "./ui.js";
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
-(async function () {
+document.addEventListener('DOMContentLoaded', async () => { 
   const mainContentDiv = document.getElementById("mainContent");
   const CONFIG_FILENAME = "ecna-visa-config.json"; // Nom du fichier de configuration des flux
   const ASSIGNMENTS_FILENAME = "flux-assignments.json"; // Nom pour fichier d'affectation des flux aux dossier
