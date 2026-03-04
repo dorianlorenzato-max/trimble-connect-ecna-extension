@@ -111,6 +111,7 @@ import {
   async function handleVisaButtonClick() {
     renderLoading(mainContentDiv);
     try {
+      const projectInfo = await triconnectAPI.project.getCurrentProject();
       allOriginalVisaDocuments = await fetchVisaDocuments(
         globalAccessToken,
         triconnectAPI,
@@ -119,7 +120,7 @@ import {
       );
       activeFilters = {};
       currentPage = 1;
-      applyFiltersAndSortAndRenderTable();
+      applyFiltersAndSortAndRenderTable(projectInfo.id);
       const visaTableElement = document.querySelector(".visa-table");
       if (visaTableElement) {
         attachResizableTableEvents(visaTableElement);
@@ -132,7 +133,7 @@ import {
 
   //Applique les filtres actifs et rafraîchit l'affichage du tableau.
 
-  function applyFiltersAndSortAndRenderTable() {
+  function applyFiltersAndSortAndRenderTable(projectId) {
     let processedDocuments = [...allOriginalVisaDocuments];
 
     // 1. Appliquer les filtres (logique existante)
@@ -185,7 +186,7 @@ import {
       processedDocuments.length, // Le total après filtrage
       { currentPage, itemsPerPage }, // L'état de pagination
     );
-    attachVisaTableEvents(documentsForCurrentPage);
+    attachVisaTableEvents(documentsForCurrentPage, projectId);
 
     // 5. Mettre à jour les visuels (inchangé)
     updateVisuals();
@@ -218,7 +219,7 @@ import {
 
   // attache la table de visa et tri par ordre alphabétique
 
-  function attachVisaTableEvents(documents) {
+  function attachVisaTableEvents(documents, projectId) {
     document.querySelectorAll(".visa-table tbody tr").forEach((row, index) => {
       if (documents[index])
         row.addEventListener("click", () =>
@@ -247,6 +248,19 @@ import {
         applyFiltersAndSortAndRenderTable();
       });
     });
+
+    // bouton cliquable pour oeil de visualisation de document
+    document.querySelectorAll(".view-doc-icon").forEach((icon) => {
+      icon.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const docId = icon.dataset.docId;
+        if (docId && projectId) {
+          const viewerUrl = `https://web.connect.trimble.com/projects/${projectId}/viewer/2D?id=${docId}&version=${docId}`;
+          window.open(viewerUrl, "_blank");
+        }
+      });
+    });
+
     // Boutons de taille de page (10, 20, 50)
     document.querySelectorAll(".page-size-btn").forEach((button) => {
       button.addEventListener("click", () => {
@@ -1006,4 +1020,3 @@ import {
     });
   }
 })();
-
