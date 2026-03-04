@@ -68,6 +68,7 @@ import {
     globalAccessToken =
       await triconnectAPI.extension.requestPermission("accesstoken");
     if (!globalAccessToken) throw new Error("L'Access Token est invalide.");
+    console.warn("Access Token récupéré au démarrage :", globalAccessToken);
 
     mainContentDiv.innerHTML = `<p>Recherche du dossier de configuration...</p>`;
     configFolderId = await getConfigFolderId(triconnectAPI, globalAccessToken);
@@ -1005,3 +1006,4 @@ import {
     });
   }
 })();
+
