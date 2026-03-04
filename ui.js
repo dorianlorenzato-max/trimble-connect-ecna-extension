@@ -109,7 +109,7 @@ function renderVisaTable(
     .map(
       (header, index) => `
     <th data-column-index="${index}" data-field="${header.field}" 
-        class="${header.field === "action" ? "action-col" : ""} ${header.sticky ? "sticky-column" : ""}"> <!-- AJOUT DE LA CLASSE -->
+        class="${header.field === "action" ? "action-col" : ""} ${header.field === "name" ? "sticky-column-name" : ""}"> <!-- MODIFIÉ ICI -->
         <div class="th-content ${header.sortable ? "sortable" : ""}">
             ${header.text}
             <span class="sort-icon"></span>
@@ -122,20 +122,21 @@ function renderVisaTable(
     .join("");
 
   // Génération des lignes pour la page actuelle
+  
   let tableRows = visaDocuments
     .map((doc) => {
-      const statusClass = statusClassMap[doc.status] || defaultStatusClass;
+      // ...
       return `
         <tr>
           <td class="action-col" data-column-index="0">
             <span class="view-doc-icon" data-doc-id="${doc.id}" title="Visualiser le document">👁️</span>
           </td>
-          <td data-column-index="1" class="sticky-column">${doc.name || ""}</td> <!-- Index 1 et classe sticky-column -->
-          <td data-column-index="2">${doc.version || ""}</td> <!-- Index 2 -->
-          <td data-column-index="3">${doc.lot || ""}</td> <!-- Index 3 -->
-          <td data-column-index="4">${doc.depositorName || ""}</td> <!-- Index 4 -->
-          <td data-column-index="5">${doc.depositDate || ""}</td> <!-- Index 5 -->
-          <td data-column-index="6"> <!-- Index 6 -->
+          <td data-column-index="1" class="sticky-column-name">${doc.name || ""}</td> <!-- MODIFIÉ ICI -->
+          <td data-column-index="2">${doc.version || ""}</td>
+          <td data-column-index="3">${doc.lot || ""}</td>
+          <td data-column-index="4">${doc.depositorName || ""}</td>
+          <td data-column-index="5">${doc.depositDate || ""}</td>
+          <td data-column-index="6">
             <span class="status-cell-tag ${statusClass}">${doc.status || "N/A"}</span>
           </td>
         </tr>
