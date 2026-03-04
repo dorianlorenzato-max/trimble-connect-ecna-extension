@@ -775,3 +775,23 @@ select[multiple] {
   border-radius: 4px;
   font-weight: bold;
 }
+
+/* Style pour la nouvelle colonne d'action (l'œil) */
+.visa-table .action-col {
+  width: 40px;
+  text-align: center;
+  padding: 0;
+}
+
+/* Style pour l'icône de visualisation dans le tableau */
+.view-doc-icon {
+  cursor: pointer;
+  font-size: 1.2em;
+  color: #005a70; /* Utilise une couleur thématique */
+  transition: transform 0.2s ease;
+}
+
+.view-doc-icon:hover {
+  transform: scale(1.2); /* Grossit légèrement au survol */
+  color: #007a93;
+}
