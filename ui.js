@@ -70,6 +70,7 @@ function renderVisaTable(
 
   // La partie de génération des en-têtes est inchangée
   const headers = [
+    { text: "", filterable: false, sortable: false, field: "action" },
     {
       text: "Nom du document",
       filterable: false,
@@ -114,6 +115,9 @@ function renderVisaTable(
       const statusClass = statusClassMap[doc.status] || defaultStatusClass;
       return `
         <tr>
+        <td class="action-col" data-column-index="0">
+            <span class="view-doc-icon" data-doc-id="${doc.id}" title="Visualiser le document">👁️</span>
+          </td>
           <td data-column-index="0">${doc.name || ""}</td>
           <td data-column-index="1">${doc.version || ""}</td>
           <td data-column-index="2">${doc.lot || ""}</td>
