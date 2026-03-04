@@ -13,49 +13,54 @@ async function fetchVisaDocuments(
   const projectId = projectInfo.id;
 
   // Récupérer TOUTES les données nécessaires en parallèle au début
-  const [
-    userToGroupMap,
-    assignmentsConfig,
-    allProjectPSets, 
-  ] = await Promise.all([
-    fetchUsersAndGroups(projectId, accessToken),
-    fetchConfigurationFile(accessToken, configFolderId, assignmentsFilename),
-    fetch(
-      `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/psets`,
-      { headers: { Authorization: `Bearer ${accessToken}` } },
-    ).then((res) => (res.ok ? res.json() : { items: [] })),
-  ]);
+  const [userToGroupMap, assignmentsConfig, allProjectPSets] =
+    await Promise.all([
+      fetchUsersAndGroups(projectId, accessToken),
+      fetchConfigurationFile(accessToken, configFolderId, assignmentsFilename),
+      fetch(
+        `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/psets`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      ).then((res) => (res.ok ? res.json() : { items: [] })),
+    ]);
 
   // On transforme les Psets en une Map pour un accès instantané
-  const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
+  const visaPropertyId = "775c8d80-179b-11f1-b157-5bc3cc52c2d2";
   const psetMap = new Map();
-  allProjectPSets.items?.forEach(pset => {
+  allProjectPSets.items?.forEach((pset) => {
     if (pset.link && pset.props?.[visaPropertyId]) {
       psetMap.set(pset.link, pset.props[visaPropertyId]);
     }
   });
 
   const assignedFolderIds = Object.keys(assignmentsConfig || {});
-  const pdfFilePromises = assignedFolderIds.map(folderId =>
-    fetchPDFFilesInFolder(folderId, accessToken).catch(error => {
-      console.warn(`Impossible de récupérer les fichiers du dossier ${folderId}.`, error);
+  const pdfFilePromises = assignedFolderIds.map((folderId) =>
+    fetchPDFFilesInFolder(folderId, accessToken).catch((error) => {
+      console.warn(
+        `Impossible de récupérer les fichiers du dossier ${folderId}.`,
+        error,
+      );
       return []; // Retourne un tableau vide en cas d'erreur pour ne pas bloquer les autres
-    })
+    }),
   );
 
   const nestedPdfFiles = await Promise.all(pdfFilePromises);
-  const allPdfFiles = nestedPdfFiles.flat(); 
+  const allPdfFiles = nestedPdfFiles.flat();
 
   const visaDocuments = [];
   for (const file of allPdfFiles) {
-
     const currentFileFRN = `frn:tcfile:${file.id}`;
     const status = psetMap.get(currentFileFRN) || "En Cours";
 
     const depositorId = file.modifiedBy ? file.modifiedBy.id : null;
-    const depositorName = file.modifiedBy ? `${file.modifiedBy.firstName || ""} ${file.modifiedBy.lastName || ""}`.trim() : "Inconnu";
-    const depositDate = file.modifiedOn ? new Date(file.modifiedOn).toLocaleDateString() : "Date inconnue";
-    const lot = depositorId ? userToGroupMap.get(depositorId) || "Non assigné" : "Non assigné";
+    const depositorName = file.modifiedBy
+      ? `${file.modifiedBy.firstName || ""} ${file.modifiedBy.lastName || ""}`.trim()
+      : "Inconnu";
+    const depositDate = file.modifiedOn
+      ? new Date(file.modifiedOn).toLocaleDateString()
+      : "Date inconnue";
+    const lot = depositorId
+      ? userToGroupMap.get(depositorId) || "Non assigné"
+      : "Non assigné";
 
     visaDocuments.push({
       id: file.id,
@@ -129,7 +134,7 @@ async function fetchFilePSetStatus(projectId, fileId, accessToken) {
   }
 
   const psetsData = await psetsResponse.json();
-  const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
+  const visaPropertyId = "775c8d80-179b-11f1-b157-5bc3cc52c2d2";
   const currentFileFRN = `frn:tcfile:${fileId}`;
   const relevantPSet = psetsData.items?.find(
     (pset) => pset.link === currentFileFRN && pset.defId === "tcfiles",
@@ -312,7 +317,7 @@ async function fetchVisaPossibleStates(projectId, accessToken) {
   const tcfilesDef = defsData.items?.find((item) => item.id === "tcfiles");
   if (!tcfilesDef) return [];
 
-  const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
+  const visaPropertyId = "775c8d80-179b-11f1-b157-5bc3cc52c2d2";
   const visaProperty = tcfilesDef.schema?.props?.[visaPropertyId];
   if (visaProperty && Array.isArray(visaProperty.enum)) {
     return visaProperty.enum;
@@ -328,7 +333,7 @@ async function updatePSetStatus(projectId, fileId, newStatus, accessToken) {
   const defId = "tcfiles";
   const encodedLink = encodeURIComponent(link);
   const psetUpdateApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/psets/${encodedLink}/${libId}/${defId}`;
-  const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
+  const visaPropertyId = "775c8d80-179b-11f1-b157-5bc3cc52c2d2";
 
   const payload = { props: { [visaPropertyId]: newStatus } };
   const headers = {
@@ -409,5 +414,3 @@ export {
   getRootFolders,
   getConfigFolderId,
 };
-
-
