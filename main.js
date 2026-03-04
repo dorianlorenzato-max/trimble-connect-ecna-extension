@@ -86,7 +86,7 @@ import {
 
     // Attacher les événements aux boutons principaux de la bannière
     document
-      .getElementById("visaBtn")
+      .getElementById("visasBtn")
       .addEventListener("click", () => handleTableDisplay("missions"));
     document
       .getElementById("dashboardBtn")
@@ -1038,3 +1038,4 @@ import {
     });
   }
 })();
+
