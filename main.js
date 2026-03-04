@@ -361,7 +361,7 @@ import {
 
       document
         .getElementById("cancel-visa-btn")
-        .addEventListener("click", handleVisaButtonClick);
+        .addEventListener("click", () => handleTableDisplay(currentViewMode));
       document
         .getElementById("save-visa-btn")
         .addEventListener("click", () => handleSaveVisaClick(visaData));
@@ -469,7 +469,7 @@ import {
         mainContentDiv,
         `La fiche de visa a été enregistrée et le statut du document a été mis à jour.`,
       );
-      setTimeout(handleVisaButtonClick, 2000);
+      setTimeout(handleTableDisplay(currentViewMode), 2000);
     } catch (error) {
       console.error(
         "Échec de la génération, sauvegarde ou mise à jour :",
@@ -1038,4 +1038,3 @@ import {
     });
   }
 })();
-
