@@ -11,6 +11,7 @@ import {
   updatePSetStatus,
   getConfigFolderId,
   getRootFolders,
+  fetchFluxDefinitions,
 } from "./api.js";
 import {
   renderLoading,
@@ -116,6 +117,46 @@ import {
     try {
       const projectInfo = await triconnectAPI.project.getCurrentProject();
       currentProjectId = projectInfo.id;
+
+      const [loggedInUser, allFluxDefinitions, allGroupsInProject] =
+        await Promise.all([
+          fetchLoggedInUserDetails(globalAccessToken),
+          fetchFluxDefinitions(
+            globalAccessToken,
+            configFolderId,
+            CONFIG_FILENAME,
+          ),
+          fetchProjectGroups(projectInfo.id, globalAccessToken), // Récupérer tous les groupes du projet
+        ]);
+
+      let loggedInUserGroupIds = [];
+      for (const group of allGroupsInProject) {
+        // Faire un appel pour chaque groupe pour savoir si l'utilisateur en fait partie
+        const usersInGroupResponse = await fetch(
+          `https://app21.connect.trimble.com/tc/api/2.0/groups/${group.id}/users`,
+          { headers: { Authorization: `Bearer ${globalAccessToken}` } },
+        );
+        if (usersInGroupResponse.ok) {
+          const groupUsers = await usersInGroupResponse.json();
+          if (groupUsers.some((user) => user.id === loggedInUser.id)) {
+            loggedInUserGroupIds.push(group.id);
+          }
+        } else {
+          console.warn(
+            `Impossible de récupérer les utilisateurs pour le groupe ${group.name}.`,
+            await usersInGroupResponse.text(),
+          );
+        }
+      }
+
+      const fetchOptions = {
+        mode: currentViewMode,
+        loggedInUserId: loggedInUser.id,
+        loggedInUserGroupIds: loggedInUserGroupIds,
+        allFluxDefinitions: allFluxDefinitions,
+        configFilename: CONFIG_FILENAME, // Optionnel, mais bonne pratique
+      };
+
       const documents = await fetchVisaDocuments(
         globalAccessToken,
         triconnectAPI,
@@ -186,12 +227,17 @@ import {
     );
 
     // 4. Rendre la table avec les nouvelles informations
+    let emptyMessage = null;
+    if (currentViewMode === "missions" && processedDocuments.length === 0) {
+      emptyMessage = "Vous n'avez pas de missions de Visas à réaliser.";
+    }
     renderVisaTable(
       mainContentDiv,
       documentsForCurrentPage, // Les lignes à afficher
       processedDocuments.length, // Le total après filtrage
       { currentPage, itemsPerPage }, // L'état de pagination
       currentViewMode,
+      emptyMessage,
     );
     attachVisaTableEvents(
       documentsForCurrentPage,
