@@ -154,7 +154,7 @@ import {
         loggedInUserId: loggedInUser.id,
         loggedInUserGroupIds: loggedInUserGroupIds,
         allFluxDefinitions: allFluxDefinitions,
-        configFilename: CONFIG_FILENAME, // Optionnel, mais bonne pratique
+        configFilename: CONFIG_FILENAME, 
       };
 
       const documents = await fetchVisaDocuments(
@@ -162,7 +162,7 @@ import {
         triconnectAPI,
         configFolderId,
         ASSIGNMENTS_FILENAME,
-        { mode: currentViewMode },
+        fetchOptions,
       );
 
       allOriginalVisaDocuments = documents;
