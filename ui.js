@@ -32,6 +32,8 @@ function renderVisaTable(
   visaDocuments,
   totalFilteredDocuments,
   paginationState,
+  mode,
+  emptyMessage = null,
 ) {
   // On extrait les variables de l'état de pagination
   const { currentPage, itemsPerPage } = paginationState;
@@ -69,6 +71,14 @@ function renderVisaTable(
   `;
 
   // La partie de génération des en-têtes est inchangée
+  let pageTitle = "";
+  if (mode === "missions") {
+    pageTitle = "Mes Missions de Visa";
+  } else if (mode === "documents") {
+    pageTitle = "Suivi des Documents";
+  } else {
+    pageTitle = "Tableau de Bord"; // Fallback
+  }
   const headers = [
     { text: "", filterable: false, sortable: false, field: "action" },
     {
@@ -97,7 +107,7 @@ function renderVisaTable(
   const tableHeaders = headers
     .map(
       (header, index) => `
-    <th data-column-index="${index}" data-field="${header.field}">
+    <th data-column-index="${index}" data-field="${header.field}" class="${header.field === "action" ? "action-col" : ""}">
         <div class="th-content ${header.sortable ? "sortable" : ""}">
             ${header.text}
             <span class="sort-icon"></span>
@@ -118,12 +128,12 @@ function renderVisaTable(
         <td class="action-col" data-column-index="0">
             <span class="view-doc-icon" data-doc-id="${doc.id}" title="Visualiser le document">👁️</span>
           </td>
-          <td data-column-index="0">${doc.name || ""}</td>
-          <td data-column-index="1">${doc.version || ""}</td>
-          <td data-column-index="2">${doc.lot || ""}</td>
-          <td data-column-index="3">${doc.depositorName || ""}</td>
-          <td data-column-index="4">${doc.depositDate || ""}</td>
-          <td data-column-index="5">
+          <td data-column-index="1">${doc.name || ""}</td>
+          <td data-column-index="2">${doc.version || ""}</td>
+          <td data-column-index="3">${doc.lot || ""}</td>
+          <td data-column-index="4">${doc.depositorName || ""}</td>
+          <td data-column-index="5">${doc.depositDate || ""}</td>
+          <td data-column-index="6">
             <span class="status-cell-tag ${statusClass}">${doc.status || "N/A"}</span>
           </td>
         </tr>
@@ -132,7 +142,7 @@ function renderVisaTable(
     .join("");
 
   if (visaDocuments.length === 0) {
-    tableRows = `<tr><td colspan="6" style="text-align:center;">Aucun document à afficher.</td></tr>`;
+    tableRows = `<tr><td colspan="7" style="text-align:center;">Aucun document à afficher.</td></tr>`;
   }
 
   // --- Génération du pied de page de pagination ---
@@ -164,7 +174,7 @@ function renderVisaTable(
 
   container.innerHTML = `
     <div class="visa-page-header">
-        <h1>Suivi des Documents à Visas</h1>
+        <h1>${pageTitle}</h1>
         ${legendHtml}
     </div>
     <div class="visa-table-container">
