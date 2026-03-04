@@ -8,9 +8,13 @@ async function fetchVisaDocuments(
   triconnectAPI,
   configFolderId,
   assignmentsFilename,
+  options = {},
 ) {
   const projectInfo = await triconnectAPI.project.getCurrentProject();
   const projectId = projectInfo.id;
+
+  const { mode, loggedInUserId, loggedInUserGroupIds, allFluxDefinitions } =
+    options;
 
   // Récupérer TOUTES les données nécessaires en parallèle au début
   const [userToGroupMap, assignmentsConfig, allProjectPSets] =
@@ -44,7 +48,33 @@ async function fetchVisaDocuments(
   );
 
   const nestedPdfFiles = await Promise.all(pdfFilePromises);
-  const allPdfFiles = nestedPdfFiles.flat();
+  let allPdfFiles = nestedPdfFiles.flat();
+
+  if (
+    mode === "missions" &&
+    loggedInUserId &&
+    loggedInUserGroupIds &&
+    allFluxDefinitions
+  ) {
+    allPdfFiles = allPdfFiles.filter((file) => {
+      const folderId = file.parentId;
+      const assignedFluxName = assignmentsConfig[folderId]; // Nom du flux affecté au dossier du document
+
+      if (!assignedFluxName) return false; // Pas de flux affecté -> pas de mission
+
+      const fluxDefinition = allFluxDefinitions.find(
+        (flux) => flux.name === assignedFluxName,
+      );
+      if (!fluxDefinition || !fluxDefinition.steps) return false; // Flux non trouvé ou sans étapes
+
+      // Vérifier si un des groupes de l'utilisateur est concerné par une étape du flux
+      const userIsAssignedToAStep = fluxDefinition.steps.some((step) =>
+        step.groupIds.some((groupId) => loggedInUserGroupIds.includes(groupId)),
+      );
+
+      return userIsAssignedToAStep;
+    });
+  }
 
   const visaDocuments = [];
   for (const file of allPdfFiles) {
@@ -400,6 +430,21 @@ async function getConfigFolderId(triconnectAPI, accessToken) {
   }
 }
 
+// pour filtrer le tableau missions avec les flux
+
+async function fetchFluxDefinitions(
+  accessToken,
+  configFolderId,
+  configFilename,
+) {
+  const config = await fetchConfigurationFile(
+    accessToken,
+    configFolderId,
+    configFilename,
+  );
+  return config ? config.flux || [] : [];
+}
+
 // On exporte la fonction principale pour qu'elle soit utilisable dans main.js
 export {
   fetchVisaDocuments,
@@ -413,4 +458,5 @@ export {
   updatePSetStatus,
   getRootFolders,
   getConfigFolderId,
+  fetchFluxDefinitions,
 };
