@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Attacher les événements aux boutons principaux de la bannière
     document
-      .getElementById("missionsBtn")
+      .getElementById("visasBtn")
       .addEventListener("click", () => handleTableDisplay("missions"));
     document
       .getElementById("dashboardBtn")
@@ -1034,3 +1034,4 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 })();
+
