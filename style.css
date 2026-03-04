@@ -820,3 +820,27 @@ select[multiple] {
 .resizer {
   z-index: 10;
 }
+
+/* === STYLES POUR L'EN-TÊTE DE TABLEAU COMPLEXE === */
+
+/* Style pour l'en-tête principal d'un groupe de colonnes */
+.visa-table .group-header {
+  text-align: center;
+  background-color: #003a72; /* Fond bleu foncé comme dans la capture */
+  color: white;
+  border-left: 1px solid #a0a0a0;
+}
+
+/* Style pour les sous-en-têtes */
+.visa-table .sub-header {
+  background-color: #005a70; /* Fond bleu-vert comme dans la capture */
+  color: white;
+  border-left: 1px solid #a0a0a0;
+}
+
+/* S'assure que les en-têtes rowspanés ont le bon fond */
+.visa-table th[rowspan="2"] {
+  background-color: #f8f8f8;
+  color: #333;
+  vertical-align: middle; /* Centre le contenu verticalement */
+}
