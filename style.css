@@ -778,9 +778,10 @@ select[multiple] {
 
 /* Style pour la nouvelle colonne d'action (l'œil) */
 .visa-table .action-col {
-  width: 40px;
-  text-align: center;
-  padding: 0;
+  position: sticky;
+  left: 0; /* Collée au bord gauche */
+  background-color: #f8f8f8; /* Pour le TH */
+  z-index: 7; /* Au-dessus des colonnes normales */
 }
 
 /* Style pour l'icône de visualisation dans le tableau */
@@ -797,16 +798,25 @@ select[multiple] {
 }
 
 /* Style pour la colonne fixe (Nom du document) */
-.visa-table th.sticky-column,
-.visa-table td.sticky-column {
+.visa-table .sticky-column-name {
   position: sticky;
-  left: 0; /* Colle la colonne à gauche */
-  background-color: #fff; /* Couleur de fond pour éviter que le contenu ne transperce */
-  z-index: 2; /* Assure que la colonne fixe est au-dessus du contenu défilant */
-  box-shadow: 2px 0 3px rgba(0, 0, 0, 0.1); /* Ombre légère pour la démarquer */
+  left: 40px; /* Décalée de la largeur de la colonne action */
+  background-color: #f8f8f8; /* Pour le TH */
+  z-index: 6; /* Juste en dessous de la colonne action, mais au-dessus du reste */
 }
 
-/* Assurez-vous que le resizer est au-dessus de la colonne normale mais en dessous de la sticky */
+/* Appliquer un fond blanc aux cellules de données fixes pour masquer le contenu qui défile */
+.visa-table td.action-col,
+.visa-table td.sticky-column-name {
+  background-color: #fff;
+}
+
+/* Ajuster le z-index général des en-têtes */
+.visa-table thead th {
+  z-index: 5; /* Z-index de base pour les en-têtes */
+}
+
+/* Assurer que le resizer est au-dessus de tout */
 .resizer {
-  z-index: 3; /* Augmenter le z-index du resizer pour qu'il soit sur la colonne sticky */
+  z-index: 10;
 }
