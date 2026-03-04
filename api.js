@@ -28,7 +28,6 @@ async function fetchVisaDocuments(
 
   // On transforme les Psets en une Map pour un accès instantané
   const visaPropertyId = "39693470-5c15-11f0-a345-5d8d7e1cef8f";
-  console.warn(${accessToken});
   const psetMap = new Map();
   allProjectPSets.items?.forEach(pset => {
     if (pset.link && pset.props?.[visaPropertyId]) {
@@ -410,4 +409,5 @@ export {
   getRootFolders,
   getConfigFolderId,
 };
+
 
