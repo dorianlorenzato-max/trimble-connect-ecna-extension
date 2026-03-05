@@ -47,6 +47,7 @@ import {
   let currentViseurGroups = []; // pour stocker les viseurs
   let currentEditedFluxName = null; // Pour suivre si nous éditons un flux existant
   let allOriginalVisaDocuments = []; //  Stocke les documents non filtrés
+  let allFluxDefinitions = []; // stike l'ensembles des flux et des groupes affectés aux flux
   let activeFilters = {}; //Stocke les filtres actifs par colonne
   let sortState = {
     field: "depositDate", // Tri par défaut
