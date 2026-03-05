@@ -459,7 +459,6 @@ import {
         fetchProjectGroups(currentProjectId, globalAccessToken),
       ]);
 
-      // 2. Trouver l'ID du groupe de l'utilisateur actuel
       const userGroupObject = allGroups.find(
         (g) => g.name === visaData.userGroup,
       );
@@ -470,16 +469,13 @@ import {
       }
       const userGroupId = userGroupObject.id;
 
-      // 3. Préparer les nouvelles données de suivi
       const newTrackingData = trackingData || {};
       const docId = visaData.doc.id;
 
-      // Initialise le suivi pour ce document s'il n'existe pas
       if (!newTrackingData[docId]) {
         newTrackingData[docId] = [];
       }
 
-      // Cherche si une entrée pour ce groupe existe déjà pour ce document
       const groupEntryIndex = newTrackingData[docId].findIndex(
         (entry) => entry.groupId === userGroupId,
       );
@@ -487,12 +483,10 @@ import {
       const today = new Date().toISOString().split("T")[0]; // Format YYYY-MM-DD
 
       if (groupEntryIndex > -1) {
-        // Si l'entrée existe, on la met à jour
         newTrackingData[docId][groupEntryIndex].status = selectedStatus;
         newTrackingData[docId][groupEntryIndex].date = today;
         newTrackingData[docId][groupEntryIndex].user = visaData.userName;
       } else {
-        // Sinon, on crée une nouvelle entrée
         newTrackingData[docId].push({
           groupId: userGroupId,
           status: selectedStatus,
@@ -501,7 +495,27 @@ import {
         });
       }
 
-      // 4. Créer la tâche de sauvegarde pour le fichier de suivi
+      /// 1. Calculer le statut général en appliquant la règle de priorité
+      const statusPriority = ["REF", "VAO", "VSO", "SO", "En Cours"];
+      const docStatuses = newTrackingData[docId].map((entry) => entry.status);
+
+      let generalStatus = "En Cours"; // Statut par défaut
+      for (const priorityStatus of statusPriority) {
+        if (docStatuses.includes(priorityStatus)) {
+          generalStatus = priorityStatus;
+          break; // On a trouvé le statut le plus défavorable, on arrête la boucle
+        }
+      }
+
+      // 2. Créer la tâche de mise à jour du PSet avec le statut général calculé
+      const updatePSetTask = updatePSetStatus(
+        visaData.doc.projectId,
+        docId,
+        generalStatus, // On utilise le statut calculé
+        globalAccessToken,
+      );
+
+      // 3. Créer la tâche de sauvegarde du fichier de suivi (logique existante)
       const saveTrackingTask = saveConfigurationFile(
         triconnectAPI,
         globalAccessToken,
@@ -587,13 +601,13 @@ import {
       // visaData.doc.parentId,
       //);
 
-      await saveTrackingTask;
+      await Promise.all([updatePSetTask, saveTrackingTask]);
 
       renderSuccess(
-        mainContentDiv,
-        `Les informations de visa ont été enregistrées dans visa-tracking.json.`,
-      );
-      setTimeout(handleTableDisplay(currentViewMode), 2000);
+      mainContentDiv,
+      `Informations enregistrées. Le statut général du document est maintenant : ${generalStatus}.`
+    );
+    setTimeout(() => handleTableDisplay(currentViewMode), 2500);
     } catch (error) {
       console.error(
         "Échec de la génération, sauvegarde ou mise à jour :",
