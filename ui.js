@@ -139,7 +139,7 @@ function renderVisaTable(
     totalColumns += viseurGroups.length * 3;
   }
 
-  // Génération des lignes pour la page actuelle
+  // Génération des lignes et remplissage des cellules
 
   let tableRows = visaDocuments
     .map((doc) => {
@@ -147,24 +147,85 @@ function renderVisaTable(
       let dynamicCells = "";
 
       if (mode === "documents") {
-        viseurGroups.forEach((group) => {
-          const trackingEntry = doc.trackingInfo.find(
-            (entry) => entry.groupId === group.id,
-          );
-          const pourLeDate = ""; // Sera rempli à la phase 4
-          const viseLeDate = trackingEntry
-            ? new Date(trackingEntry.date).toLocaleDateString()
-            : "";
-          const visaStatus = trackingEntry ? trackingEntry.status : "";
+        // Trouver le nom du flux pour ce document en utilisant les assignments
+        const assignedFluxName = doc.fluxName;
+        const fluxDefinition = allFluxDefinitions.find(
+          (flux) => flux.name === assignedFluxName,
+        );
 
-          // Appliquer une couleur de fond au statut du visa individuel
+        viseurGroups.forEach((group) => {
+          let pourLeDate = "";
+          const viseLeDate =
+            doc.trackingInfo.find((entry) => entry.groupId === group.id)
+              ?.date || "";
+          const visaStatus =
+            doc.trackingInfo.find((entry) => entry.groupId === group.id)
+              ?.status || "";
+
+          if (fluxDefinition && doc.depositDateObject) {
+            const stepInfo = fluxDefinition.steps.find((s) =>
+              s.groupIds.includes(group.id),
+            );
+
+            if (stepInfo) {
+              const stepNumber = stepInfo.step;
+
+              if (stepNumber === 1) {
+                // Pour la première étape, on se base toujours sur la date de dépôt
+                const deadline = new Date(doc.depositDateObject);
+                deadline.setDate(deadline.getDate() + stepInfo.durationDays);
+                pourLeDate = deadline.toLocaleDateString();
+              } else {
+                // Pour les étapes suivantes, on vérifie l'étape précédente
+                const previousStepNumber = stepNumber - 1;
+                const previousStep = fluxDefinition.steps.find(
+                  (s) => s.step === previousStepNumber,
+                );
+
+                if (previousStep) {
+                  // On vérifie si TOUS les groupes de l'étape précédente ont visé
+                  const previousStepGroupIds = previousStep.groupIds;
+                  const previousStepEntries = doc.trackingInfo.filter((entry) =>
+                    previousStepGroupIds.includes(entry.groupId),
+                  );
+                  const previousStepCompleted =
+                    previousStepEntries.length ===
+                      previousStepGroupIds.length &&
+                    previousStepEntries.every(
+                      (entry) => entry.status && entry.status !== "En Cours",
+                    );
+
+                  if (previousStepCompleted) {
+                    // Trouver la date la plus récente parmi les visas de l'étape précédente
+                    const lastVisaDate = new Date(
+                      Math.max(
+                        ...previousStepEntries.map((e) => new Date(e.date)),
+                      ),
+                    );
+
+                    const deadline = new Date(lastVisaDate);
+                    deadline.setDate(
+                      deadline.getDate() + stepInfo.durationDays,
+                    );
+                    pourLeDate = deadline.toLocaleDateString();
+                  } else {
+                    pourLeDate = "En attente";
+                  }
+                }
+              }
+            }
+          }
+
           const visaStatusClass =
             statusClassMap[visaStatus] || defaultStatusClass;
           const visaCellContent = visaStatus
             ? `<span class="status-cell-tag ${visaStatusClass}">${visaStatus}</span>`
             : "";
+          const formattedViseLeDate = viseLeDate
+            ? new Date(viseLeDate).toLocaleDateString()
+            : "";
 
-          dynamicCells += `<td>${pourLeDate}</td><td>${viseLeDate}</td><td>${visaCellContent}</td>`;
+          dynamicCells += `<td>${pourLeDate}</td><td>${formattedViseLeDate}</td><td>${visaCellContent}</td>`;
         });
       }
 
@@ -180,7 +241,8 @@ function renderVisaTable(
           ${dynamicCells}
         </tr>
       `;
-    }).join("");
+    })
+    .join("");
 
   if (visaDocuments.length === 0) {
     tableRows = `<tr><td colspan="${totalColumns}" style="text-align:center;">${emptyMessage || "Aucun document à afficher."}</td></tr>`;
