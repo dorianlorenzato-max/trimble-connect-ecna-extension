@@ -140,6 +140,11 @@ function renderVisaTable(
   }
 
   // Génération des lignes et remplissage des cellules
+console.log("----- Rendu de la table, données reçues -----"); // POINT DE CONTRÔLE
+  console.log("Mode:", mode);
+  console.log("Documents pour cette page:", visaDocuments);
+  console.log("Groupes de viseurs à afficher:", viseurGroups);
+  console.log("Toutes les définitions de flux:", allFluxDefinitions);
 
   let tableRows = visaDocuments
     .map((doc) => {
@@ -152,7 +157,7 @@ function renderVisaTable(
         const fluxDefinition = allFluxDefinitions.find(
           (flux) => flux.name === assignedFluxName,
         );
-
+console.log(`Traitement de la ligne: ${doc.name} | Flux assigné: ${assignedFluxName} | Définition de flux trouvée:`, fluxDefinition);
         viseurGroups.forEach((group) => {
           let pourLeDate = "";
           const viseLeDate =
@@ -177,6 +182,7 @@ function renderVisaTable(
                 pourLeDate = deadline.toLocaleDateString();
               } else {
                 // Pour les étapes suivantes, on vérifie l'étape précédente
+                console.log(` -> Impossible de calculer la date pour le groupe ${group.name} car fluxDefinition ou doc.depositDateObject est manquant.`);
                 const previousStepNumber = stepNumber - 1;
                 const previousStep = fluxDefinition.steps.find(
                   (s) => s.step === previousStepNumber,
@@ -839,3 +845,4 @@ export {
   attachResizableTableEvents,
   renderFilterPopup,
 };
+
