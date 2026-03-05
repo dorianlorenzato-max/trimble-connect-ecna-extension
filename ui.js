@@ -35,6 +35,7 @@ function renderVisaTable(
   mode,
   emptyMessage = null,
   viseurGroups = [],
+  allFluxDefinitions = [],
 ) {
   // On extrait les variables de l'état de pagination
   const { currentPage, itemsPerPage } = paginationState;
@@ -144,10 +145,26 @@ function renderVisaTable(
     .map((doc) => {
       const statusClass = statusClassMap[doc.status] || defaultStatusClass;
       let dynamicCells = "";
+
       if (mode === "documents") {
-        // Pour chaque groupe de viseurs, ajoute 3 cellules vides
-        viseurGroups.forEach(() => {
-          dynamicCells += "<td></td><td></td><td></td>";
+        viseurGroups.forEach((group) => {
+          const trackingEntry = doc.trackingInfo.find(
+            (entry) => entry.groupId === group.id,
+          );
+          const pourLeDate = ""; // Sera rempli à la phase 4
+          const viseLeDate = trackingEntry
+            ? new Date(trackingEntry.date).toLocaleDateString()
+            : "";
+          const visaStatus = trackingEntry ? trackingEntry.status : "";
+
+          // Appliquer une couleur de fond au statut du visa individuel
+          const visaStatusClass =
+            statusClassMap[visaStatus] || defaultStatusClass;
+          const visaCellContent = visaStatus
+            ? `<span class="status-cell-tag ${visaStatusClass}">${visaStatus}</span>`
+            : "";
+
+          dynamicCells += `<td>${pourLeDate}</td><td>${viseLeDate}</td><td>${visaCellContent}</td>`;
         });
       }
 
@@ -163,8 +180,7 @@ function renderVisaTable(
           ${dynamicCells}
         </tr>
       `;
-    })
-    .join("");
+    }).join("");
 
   if (visaDocuments.length === 0) {
     tableRows = `<tr><td colspan="${totalColumns}" style="text-align:center;">${emptyMessage || "Aucun document à afficher."}</td></tr>`;
