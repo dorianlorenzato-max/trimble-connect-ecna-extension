@@ -120,7 +120,7 @@ import {
       const projectInfo = await triconnectAPI.project.getCurrentProject();
       currentProjectId = projectInfo.id;
 
-      const [loggedInUser, allFluxDefinitions, allGroupsInProject] =
+      const [loggedInUser, fluxDefinitions, allGroupsInProject] =
         await Promise.all([
           fetchLoggedInUserDetails(globalAccessToken),
           fetchFluxDefinitions(
@@ -130,7 +130,7 @@ import {
           ),
           fetchProjectGroups(projectInfo.id, globalAccessToken),
         ]);
-
+      allFluxDefinitions = fluxDefinitions;
       let loggedInUserGroupIds = [];
       for (const group of allGroupsInProject) {
         // Faire un appel pour chaque groupe pour savoir si l'utilisateur en fait partie
@@ -255,6 +255,7 @@ import {
       currentViewMode,
       emptyMessage,
       currentViseurGroups,
+      allFluxDefinitions,
     );
     attachVisaTableEvents(
       documentsForCurrentPage,
@@ -587,12 +588,6 @@ import {
       // const pdfBlob = doc.output("blob");
       // const newFilename = `VISA-${visaData.doc.name}`;
 
-      // const updatePSetTask = updatePSetStatus(
-      //visaData.doc.projectId,
-      //visaData.doc.id,
-      //selectedStatus,
-      //globalAccessToken,
-      //);
       //const savePdfTask = saveConfigurationFile(
       // triconnectAPI,
       //globalAccessToken,
@@ -604,10 +599,10 @@ import {
       await Promise.all([updatePSetTask, saveTrackingTask]);
 
       renderSuccess(
-      mainContentDiv,
-      `Informations enregistrées. Le statut général du document est maintenant : ${generalStatus}.`
-    );
-    setTimeout(() => handleTableDisplay(currentViewMode), 2500);
+        mainContentDiv,
+        `Informations enregistrées. Le statut général du document est maintenant : ${generalStatus}.`,
+      );
+      setTimeout(() => handleTableDisplay(currentViewMode), 2500);
     } catch (error) {
       console.error(
         "Échec de la génération, sauvegarde ou mise à jour :",
