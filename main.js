@@ -43,6 +43,7 @@ import {
   let currentViewMode = "missions"; // stock le mode pour afficher le bon tableau
   let currentProjectId = null; // Stocke l'ID du projet actuel
   let currentProjectGroups = []; // Pour stocker les groupes et éviter de les re-fetcher
+  let currentViseurGroups = []; // pour stocker les viseurs
   let currentEditedFluxName = null; // Pour suivre si nous éditons un flux existant
   let allOriginalVisaDocuments = []; //  Stocke les documents non filtrés
   let activeFilters = {}; //Stocke les filtres actifs par colonne
@@ -157,9 +158,11 @@ import {
           ),
         );
 
-        viseurGroups = allGroupsInProject
+        currentViseurGroups = allGroupsInProject
           .filter((group) => allViseurGroupIds.has(group.id))
-          .sort((a, b) => a.name.localeCompare(b.name)); // Tri alphabétique
+          .sort((a, b) => a.name.localeCompare(b.name));
+      } else {
+        currentViseurGroups = []; // On s'assure qu'elle est vide pour le mode "Missions"
       }
 
       const fetchOptions = {
@@ -167,7 +170,6 @@ import {
         loggedInUserGroupIds,
         allFluxDefinitions,
         // On passe la liste des groupes au fetch pour une future utilisation
-        viseurGroups: viseurGroups,
       };
 
       const documents = await fetchVisaDocuments(
@@ -181,7 +183,7 @@ import {
       allOriginalVisaDocuments = documents;
       activeFilters = {};
       currentPage = 1;
-      applyFiltersAndSortAndRenderTable(viseurGroups);
+      applyFiltersAndSortAndRenderTable();
     } catch (error) {
       console.error(
         `Erreur lors de la récupération des données pour le mode "${mode}" :`,
@@ -251,7 +253,7 @@ import {
       { currentPage, itemsPerPage },
       currentViewMode,
       emptyMessage,
-      viseurGroups,
+      currentViseurGroups,
     );
     attachVisaTableEvents(
       documentsForCurrentPage,
