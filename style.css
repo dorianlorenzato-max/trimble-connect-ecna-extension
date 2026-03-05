@@ -826,15 +826,15 @@ select[multiple] {
 /* Style pour l'en-tête principal d'un groupe de colonnes */
 .visa-table .group-header {
   text-align: center;
-  background-color: #003a72; /* Fond bleu foncé comme dans la capture */
-  color: white;
+  background-color: #8ba1be; /* Fond bleu foncé comme dans la capture */
+  color: rgb(0, 0, 0);
   border-left: 1px solid #a0a0a0;
 }
 
 /* Style pour les sous-en-têtes */
 .visa-table .sub-header {
-  background-color: #005a70; /* Fond bleu-vert comme dans la capture */
-  color: white;
+  background-color: #a3c1c9; /* Fond bleu-vert comme dans la capture */
+  color: rgb(0, 0, 0);
   border-left: 1px solid #a0a0a0;
 }
 
