@@ -93,6 +93,7 @@ async function fetchVisaDocuments(
     const lot = depositorId
       ? userToGroupMap.get(depositorId) || "Non assigné"
       : "Non assigné";
+    const fluxName = assignmentsConfig[file.parentId] || null;
 
     visaDocuments.push({
       id: file.id,
@@ -105,6 +106,7 @@ async function fetchVisaDocuments(
       depositDate: depositDate,
       status: status,
       trackingInfo: trackingData ? trackingData[file.id] || [] : [], // Attache les infos de suivi au document
+      fluxName: fluxName,
     });
   }
   return visaDocuments;
