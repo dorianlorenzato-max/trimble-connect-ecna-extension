@@ -109,6 +109,7 @@ async function fetchVisaDocuments(
       fluxName: fluxName,
     });
   }
+  console.log("----- Fin du traitement. Données complètes des documents :", visaDocuments)
   return visaDocuments;
 }
 
@@ -465,3 +466,4 @@ export {
   getConfigFolderId,
   fetchFluxDefinitions,
 };
+
