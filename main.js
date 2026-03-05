@@ -35,6 +35,7 @@ import {
   const mainContentDiv = document.getElementById("mainContent");
   const CONFIG_FILENAME = "ecna-visa-config.json"; // Nom du fichier de configuration des flux
   const ASSIGNMENTS_FILENAME = "flux-assignments.json"; // Nom pour fichier d'affectation des flux aux dossier
+  const VISA_TRACKING_FILENAME = "visa-tracking.json"; // Nom pour le fichier qui heberge le suivi de visa
   const TRIMBLE_CLIENT_ID = "db958c40-8b49-4d72-b9cc-71333d3c9581"; // Votre ID Client
 
   let triconnectAPI;
@@ -411,6 +412,7 @@ import {
       const visaData = {
         doc: doc,
         projectName: projectInfo.name,
+        loggedInUser: loggedInUser,
         userName: `${loggedInUser.firstName} ${loggedInUser.lastName}`,
         userGroup: userToGroupMap.get(loggedInUser.id) || "Groupe non trouvé",
         fluxName: assignments
@@ -448,6 +450,66 @@ import {
     renderSaving(mainContentDiv);
 
     try {
+      const [trackingData, allGroups] = await Promise.all([
+        fetchConfigurationFile(
+          globalAccessToken,
+          configFolderId,
+          VISA_TRACKING_FILENAME,
+        ),
+        fetchProjectGroups(currentProjectId, globalAccessToken),
+      ]);
+
+      // 2. Trouver l'ID du groupe de l'utilisateur actuel
+      const userGroupObject = allGroups.find(
+        (g) => g.name === visaData.userGroup,
+      );
+      if (!userGroupObject) {
+        throw new Error(
+          `Le groupe "${visaData.userGroup}" de l'utilisateur n'a pas été trouvé dans le projet.`,
+        );
+      }
+      const userGroupId = userGroupObject.id;
+
+      // 3. Préparer les nouvelles données de suivi
+      const newTrackingData = trackingData || {};
+      const docId = visaData.doc.id;
+
+      // Initialise le suivi pour ce document s'il n'existe pas
+      if (!newTrackingData[docId]) {
+        newTrackingData[docId] = [];
+      }
+
+      // Cherche si une entrée pour ce groupe existe déjà pour ce document
+      const groupEntryIndex = newTrackingData[docId].findIndex(
+        (entry) => entry.groupId === userGroupId,
+      );
+
+      const today = new Date().toISOString().split("T")[0]; // Format YYYY-MM-DD
+
+      if (groupEntryIndex > -1) {
+        // Si l'entrée existe, on la met à jour
+        newTrackingData[docId][groupEntryIndex].status = selectedStatus;
+        newTrackingData[docId][groupEntryIndex].date = today;
+        newTrackingData[docId][groupEntryIndex].user = visaData.userName;
+      } else {
+        // Sinon, on crée une nouvelle entrée
+        newTrackingData[docId].push({
+          groupId: userGroupId,
+          status: selectedStatus,
+          date: today,
+          user: visaData.userName,
+        });
+      }
+
+      // 4. Créer la tâche de sauvegarde pour le fichier de suivi
+      const saveTrackingTask = saveConfigurationFile(
+        triconnectAPI,
+        globalAccessToken,
+        newTrackingData,
+        VISA_TRACKING_FILENAME,
+        configFolderId,
+      );
+
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
 
@@ -508,28 +570,28 @@ import {
       );
       drawBubble("Observations", observations, 15, 145, 180, 60);
 
-      const pdfBlob = doc.output("blob");
-      const newFilename = `VISA-${visaData.doc.name}`;
+      // const pdfBlob = doc.output("blob");
+      // const newFilename = `VISA-${visaData.doc.name}`;
 
-      const updatePSetTask = updatePSetStatus(
-        visaData.doc.projectId,
-        visaData.doc.id,
-        selectedStatus,
-        globalAccessToken,
-      );
-      const savePdfTask = saveConfigurationFile(
-        triconnectAPI,
-        globalAccessToken,
-        pdfBlob,
-        newFilename,
-        visaData.doc.parentId,
-      );
+      // const updatePSetTask = updatePSetStatus(
+      //visaData.doc.projectId,
+      //visaData.doc.id,
+      //selectedStatus,
+      //globalAccessToken,
+      //);
+      //const savePdfTask = saveConfigurationFile(
+      // triconnectAPI,
+      //globalAccessToken,
+      //pdfBlob,
+      //newFilename,
+      // visaData.doc.parentId,
+      //);
 
-      await Promise.all([updatePSetTask, savePdfTask]);
+      await saveTrackingTask;
 
       renderSuccess(
         mainContentDiv,
-        `La fiche de visa a été enregistrée et le statut du document a été mis à jour.`,
+        `Les informations de visa ont été enregistrées dans visa-tracking.json.`,
       );
       setTimeout(handleTableDisplay(currentViewMode), 2000);
     } catch (error) {
