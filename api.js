@@ -17,7 +17,7 @@ async function fetchVisaDocuments(
     options;
 
   // Récupérer TOUTES les données nécessaires en parallèle au début
-  const [userToGroupMap, assignmentsConfig, allProjectPSets] =
+  const [userToGroupMap, assignmentsConfig, allProjectPSets, trackingData] =
     await Promise.all([
       fetchUsersAndGroups(projectId, accessToken),
       fetchConfigurationFile(accessToken, configFolderId, assignmentsFilename),
@@ -25,6 +25,8 @@ async function fetchVisaDocuments(
         `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/psets`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       ).then((res) => (res.ok ? res.json() : { items: [] })),
+      // On lit le fichier visa-tracking.json
+      fetchConfigurationFile(accessToken, configFolderId, "visa-tracking.json"),
     ]);
 
   // On transforme les Psets en une Map pour un accès instantané
@@ -102,6 +104,7 @@ async function fetchVisaDocuments(
       depositorName: depositorName,
       depositDate: depositDate,
       status: status,
+      trackingInfo: trackingData ? trackingData[file.id] || [] : [], // Attache les infos de suivi au document
     });
   }
   return visaDocuments;
