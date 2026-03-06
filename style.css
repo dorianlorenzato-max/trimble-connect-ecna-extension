@@ -899,3 +899,9 @@ select[multiple] {
 .visa-title-container h1 {
   margin: 0;
 }
+
+/* Style pour les dates de visa en retard */
+.date-en-retard {
+    color: #fd7e14; /* Orange (identique au statut "En cours" pour la cohérence) */
+    font-weight: bold;
+}
