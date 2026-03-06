@@ -140,7 +140,7 @@ function renderVisaTable(
   }
 
   // Génération des lignes et remplissage des cellules
-console.log("----- Rendu de la table, données reçues -----"); // POINT DE CONTRÔLE
+  console.log("----- Rendu de la table, données reçues -----"); // POINT DE CONTRÔLE
   console.log("Mode:", mode);
   console.log("Documents pour cette page:", visaDocuments);
   console.log("Groupes de viseurs à afficher:", viseurGroups);
@@ -157,9 +157,23 @@ console.log("----- Rendu de la table, données reçues -----"); // POINT DE CONT
         const fluxDefinition = allFluxDefinitions.find(
           (flux) => flux.name === assignedFluxName,
         );
-console.log(`Traitement de la ligne: ${doc.name} | Flux assigné: ${assignedFluxName} | Définition de flux trouvée:`, fluxDefinition);
+
+        console.log(
+          `--- Traitement Ligne: ${doc.name} | Flux: ${assignedFluxName} ---`,
+        );
+        if (!fluxDefinition) {
+          console.log("-> ALERTE: Définition du flux non trouvée !");
+        }
+        if (!doc.depositDateObject) {
+          console.log(
+            `-> ALERTE: doc.depositDateObject est manquant ou invalide pour ce document ! Valeur: ${doc.depositDateObject}`,
+          );
+        }
         viseurGroups.forEach((group) => {
           let pourLeDate = "";
+          console.log(
+            ` -> Vérification pour le groupe viseur: ${group.name} (ID: ${group.id})`,
+          );
           const viseLeDate =
             doc.trackingInfo.find((entry) => entry.groupId === group.id)
               ?.date || "";
@@ -173,6 +187,9 @@ console.log(`Traitement de la ligne: ${doc.name} | Flux assigné: ${assignedFlux
             );
 
             if (stepInfo) {
+              console.log(
+                `   -> OK: Step ${stepInfo.step} trouvé pour ce groupe.`,
+              );
               const stepNumber = stepInfo.step;
 
               if (stepNumber === 1) {
@@ -182,7 +199,6 @@ console.log(`Traitement de la ligne: ${doc.name} | Flux assigné: ${assignedFlux
                 pourLeDate = deadline.toLocaleDateString();
               } else {
                 // Pour les étapes suivantes, on vérifie l'étape précédente
-                console.log(` -> Impossible de calculer la date pour le groupe ${group.name} car fluxDefinition ou doc.depositDateObject est manquant.`);
                 const previousStepNumber = stepNumber - 1;
                 const previousStep = fluxDefinition.steps.find(
                   (s) => s.step === previousStepNumber,
@@ -217,9 +233,16 @@ console.log(`Traitement de la ligne: ${doc.name} | Flux assigné: ${assignedFlux
                   } else {
                     pourLeDate = "En attente";
                   }
+                } else {
+                   pourLeDate = "Config Flux?"; // Étape précédente non trouvée
                 }
               }
+            } else {
+              console.log("   -> INFO: Ce groupe n'est pas dans le flux de ce document.");
+              pourLeDate = "N/A"; // Non Applicable: Ce groupe ne vise pas ce document.
             }
+          } else {
+             pourLeDate = "Données Manquantes"; // fluxDefinition ou depositDateObject manquant
           }
 
           const visaStatusClass =
@@ -845,4 +868,3 @@ export {
   attachResizableTableEvents,
   renderFilterPopup,
 };
-
