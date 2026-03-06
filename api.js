@@ -13,10 +13,8 @@ async function fetchVisaDocuments(
   const projectInfo = await triconnectAPI.project.getCurrentProject();
   const projectId = projectInfo.id;
 
-  const { mode, loggedInUserId, loggedInUserGroupIds, allFluxDefinitions } =
-    options;
+  const { mode, loggedInUserGroupIds, allFluxDefinitions } = options;
 
-  // Récupérer TOUTES les données nécessaires en parallèle au début
   const [userToGroupMap, assignmentsConfig, allProjectPSets, trackingData] =
     await Promise.all([
       fetchUsersAndGroups(projectId, accessToken),
@@ -25,7 +23,6 @@ async function fetchVisaDocuments(
         `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/psets`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       ).then((res) => (res.ok ? res.json() : { items: [] })),
-      // On lit le fichier visa-tracking.json
       fetchConfigurationFile(
         accessToken,
         configFolderId,
@@ -33,7 +30,6 @@ async function fetchVisaDocuments(
       ).then((data) => data || {}),
     ]);
 
-  // On transforme les Psets en une Map pour un accès instantané
   const visaPropertyId = "775c8d80-179b-11f1-b157-5bc3cc52c2d2";
   const psetMap = new Map();
   allProjectPSets.items?.forEach((pset) => {
@@ -43,65 +39,38 @@ async function fetchVisaDocuments(
   });
 
   const assignedFolderIds = Object.keys(assignmentsConfig || {});
+  if (assignedFolderIds.length === 0) {
+    return [];
+  }
+
   const pdfFilePromises = assignedFolderIds.map((folderId) =>
-    fetchPDFFilesInFolder(folderId, accessToken).catch((error) => {
-      console.warn(
-        `Impossible de récupérer les fichiers du dossier ${folderId}.`,
-        error,
-      );
-      return []; // Retourne un tableau vide en cas d'erreur pour ne pas bloquer les autres
-    }),
+    fetchPDFFilesInFolder(folderId, accessToken).catch(() => []),
   );
 
   const nestedPdfFiles = await Promise.all(pdfFilePromises);
   let allPdfFiles = nestedPdfFiles.flat();
+
   let filesToProcess = allPdfFiles;
 
   if (mode === "missions") {
     if (!loggedInUserGroupIds || !allFluxDefinitions || !trackingData) {
-      console.error(
-        "Données manquantes (groupes, flux ou suivi) pour le filtrage des missions.",
-      );
+      console.error("Données manquantes pour le filtrage des missions.");
       return [];
     }
 
     filesToProcess = allPdfFiles.filter((file) => {
-      console.group(`Analyse du fichier: ${file.name}`);
       const assignedFluxName = assignmentsConfig[file.parentId];
-      if (!assignedFluxName) {
-        console.log(
-          "Raison de l'échec: Aucun flux n'est affecté à son dossier parent. [IGNORER]",
-        );
-        console.groupEnd();
-        return false;
-      }
-      console.log(`Flux trouvé: ${assignedFluxName}`);
+      if (!assignedFluxName) return false;
 
       const fluxDefinition = allFluxDefinitions.find(
         (flux) => flux.name === assignedFluxName,
       );
-      if (!fluxDefinition || !fluxDefinition.steps) {
-        console.log(
-          "Raison de l'échec: La définition du flux est introuvable ou ne contient pas d'étapes. [IGNORER]",
-        );
-        console.groupEnd();
-        return false;
-      }
+      if (!fluxDefinition || !fluxDefinition.steps) return false;
 
       const userInvolvedSteps = fluxDefinition.steps.filter((step) =>
         step.groupIds.some((groupId) => loggedInUserGroupIds.includes(groupId)),
       );
-
-      if (userInvolvedSteps.length === 0) {
-        console.log(
-          "Raison de l'échec: L'utilisateur n'est impliqué dans aucune étape de ce flux. [IGNORER]",
-        );
-        console.groupEnd();
-        return false;
-      }
-      console.log(
-        `L'utilisateur est potentiellement concerné par les étapes: ${userInvolvedSteps.map((s) => s.step).join(", ")}`,
-      );
+      if (userInvolvedSteps.length === 0) return false;
 
       const docTrackingInfo = trackingData[file.id] || [];
       const userVisaEntriesForDoc = docTrackingInfo.filter((entry) =>
@@ -109,23 +78,14 @@ async function fetchVisaDocuments(
       );
 
       for (const step of userInvolvedSteps) {
-        console.log(`-- Vérification de l'étape ${step.step}`);
-
         const hasUserActedForThisStep = userVisaEntriesForDoc.some((entry) =>
           step.groupIds.includes(entry.groupId),
         );
         if (hasUserActedForThisStep) {
-          console.log(
-            "--> Résultat: L'utilisateur a déjà visé pour cette étape. On passe à la suivante.",
-          );
-          continue; // On vérifie si l'utilisateur est dans une autre étape plus tard dans le flux
+          continue;
         }
 
         if (step.step === 1) {
-          console.log(
-            "--> Résultat: C'est l'étape 1 et l'utilisateur n'a pas agi. [GARDER]",
-          );
-          console.groupEnd();
           return true;
         }
 
@@ -141,32 +101,18 @@ async function fetchVisaDocuments(
         const isPreviousStepComplete =
           previousStepVisaCount === previousStepGroupIds.length;
 
-        console.log(
-          `--> L'étape précédente (${previousStep.step}) requiert ${previousStepGroupIds.length} visas. Elle en a actuellement ${previousStepVisaCount}. Complète: ${isPreviousStepComplete}`,
-        );
-
         if (isPreviousStepComplete) {
-          console.log(
-            "--> Résultat: L'étape précédente est complète et l'utilisateur n'a pas agi. [GARDER]",
-          );
-          console.groupEnd();
           return true;
         }
       }
-
-      console.log(
-        "Conclusion: L'utilisateur n'a aucune action immédiate à faire sur ce fichier. [IGNORER]",
-      );
-      console.groupEnd();
       return false;
     });
   }
 
   const visaDocuments = [];
-  for (const file of allPdfFiles) {
+  for (const file of filesToProcess) {
     const currentFileFRN = `frn:tcfile:${file.id}`;
     const status = psetMap.get(currentFileFRN) || "En Cours";
-
     const depositorId = file.modifiedBy ? file.modifiedBy.id : null;
     const depositorName = file.modifiedBy
       ? `${file.modifiedBy.firstName || ""} ${file.modifiedBy.lastName || ""}`.trim()
@@ -194,9 +140,9 @@ async function fetchVisaDocuments(
       depositDateObject: file.modifiedOn ? new Date(file.modifiedOn) : null,
     });
   }
+
   console.log(
     `----- Fin du traitement. ${visaDocuments.length} documents pertinents trouvés pour le mode "${mode}" -----`,
-    visaDocuments,
   );
   return visaDocuments;
 }
