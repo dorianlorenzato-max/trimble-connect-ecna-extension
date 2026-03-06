@@ -1206,7 +1206,28 @@ import {
     const filename = `${projectName}_Export_Suivi_Visa_${today}.pdf`;
 
     const doc = new jsPDF({ orientation: "landscape" });
-
+    const statusColors = {
+      VSO: {
+        background: [40, 167, 69], // Vert
+        text: [255, 255, 255],
+      },
+      VAO: {
+        background: [255, 193, 7], // Jaune
+        text: [0, 0, 0], // Texte noir pour une meilleure lisibilité
+      },
+      "En Cours": {
+        background: [253, 126, 20], // Orange
+        text: [255, 255, 255],
+      },
+      REF: {
+        background: [220, 53, 69], // Rouge
+        text: [255, 255, 255],
+      },
+      SO: {
+        background: [108, 117, 125], // Gris
+        text: [255, 255, 255],
+      },
+    };
     // Titre et date dans le PDF
     doc.setFontSize(18);
     doc.text(`Export du Suivi des Visas - Projet: ${projectName}`, 14, 22);
@@ -1241,16 +1262,26 @@ import {
 
     // Préparation du corps du tableau (avec les données FILTRÉES)
     const body = processedVisaDocuments.map((d) => {
+      const globalStatus = d.status || "";
+      const globalStatusStyle = statusColors[globalStatus];
+
       const row = [
         d.name,
         d.version,
         d.lot,
         d.depositorName,
         d.depositDate,
-        d.status,
+        // On transforme la cellule de statut en objet pour lui appliquer un style
+        {
+          content: globalStatus,
+          styles: {
+            fillColor: globalStatusStyle ? globalStatusStyle.background : null,
+            textColor: globalStatusStyle ? globalStatusStyle.text : null,
+            halign: "center",
+          },
+        },
       ];
       currentViseurGroups.forEach((group) => {
-        // Recalculer la date "Pour le" comme dans ui.js
         let pourLeDate = "N/A";
         const fluxDef = allFluxDefinitions.find((f) => f.name === d.fluxName);
         if (fluxDef && d.depositDateObject) {
@@ -1262,7 +1293,6 @@ import {
             deadline.setDate(deadline.getDate() + stepInfo.durationDays);
             pourLeDate = deadline.toLocaleDateString();
           } else {
-            // (Logique pour étapes > 1 à ajouter si nécessaire)
             pourLeDate = "En attente";
           }
         }
@@ -1272,10 +1302,20 @@ import {
         const visaStatus =
           d.trackingInfo.find((entry) => entry.groupId === group.id)?.status ||
           "";
+        const visaStatusStyle = statusColors[visaStatus];
+
         row.push(
           pourLeDate,
           viseLeDate ? new Date(viseLeDate).toLocaleDateString() : "",
-          visaStatus,
+          // On fait de même pour la cellule de visa dynamique
+          {
+            content: visaStatus,
+            styles: {
+              fillColor: visaStatusStyle ? visaStatusStyle.background : null,
+              textColor: visaStatusStyle ? visaStatusStyle.text : null,
+              halign: "center",
+            },
+          },
         );
       });
       return row;
@@ -1292,7 +1332,7 @@ import {
     doc.save(filename);
   }
 
-  // NOUVELLE FONCTION POUR L'EXPORT EXCEL (CSV)
+  // FONCTION POUR L'EXPORT EXCEL (CSV)
   async function handleExportExcel() {
     console.log("Export Excel demandé...");
     const projectInfo = await triconnectAPI.project.getCurrentProject();
@@ -1300,7 +1340,6 @@ import {
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, "-");
     const filename = `${projectName}_Export_Suivi_Visa_${today}.xls`;
 
-    // Préparation des en-têtes (plats pour le CSV)
     let headers = [
       "Nom Document",
       "Version",
@@ -1317,7 +1356,6 @@ import {
       );
     });
 
-    // Utilisation des données NON-FILTRÉES
     const csvRows = [headers.join(";")]; // Entête du CSV
 
     allOriginalVisaDocuments.forEach((d) => {
