@@ -47,6 +47,8 @@ function renderVisaTable(
     SO: "status-so",
   };
   const defaultStatusClass = "status-default";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
   // --- HTML pour la légende ---
   const legendHtml = `
@@ -152,34 +154,14 @@ function renderVisaTable(
       let dynamicCells = "";
 
       if (mode === "documents") {
-        // Trouver le nom du flux pour ce document en utilisant les assignments
         const assignedFluxName = doc.fluxName;
         const fluxDefinition = allFluxDefinitions.find(
           (flux) => flux.name === assignedFluxName,
         );
 
-        console.log(
-          `--- Traitement Ligne: ${doc.name} | Flux: ${assignedFluxName} ---`,
-        );
-        if (!fluxDefinition) {
-          console.log("-> ALERTE: Définition du flux non trouvée !");
-        }
-        if (!doc.depositDateObject) {
-          console.log(
-            `-> ALERTE: doc.depositDateObject est manquant ou invalide pour ce document ! Valeur: ${doc.depositDateObject}`,
-          );
-        }
         viseurGroups.forEach((group) => {
-          let pourLeDate = "";
-          console.log(
-            ` -> Vérification pour le groupe viseur: ${group.name} (ID: ${group.id})`,
-          );
-          const viseLeDate =
-            doc.trackingInfo.find((entry) => entry.groupId === group.id)
-              ?.date || "";
-          const visaStatus =
-            doc.trackingInfo.find((entry) => entry.groupId === group.id)
-              ?.status || "";
+          let pourLeDateHtml = "N/A";
+          let deadlineObject = null;
 
           if (fluxDefinition && doc.depositDateObject) {
             const stepInfo = fluxDefinition.steps.find((s) =>
@@ -187,66 +169,30 @@ function renderVisaTable(
             );
 
             if (stepInfo) {
-              console.log(
-                `   -> OK: Step ${stepInfo.step} trouvé pour ce groupe.`,
-              );
               const stepNumber = stepInfo.step;
-
               if (stepNumber === 1) {
-                // Pour la première étape, on se base toujours sur la date de dépôt
-                const deadline = new Date(doc.depositDateObject);
-                deadline.setDate(deadline.getDate() + stepInfo.durationDays);
-                pourLeDate = deadline.toLocaleDateString();
-              } else {
-                // Pour les étapes suivantes, on vérifie l'étape précédente
-                const previousStepNumber = stepNumber - 1;
-                const previousStep = fluxDefinition.steps.find(
-                  (s) => s.step === previousStepNumber,
+                deadlineObject = new Date(doc.depositDateObject);
+                deadlineObject.setDate(
+                  deadlineObject.getDate() + stepInfo.durationDays,
                 );
-
-                if (previousStep) {
-                  // On vérifie si TOUS les groupes de l'étape précédente ont visé
-                  const previousStepGroupIds = previousStep.groupIds;
-                  const previousStepEntries = doc.trackingInfo.filter((entry) =>
-                    previousStepGroupIds.includes(entry.groupId),
-                  );
-                  const previousStepCompleted =
-                    previousStepEntries.length ===
-                      previousStepGroupIds.length &&
-                    previousStepEntries.every(
-                      (entry) => entry.status && entry.status !== "En Cours",
-                    );
-
-                  if (previousStepCompleted) {
-                    // Trouver la date la plus récente parmi les visas de l'étape précédente
-                    const lastVisaDate = new Date(
-                      Math.max(
-                        ...previousStepEntries.map((e) => new Date(e.date)),
-                      ),
-                    );
-
-                    const deadline = new Date(lastVisaDate);
-                    deadline.setDate(
-                      deadline.getDate() + stepInfo.durationDays,
-                    );
-                    pourLeDate = deadline.toLocaleDateString();
-                  } else {
-                    pourLeDate = "En attente";
-                  }
-                } else {
-                  pourLeDate = "Config Flux?"; // Étape précédente non trouvée
-                }
+                pourLeDateHtml = deadlineObject.toLocaleDateString();
+              } else {
+                pourLeDateHtml = "En attente";
               }
-            } else {
-              console.log(
-                "   -> INFO: Ce groupe n'est pas dans le flux de ce document.",
-              );
-              pourLeDate = "N/A"; // Non Applicable: Ce groupe ne vise pas ce document.
             }
-          } else {
-            pourLeDate = "Données Manquantes"; // fluxDefinition ou depositDateObject manquant
           }
 
+          const viseLeDate =
+            doc.trackingInfo.find((entry) => entry.groupId === group.id)
+              ?.date || "";
+
+          if (deadlineObject && deadlineObject < today && viseLeDate === "") {
+            pourLeDateHtml = `<span class="date-en-retard">${pourLeDateHtml}</span>`;
+          }
+
+          const visaStatus =
+            doc.trackingInfo.find((entry) => entry.groupId === group.id)
+              ?.status || "";
           const visaStatusClass =
             statusClassMap[visaStatus] || defaultStatusClass;
           const visaCellContent = visaStatus
@@ -256,7 +202,7 @@ function renderVisaTable(
             ? new Date(viseLeDate).toLocaleDateString()
             : "";
 
-          dynamicCells += `<td>${pourLeDate}</td><td>${formattedViseLeDate}</td><td>${visaCellContent}</td>`;
+          dynamicCells += `<td>${pourLeDateHtml}</td><td>${formattedViseLeDate}</td><td>${visaCellContent}</td>`;
         });
       }
 
