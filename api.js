@@ -159,7 +159,7 @@ async function fetchVisaDocuments(
       depositDateObject: file.modifiedOn ? new Date(file.modifiedOn) : null,
     });
   }
-  cconsole.log(
+  console.log(
     `----- Fin du traitement. ${visaDocuments.length} documents pertinents trouvés pour le mode "${mode}" -----`,
     visaDocuments,
   );
@@ -519,3 +519,4 @@ export {
   getConfigFolderId,
   fetchFluxDefinitions,
 };
+
