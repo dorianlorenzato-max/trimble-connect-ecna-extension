@@ -586,16 +586,16 @@ import {
       );
       drawBubble("Observations", observations, 15, 145, 180, 60);
 
-      // const pdfBlob = doc.output("blob");
-      // const newFilename = `VISA-${visaData.doc.name}`;
+      const pdfBlob = doc.output("blob");
+      const newFilename = `VISA-${visaData.doc.name}`;
 
-      //const savePdfTask = saveConfigurationFile(
-      // triconnectAPI,
-      //globalAccessToken,
-      //pdfBlob,
-      //newFilename,
-      // visaData.doc.parentId,
-      //);
+      const savePdfTask = saveConfigurationFile(
+       triconnectAPI,
+      globalAccessToken,
+      pdfBlob,
+      newFilename,
+      visaData.doc.parentId,
+      );
 
       await Promise.all([updatePSetTask, saveTrackingTask]);
 
