@@ -12,6 +12,7 @@ import {
   getConfigFolderId,
   getRootFolders,
   fetchFluxDefinitions,
+  findOrCreateFolder,
 } from "./api.js";
 import {
   renderLoading,
@@ -477,14 +478,34 @@ import {
     renderSaving(mainContentDiv);
 
     try {
-      const [trackingData, allGroups] = await Promise.all([
+      const [trackingData, allGroups, rootFolders] = await Promise.all([
         fetchConfigurationFile(
           globalAccessToken,
           configFolderId,
           VISA_TRACKING_FILENAME,
         ),
         fetchProjectGroups(currentProjectId, globalAccessToken),
+        triconnectAPI.project
+          .getCurrentProject()
+          .then((p) =>
+            getRootFolders(triconnectAPI, globalAccessToken, p.rootId),
+          ),
       ]);
+      const projectRootId = (await triconnectAPI.project.getCurrentProject())
+        .rootId;
+
+      const visasRootFolderId = await findOrCreateFolder(
+        projectRootId,
+        "00_VISAS",
+        globalAccessToken,
+      );
+
+      const lotName = visaData.doc.lot || "Lot non défini";
+      const finalTargetFolderId = await findOrCreateFolder(
+        visasRootFolderId,
+        lotName,
+        globalAccessToken,
+      );
 
       const userGroupObject = allGroups.find(
         (g) => g.name === visaData.userGroup,
@@ -522,7 +543,6 @@ import {
         });
       }
 
-      /// 1. Calculer le statut général en appliquant la règle de priorité
       const statusPriority = ["REF", "VAO", "VSO", "SO", "En Cours"];
       const docStatuses = newTrackingData[docId].map((entry) => entry.status);
 
@@ -530,19 +550,17 @@ import {
       for (const priorityStatus of statusPriority) {
         if (docStatuses.includes(priorityStatus)) {
           generalStatus = priorityStatus;
-          break; // On a trouvé le statut le plus défavorable, on arrête la boucle
+          break;
         }
       }
 
-      // 2. Créer la tâche de mise à jour du PSet avec le statut général calculé
       const updatePSetTask = updatePSetStatus(
         visaData.doc.projectId,
         docId,
-        generalStatus, // On utilise le statut calculé
+        generalStatus,
         globalAccessToken,
       );
 
-      // 3. Créer la tâche de sauvegarde du fichier de suivi (logique existante)
       const saveTrackingTask = saveConfigurationFile(
         triconnectAPI,
         globalAccessToken,
@@ -612,23 +630,22 @@ import {
       drawBubble("Observations", observations, 15, 145, 180, 60);
 
       const pdfBlob = doc.output("blob");
-      const newFilename = `VISA-${visaData.userGroup}-${visaData.doc.name}`;
+      const newFilename = `VISA_${visaData.userGroup}_${visaData.doc.name}`;
 
       const savePdfTask = saveConfigurationFile(
         triconnectAPI,
         globalAccessToken,
         pdfBlob,
         newFilename,
-        visaData.doc.parentId,
+        finalTargetFolderId, 
       );
-
       await Promise.all([updatePSetTask, saveTrackingTask]);
 
       renderSuccess(
         mainContentDiv,
         `Informations enregistrées. Le statut général du document est maintenant : ${generalStatus}.`,
       );
-      setTimeout(() => handleTableDisplay(currentViewMode), 2500);
+      setTimeout(() => handleTableDisplay(currentViewMode), 3500);
     } catch (error) {
       console.error(
         "Échec de la génération, sauvegarde ou mise à jour :",
