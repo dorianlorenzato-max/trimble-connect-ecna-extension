@@ -612,7 +612,7 @@ import {
       drawBubble("Observations", observations, 15, 145, 180, 60);
 
       const pdfBlob = doc.output("blob");
-      const newFilename = `VISA-${visaData.doc.name}`;
+      const newFilename = `VISA-${visaData.userGroup}-${visaData.doc.name}`;
 
       const savePdfTask = saveConfigurationFile(
         triconnectAPI,
