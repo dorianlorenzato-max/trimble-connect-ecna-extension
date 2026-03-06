@@ -687,9 +687,10 @@ select[multiple] {
 /* === LÉGENDE DES STATUTS === */
 .visa-page-header {
   display: flex;
-  flex-direction: column; /* On empile les éléments verticalement */
-  align-items: flex-start; /* On les aligne à gauche */
-  gap: 15px; /* On ajoute un espace entre le titre, le bouton et la légende */
+  flex-direction: row; /* On revient à une ligne */
+  justify-content: space-between; /* Pour espacer le bloc de titre et la légende */
+  align-items: flex-start; /* Pour que les deux blocs soient alignés en haut */
+  gap: 20px;
   margin-bottom: 15px;
   max-width: 1200px;
   margin-left: auto;
@@ -885,4 +886,16 @@ select[multiple] {
 
 .export-options button:hover {
   background-color: #ddd;
+}
+
+.visa-title-container {
+  display: flex;
+  flex-direction: column; /* Empile le titre et le bouton */
+  align-items: flex-start; /* Les aligne à gauche */
+  gap: 15px; /* Espace entre le titre et le bouton */
+}
+
+/* Bonus : retire la marge par défaut du titre pour un meilleur contrôle */
+.visa-title-container h1 {
+  margin: 0;
 }
