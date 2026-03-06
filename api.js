@@ -546,6 +546,33 @@ async function findOrCreateFolder(parentFolderId, folderName, accessToken) {
   }
 }
 
+// Récupère l'ID du dossier racine du projet
+
+async function getProjectRootId(triconnectAPI, accessToken) {
+  const basicProjectInfo = await triconnectAPI.project.getCurrentProject();
+  const projectId = basicProjectInfo.id;
+  const projectDetailsApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/projects/${projectId}`;
+
+  const response = await fetch(projectDetailsApiUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) {
+    throw new Error(
+      "Impossible de récupérer les détails complets du projet via l'API REST.",
+    );
+  }
+
+  const fullProjectInfo = await response.json();
+  const rootId = fullProjectInfo.rootId;
+  if (!rootId) {
+    throw new Error(
+      "Impossible de trouver l'ID du dossier racine (rootId) dans les détails du projet.",
+    );
+  }
+
+  return rootId;
+}
+
 // On exporte les fonctions pour qu'elles soientt utilisables dans main.js
 export {
   fetchVisaDocuments,
@@ -561,4 +588,5 @@ export {
   getConfigFolderId,
   fetchFluxDefinitions,
   findOrCreateFolder,
+  getProjectRootId,
 };
