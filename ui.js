@@ -234,15 +234,17 @@ function renderVisaTable(
                     pourLeDate = "En attente";
                   }
                 } else {
-                   pourLeDate = "Config Flux?"; // Étape précédente non trouvée
+                  pourLeDate = "Config Flux?"; // Étape précédente non trouvée
                 }
               }
             } else {
-              console.log("   -> INFO: Ce groupe n'est pas dans le flux de ce document.");
+              console.log(
+                "   -> INFO: Ce groupe n'est pas dans le flux de ce document.",
+              );
               pourLeDate = "N/A"; // Non Applicable: Ce groupe ne vise pas ce document.
             }
           } else {
-             pourLeDate = "Données Manquantes"; // fluxDefinition ou depositDateObject manquant
+            pourLeDate = "Données Manquantes"; // fluxDefinition ou depositDateObject manquant
           }
 
           const visaStatusClass =
@@ -304,9 +306,23 @@ function renderVisaTable(
     pageButtons += `<button class="pagination-btn ${i === currentPage ? "active" : ""}" data-page="${i}">${i}</button>`;
   }
 
+  let exportButtonHtml = "";
+  if (mode === "documents") {
+    exportButtonHtml = `
+        <div class="export-container">
+            <button class="button-secondary" id="export-main-btn">Exporter ▾</button>
+            <div class="export-options" id="export-options-div">
+                <button id="export-pdf-btn">Exporter en PDF</button>
+                <button id="export-excel-btn">Exporter en Excel</button>
+            </div>
+        </div>
+    `;
+  }
+
   container.innerHTML = `
     <div class="visa-page-header">
         <h1>${pageTitle}</h1>
+        ${exportButtonHtml}
         ${legendHtml}
     </div>
     <div class="visa-table-container">
