@@ -13,6 +13,7 @@ import {
   getRootFolders,
   fetchFluxDefinitions,
   findOrCreateFolder,
+  getProjectRootId,
 } from "./api.js";
 import {
   renderLoading,
@@ -478,21 +479,19 @@ import {
     renderSaving(mainContentDiv);
 
     try {
-      const [trackingData, allGroups, rootFolders] = await Promise.all([
+      const [trackingData, allGroups] = await Promise.all([
         fetchConfigurationFile(
           globalAccessToken,
           configFolderId,
           VISA_TRACKING_FILENAME,
         ),
         fetchProjectGroups(currentProjectId, globalAccessToken),
-        triconnectAPI.project
-          .getCurrentProject()
-          .then((p) =>
-            getRootFolders(triconnectAPI, globalAccessToken, p.rootId),
-          ),
       ]);
-      const projectRootId = (await triconnectAPI.project.getCurrentProject())
-        .rootId;
+
+      const projectRootId = await getProjectRootId(
+        triconnectAPI,
+        globalAccessToken,
+      );
 
       const visasRootFolderId = await findOrCreateFolder(
         projectRootId,
@@ -637,7 +636,7 @@ import {
         globalAccessToken,
         pdfBlob,
         newFilename,
-        finalTargetFolderId, 
+        finalTargetFolderId,
       );
       await Promise.all([updatePSetTask, saveTrackingTask]);
 
