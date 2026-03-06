@@ -319,10 +319,12 @@ function renderVisaTable(
     `;
   }
 
-  container.innerHTML = `
+  ontainer.innerHTML = `
     <div class="visa-page-header">
-        <h1>${pageTitle}</h1>
-        ${exportButtonHtml}
+        <div class="visa-title-container">
+            <h1>${pageTitle}</h1>
+            ${exportButtonHtml}
+        </div>                             
         ${legendHtml}
     </div>
     <div class="visa-table-container">
