@@ -687,8 +687,9 @@ select[multiple] {
 /* === LÉGENDE DES STATUTS === */
 .visa-page-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start; /* Aligner en haut */
+  flex-direction: column; /* On empile les éléments verticalement */
+  align-items: flex-start; /* On les aligne à gauche */
+  gap: 15px; /* On ajoute un espace entre le titre, le bouton et la légende */
   margin-bottom: 15px;
   max-width: 1200px;
   margin-left: auto;
