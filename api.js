@@ -26,7 +26,11 @@ async function fetchVisaDocuments(
         { headers: { Authorization: `Bearer ${accessToken}` } },
       ).then((res) => (res.ok ? res.json() : { items: [] })),
       // On lit le fichier visa-tracking.json
-      fetchConfigurationFile(accessToken, configFolderId, "visa-tracking.json"),
+      fetchConfigurationFile(
+        accessToken,
+        configFolderId,
+        "visa-tracking.json",
+      ).then((data) => data || {}),
     ]);
 
   // On transforme les Psets en une Map pour un accès instantané
@@ -64,68 +68,97 @@ async function fetchVisaDocuments(
     filesToProcess = allPdfFiles.filter((file) => {
       console.group(`Analyse du fichier: ${file.name}`);
       const assignedFluxName = assignmentsConfig[file.parentId];
-        if (!assignedFluxName) {
-            console.log("Raison de l'échec: Aucun flux n'est affecté à son dossier parent. [IGNORER]");
-            console.groupEnd();
-            return false;
-        }
-        console.log(`Flux trouvé: ${assignedFluxName}`);
-
-        const fluxDefinition = allFluxDefinitions.find(flux => flux.name === assignedFluxName);
-        if (!fluxDefinition || !fluxDefinition.steps) {
-            console.log("Raison de l'échec: La définition du flux est introuvable ou ne contient pas d'étapes. [IGNORER]");
-            console.groupEnd();
-            return false;
-        }
-
-        const userInvolvedSteps = fluxDefinition.steps.filter(step =>
-            step.groupIds.some(groupId => loggedInUserGroupIds.includes(groupId))
+      if (!assignedFluxName) {
+        console.log(
+          "Raison de l'échec: Aucun flux n'est affecté à son dossier parent. [IGNORER]",
         );
-
-        if (userInvolvedSteps.length === 0) {
-            console.log("Raison de l'échec: L'utilisateur n'est impliqué dans aucune étape de ce flux. [IGNORER]");
-            console.groupEnd();
-            return false;
-        }
-        console.log(`L'utilisateur est potentiellement concerné par les étapes: ${userInvolvedSteps.map(s => s.step).join(', ')}`);
-
-        const docTrackingInfo = trackingData[file.id] || [];
-        const userVisaEntriesForDoc = docTrackingInfo.filter(entry => loggedInUserGroupIds.includes(entry.groupId));
-
-        for (const step of userInvolvedSteps) {
-            console.log(`-- Vérification de l'étape ${step.step}`);
-
-            const hasUserActedForThisStep = userVisaEntriesForDoc.some(entry => step.groupIds.includes(entry.groupId));
-            if (hasUserActedForThisStep) {
-                console.log("--> Résultat: L'utilisateur a déjà visé pour cette étape. On passe à la suivante.");
-                continue; // On vérifie si l'utilisateur est dans une autre étape plus tard dans le flux
-            }
-
-            if (step.step === 1) {
-                console.log("--> Résultat: C'est l'étape 1 et l'utilisateur n'a pas agi. [GARDER]");
-                console.groupEnd();
-                return true;
-            }
-
-            const previousStep = fluxDefinition.steps.find(s => s.step === (step.step - 1));
-            if (!previousStep) continue;
-
-            const previousStepGroupIds = previousStep.groupIds;
-            const previousStepVisaCount = docTrackingInfo.filter(entry => previousStepGroupIds.includes(entry.groupId)).length;
-            const isPreviousStepComplete = previousStepVisaCount === previousStepGroupIds.length;
-
-            console.log(`--> L'étape précédente (${previousStep.step}) requiert ${previousStepGroupIds.length} visas. Elle en a actuellement ${previousStepVisaCount}. Complète: ${isPreviousStepComplete}`);
-
-            if (isPreviousStepComplete) {
-                console.log("--> Résultat: L'étape précédente est complète et l'utilisateur n'a pas agi. [GARDER]");
-                console.groupEnd();
-                return true;
-            }
-        }
-
-        console.log("Conclusion: L'utilisateur n'a aucune action immédiate à faire sur ce fichier. [IGNORER]");
         console.groupEnd();
         return false;
+      }
+      console.log(`Flux trouvé: ${assignedFluxName}`);
+
+      const fluxDefinition = allFluxDefinitions.find(
+        (flux) => flux.name === assignedFluxName,
+      );
+      if (!fluxDefinition || !fluxDefinition.steps) {
+        console.log(
+          "Raison de l'échec: La définition du flux est introuvable ou ne contient pas d'étapes. [IGNORER]",
+        );
+        console.groupEnd();
+        return false;
+      }
+
+      const userInvolvedSteps = fluxDefinition.steps.filter((step) =>
+        step.groupIds.some((groupId) => loggedInUserGroupIds.includes(groupId)),
+      );
+
+      if (userInvolvedSteps.length === 0) {
+        console.log(
+          "Raison de l'échec: L'utilisateur n'est impliqué dans aucune étape de ce flux. [IGNORER]",
+        );
+        console.groupEnd();
+        return false;
+      }
+      console.log(
+        `L'utilisateur est potentiellement concerné par les étapes: ${userInvolvedSteps.map((s) => s.step).join(", ")}`,
+      );
+
+      const docTrackingInfo = trackingData[file.id] || [];
+      const userVisaEntriesForDoc = docTrackingInfo.filter((entry) =>
+        loggedInUserGroupIds.includes(entry.groupId),
+      );
+
+      for (const step of userInvolvedSteps) {
+        console.log(`-- Vérification de l'étape ${step.step}`);
+
+        const hasUserActedForThisStep = userVisaEntriesForDoc.some((entry) =>
+          step.groupIds.includes(entry.groupId),
+        );
+        if (hasUserActedForThisStep) {
+          console.log(
+            "--> Résultat: L'utilisateur a déjà visé pour cette étape. On passe à la suivante.",
+          );
+          continue; // On vérifie si l'utilisateur est dans une autre étape plus tard dans le flux
+        }
+
+        if (step.step === 1) {
+          console.log(
+            "--> Résultat: C'est l'étape 1 et l'utilisateur n'a pas agi. [GARDER]",
+          );
+          console.groupEnd();
+          return true;
+        }
+
+        const previousStep = fluxDefinition.steps.find(
+          (s) => s.step === step.step - 1,
+        );
+        if (!previousStep) continue;
+
+        const previousStepGroupIds = previousStep.groupIds;
+        const previousStepVisaCount = docTrackingInfo.filter((entry) =>
+          previousStepGroupIds.includes(entry.groupId),
+        ).length;
+        const isPreviousStepComplete =
+          previousStepVisaCount === previousStepGroupIds.length;
+
+        console.log(
+          `--> L'étape précédente (${previousStep.step}) requiert ${previousStepGroupIds.length} visas. Elle en a actuellement ${previousStepVisaCount}. Complète: ${isPreviousStepComplete}`,
+        );
+
+        if (isPreviousStepComplete) {
+          console.log(
+            "--> Résultat: L'étape précédente est complète et l'utilisateur n'a pas agi. [GARDER]",
+          );
+          console.groupEnd();
+          return true;
+        }
+      }
+
+      console.log(
+        "Conclusion: L'utilisateur n'a aucune action immédiate à faire sur ce fichier. [IGNORER]",
+      );
+      console.groupEnd();
+      return false;
     });
   }
 
