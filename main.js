@@ -47,6 +47,7 @@ import {
   let currentViseurGroups = []; // pour stocker les viseurs
   let currentEditedFluxName = null; // Pour suivre si nous éditons un flux existant
   let allOriginalVisaDocuments = []; //  Stocke les documents non filtrés
+  let processedVisaDocuments = []; //Pour export des tableaux
   let allFluxDefinitions = []; // stike l'ensembles des flux et des groupes affectés aux flux
   let activeFilters = {}; //Stocke les filtres actifs par colonne
   let sortState = {
@@ -198,13 +199,13 @@ import {
   //Applique les filtres actifs et rafraîchit l'affichage du tableau.
 
   function applyFiltersAndSortAndRenderTable(viseurGroups = []) {
-    let processedDocuments = [...allOriginalVisaDocuments];
+    processedVisaDocuments = [...allOriginalVisaDocuments];
 
     // 1. Appliquer les filtres (logique existante)
     for (const field in activeFilters) {
       const selectedValues = activeFilters[field];
       if (selectedValues && selectedValues.length > 0) {
-        processedDocuments = processedDocuments.filter((doc) =>
+        processedVisaDocuments = processedVisaDocuments.filter((doc) =>
           selectedValues.includes(String(doc[field])),
         );
       }
@@ -213,7 +214,7 @@ import {
     // 2. Appliquer le tri (nouvelle logique)
     const { field, direction } = sortState;
     if (field) {
-      processedDocuments.sort((a, b) => {
+      processedVisaDocuments.sort((a, b) => {
         const valA = a[field];
         const valB = b[field];
         let comparison = 0;
@@ -238,20 +239,20 @@ import {
     // 3. Appliquer la pagination
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    const documentsForCurrentPage = processedDocuments.slice(
+    const documentsForCurrentPage = processedVisaDocuments.slice(
       startIndex,
       endIndex,
     );
 
     // 4. Rendre la table avec les nouvelles informations
     let emptyMessage = null;
-    if (currentViewMode === "missions" && processedDocuments.length === 0) {
+    if (currentViewMode === "missions" && processedVisaDocuments.length === 0) {
       emptyMessage = "Vous n'avez pas de missions de Visas à réaliser.";
     }
     renderVisaTable(
       mainContentDiv,
       documentsForCurrentPage,
-      processedDocuments.length,
+      processedVisaDocuments.length,
       { currentPage, itemsPerPage },
       currentViewMode,
       emptyMessage,
@@ -364,6 +365,30 @@ import {
     const visaTableElement = document.querySelector(".visa-table");
     if (visaTableElement) {
       attachResizableTableEvents(visaTableElement);
+    }
+    if (mode === "documents") {
+      const exportBtn = document.getElementById("export-main-btn");
+      const exportOptions = document.getElementById("export-options-div");
+
+      if (exportBtn && exportOptions) {
+        exportBtn.addEventListener("click", () => {
+          exportOptions.classList.toggle("visible");
+        });
+
+        document
+          .getElementById("export-pdf-btn")
+          .addEventListener("click", handleExportPDF);
+        document
+          .getElementById("export-excel-btn")
+          .addEventListener("click", handleExportExcel);
+
+        // Pour fermer le menu si on clique ailleurs
+        window.addEventListener("click", (e) => {
+          if (!exportBtn.contains(e.target)) {
+            exportOptions.classList.remove("visible");
+          }
+        });
+      }
     }
   }
 
@@ -590,11 +615,11 @@ import {
       const newFilename = `VISA-${visaData.doc.name}`;
 
       const savePdfTask = saveConfigurationFile(
-       triconnectAPI,
-      globalAccessToken,
-      pdfBlob,
-      newFilename,
-      visaData.doc.parentId,
+        triconnectAPI,
+        globalAccessToken,
+        pdfBlob,
+        newFilename,
+        visaData.doc.parentId,
       );
 
       await Promise.all([updatePSetTask, saveTrackingTask]);
@@ -1170,5 +1195,182 @@ import {
         }
       });
     });
+  }
+  // FONCTION POUR L'EXPORT PDF
+  async function handleExportPDF() {
+    console.log("Export PDF demandé...");
+    const { jsPDF } = window.jspdf;
+    const projectInfo = await triconnectAPI.project.getCurrentProject();
+    const projectName = projectInfo.name;
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, "-");
+    const filename = `${projectName}_Export_Suivi_Visa_${today}.pdf`;
+
+    const doc = new jsPDF({ orientation: "landscape" });
+
+    // Titre et date dans le PDF
+    doc.setFontSize(18);
+    doc.text(`Export du Suivi des Visas - Projet: ${projectName}`, 14, 22);
+    doc.setFontSize(11);
+    doc.setTextColor(100);
+    doc.text(`Date de l'export: ${new Date().toLocaleDateString()}`, 14, 30);
+
+    // Préparation des en-têtes (y compris dynamiques)
+    const head = [[]]; // Pour les en-têtes groupés
+    const subhead = [];
+    const staticHeaders = [
+      "Nom Document",
+      "Version",
+      "Lot",
+      "Dépositaire",
+      "Date Dépôt",
+      "Statut Global",
+    ];
+    staticHeaders.forEach((h) => {
+      head[0].push({ content: h, rowSpan: 2 });
+    });
+
+    currentViseurGroups.forEach((group) => {
+      head[0].push({
+        content: group.name,
+        colSpan: 3,
+        styles: { halign: "center" },
+      });
+      subhead.push("Pour le", "Visé le", "Visa");
+    });
+    head.push(subhead);
+
+    // Préparation du corps du tableau (avec les données FILTRÉES)
+    const body = processedVisaDocuments.map((d) => {
+      const row = [
+        d.name,
+        d.version,
+        d.lot,
+        d.depositorName,
+        d.depositDate,
+        d.status,
+      ];
+      currentViseurGroups.forEach((group) => {
+        // Recalculer la date "Pour le" comme dans ui.js
+        let pourLeDate = "N/A";
+        const fluxDef = allFluxDefinitions.find((f) => f.name === d.fluxName);
+        if (fluxDef && d.depositDateObject) {
+          const stepInfo = fluxDef.steps.find((s) =>
+            s.groupIds.includes(group.id),
+          );
+          if (stepInfo && stepInfo.step === 1) {
+            const deadline = new Date(d.depositDateObject);
+            deadline.setDate(deadline.getDate() + stepInfo.durationDays);
+            pourLeDate = deadline.toLocaleDateString();
+          } else {
+            // (Logique pour étapes > 1 à ajouter si nécessaire)
+            pourLeDate = "En attente";
+          }
+        }
+        const viseLeDate =
+          d.trackingInfo.find((entry) => entry.groupId === group.id)?.date ||
+          "";
+        const visaStatus =
+          d.trackingInfo.find((entry) => entry.groupId === group.id)?.status ||
+          "";
+        row.push(
+          pourLeDate,
+          viseLeDate ? new Date(viseLeDate).toLocaleDateString() : "",
+          visaStatus,
+        );
+      });
+      return row;
+    });
+
+    doc.autoTable({
+      head: head,
+      body: body,
+      startY: 35,
+      theme: "striped",
+      headStyles: { fillColor: [0, 58, 114] }, // Bleu Eiffage
+    });
+
+    doc.save(filename);
+  }
+
+  // NOUVELLE FONCTION POUR L'EXPORT EXCEL (CSV)
+  async function handleExportExcel() {
+    console.log("Export Excel demandé...");
+    const projectInfo = await triconnectAPI.project.getCurrentProject();
+    const projectName = projectInfo.name;
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, "-");
+    const filename = `${projectName}_Export_Suivi_Visa_${today}.xls`;
+
+    // Préparation des en-têtes (plats pour le CSV)
+    let headers = [
+      "Nom Document",
+      "Version",
+      "Lot",
+      "Dépositaire",
+      "Date Dépôt",
+      "Statut Global",
+    ];
+    currentViseurGroups.forEach((group) => {
+      headers.push(
+        `${group.name} - Pour le`,
+        `${group.name} - Visé le`,
+        `${group.name} - Visa`,
+      );
+    });
+
+    // Utilisation des données NON-FILTRÉES
+    const csvRows = [headers.join(";")]; // Entête du CSV
+
+    allOriginalVisaDocuments.forEach((d) => {
+      const row = [
+        `"${d.name}"`,
+        d.version,
+        d.lot,
+        d.depositorName,
+        d.depositDate,
+        d.status,
+      ];
+      currentViseurGroups.forEach((group) => {
+        let pourLeDate = "N/A";
+        const fluxDef = allFluxDefinitions.find((f) => f.name === d.fluxName);
+        if (fluxDef && d.depositDateObject) {
+          const stepInfo = fluxDef.steps.find((s) =>
+            s.groupIds.includes(group.id),
+          );
+          if (stepInfo && stepInfo.step === 1) {
+            const deadline = new Date(d.depositDateObject);
+            deadline.setDate(deadline.getDate() + stepInfo.durationDays);
+            pourLeDate = deadline.toLocaleDateString();
+          } else {
+            pourLeDate = "En attente";
+          }
+        }
+        const viseLeDate =
+          d.trackingInfo.find((entry) => entry.groupId === group.id)?.date ||
+          "";
+        const visaStatus =
+          d.trackingInfo.find((entry) => entry.groupId === group.id)?.status ||
+          "";
+        row.push(
+          pourLeDate,
+          viseLeDate ? new Date(viseLeDate).toLocaleDateString() : "",
+          visaStatus,
+        );
+      });
+      csvRows.push(row.join(";"));
+    });
+
+    const csvString = csvRows.join("\n");
+    const blob = new Blob([`\uFEFF${csvString}`], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 })();
