@@ -485,7 +485,68 @@ async function fetchFluxDefinitions(
   return config ? config.flux || [] : [];
 }
 
-// On exporte la fonction principale pour qu'elle soit utilisable dans main.js
+//  Nettoie un nom pour qu'il soit valide en tant que nom de dossier
+function sanitizeFolderName(name) {
+  // Remplace les caractères invalides par des underscores
+  return name.replace(/[\\?%*:|"<>]/g, "_");
+}
+
+// Crée un dossier dans un dossier parent donné
+async function createFolder(parentFolderId, folderName, accessToken) {
+  const createUrl = `https://app21.connect.trimble.com/tc/api/2.0/folders`;
+  const payload = {
+    name: sanitizeFolderName(folderName), // On utilise le nom nettoyé
+    parentId: parentFolderId,
+  };
+
+  const response = await fetch(createUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `La création du dossier "${folderName}" a échoué: ${errorText}`,
+    );
+  }
+
+  return await response.json(); // Retourne les détails du nouveau dossier, y compris son ID
+}
+
+//  Trouve un dossier ou le crée s'il n'existe pas
+async function findOrCreateFolder(parentFolderId, folderName, accessToken) {
+  const sanitizedName = sanitizeFolderName(folderName);
+
+  // 1. On cherche d'abord si le dossier existe
+  const folderContents = await fetchFolderContents(parentFolderId, accessToken);
+  const existingFolder = folderContents.find(
+    (item) => item.name === sanitizedName && item.type === "FOLDER",
+  );
+
+  if (existingFolder) {
+    console.log(
+      `Dossier trouvé: "${sanitizedName}" (ID: ${existingFolder.id})`,
+    );
+    return existingFolder.id; // Il existe, on retourne son ID
+  } else {
+    // 2. Il n'existe pas, on le crée
+    console.log(`Dossier "${sanitizedName}" non trouvé. Création en cours...`);
+    const newFolder = await createFolder(
+      parentFolderId,
+      sanitizedName,
+      accessToken,
+    );
+    console.log(`Dossier créé: "${sanitizedName}" (ID: ${newFolder.id})`);
+    return newFolder.id; // On retourne l'ID du dossier nouvellement créé
+  }
+}
+
+// On exporte les fonctions pour qu'elles soientt utilisables dans main.js
 export {
   fetchVisaDocuments,
   fetchProjectGroups,
@@ -499,4 +560,5 @@ export {
   getRootFolders,
   getConfigFolderId,
   fetchFluxDefinitions,
+  findOrCreateFolder,
 };
