@@ -51,6 +51,7 @@ async function fetchVisaDocuments(
 
   const nestedPdfFiles = await Promise.all(pdfFilePromises);
   let allPdfFiles = nestedPdfFiles.flat();
+  let filesToProcess = allPdfFiles;
 
   if (mode === "missions") {
     if (!loggedInUserGroupIds || !allFluxDefinitions || !trackingData) {
@@ -60,6 +61,7 @@ async function fetchVisaDocuments(
       return [];
     }
 
+    // On ré-assigne la variable (sans 'let' ou 'const')
     filesToProcess = allPdfFiles.filter((file) => {
       const assignedFluxName = assignmentsConfig[file.parentId];
       if (!assignedFluxName) return false;
@@ -69,60 +71,47 @@ async function fetchVisaDocuments(
       );
       if (!fluxDefinition || !fluxDefinition.steps) return false;
 
-      // Récupérer les informations de suivi spécifiques à ce document
       const docTrackingInfo = trackingData[file.id] || [];
       const userVisaEntriesForDoc = docTrackingInfo.filter((entry) =>
         loggedInUserGroupIds.includes(entry.groupId),
       );
 
-      // Trouver toutes les étapes où l'utilisateur est impliqué
       const userInvolvedSteps = fluxDefinition.steps.filter((step) =>
         step.groupIds.some((groupId) => loggedInUserGroupIds.includes(groupId)),
       );
 
-      if (userInvolvedSteps.length === 0) return false; // L'utilisateur n'est jamais impliqué dans ce flux.
+      if (userInvolvedSteps.length === 0) return false;
 
-      // On vérifie si l'UNE de ces étapes est "active" pour l'utilisateur
       for (const step of userInvolvedSteps) {
-        // CONDITION 1 : Ai-je déjà agi pour cette étape ?
         const hasUserActedForThisStep = userVisaEntriesForDoc.some((entry) =>
           step.groupIds.includes(entry.groupId),
         );
         if (hasUserActedForThisStep) {
-          continue; // J'ai déjà visé pour cette étape, ce n'est plus ma mission. On passe à la vérification de l'étape suivante où je pourrais être.
+          continue;
         }
 
-        // CONDITION 2 : Est-ce l'étape 1 ?
         if (step.step === 1) {
-          // Si c'est l'étape 1 et que je n'ai pas agi, c'est mon tour.
           return true;
         }
 
-        // CONDITION 3 : Si ce n'est pas l'étape 1, l'étape précédente est-elle terminée ?
         const previousStepNumber = step.step - 1;
         const previousStep = fluxDefinition.steps.find(
           (s) => s.step === previousStepNumber,
         );
 
-        if (!previousStep) continue; // Flux mal configuré, on ignore.
+        if (!previousStep) continue;
 
         const previousStepGroupIds = previousStep.groupIds;
-
-        // Vérifier que TOUS les groupes de l'étape précédente ont une entrée dans le suivi
         const previousStepVisaCount = docTrackingInfo.filter((entry) =>
           previousStepGroupIds.includes(entry.groupId),
         ).length;
-
         const isPreviousStepComplete =
           previousStepVisaCount === previousStepGroupIds.length;
 
         if (isPreviousStepComplete) {
-          // L'étape d'avant est finie, et je n'ai pas encore agi pour l'étape actuelle. C'est mon tour !
           return true;
         }
       }
-
-      // Si on a bouclé sur toutes les étapes où j'interviens et que ce n'était jamais mon tour...
       return false;
     });
   }
@@ -519,4 +508,3 @@ export {
   getConfigFolderId,
   fetchFluxDefinitions,
 };
-
