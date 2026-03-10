@@ -31,6 +31,7 @@ import {
   renderVisaInterfacePage,
   attachResizableTableEvents,
   renderFilterPopup,
+  renderConfigSummaryTable,
 } from "./ui.js";
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
@@ -657,19 +658,71 @@ import {
   }
 
   // --- GESTIONNAIRE POUR AFFICHER LA PAGE DE CONFIGURATION ---
-  function handleConfigClick() {
+  async function handleConfigClick() {
+    // 1. Affiche la structure principale de la page (boutons, etc.)
     renderConfigPage(mainContentDiv);
+    const summaryContainer = document.getElementById(
+      "config-summary-container",
+    );
+    summaryContainer.innerHTML = `<p style="text-align:center; margin-top:20px;">Chargement du récapitulatif...</p>`;
 
+    // 2. Attache les événements aux boutons principaux
     document
       .getElementById("create-flux-btn")
       .addEventListener("click", handleCreateFluxClick);
     document
       .getElementById("manage-flux-btn")
       .addEventListener("click", handleManageFluxClick);
-
     document
       .getElementById("assign-flux-btn")
       .addEventListener("click", handleAssignFluxClick);
+
+    // 3. Récupère les données nécessaires pour le tableau
+    try {
+      const [fluxConfig, assignmentsConfig] = await Promise.all([
+        fetchConfigurationFile(
+          globalAccessToken,
+          configFolderId,
+          CONFIG_FILENAME,
+        ),
+        fetchConfigurationFile(
+          globalAccessToken,
+          configFolderId,
+          ASSIGNMENTS_FILENAME,
+        ),
+      ]);
+
+      const allFlows = fluxConfig?.flux || [];
+      const allAssignments = assignmentsConfig || {};
+
+      // 4. Traite les données pour le récapitulatif
+      const assignmentsByFlux = {};
+      // Compte combien de fois chaque nom de flux est utilisé
+      for (const folderId in allAssignments) {
+        const fluxName = allAssignments[folderId];
+        if (fluxName) {
+          if (!assignmentsByFlux[fluxName]) {
+            assignmentsByFlux[fluxName] = 0;
+          }
+          assignmentsByFlux[fluxName]++;
+        }
+      }
+
+      // Crée la structure de données finale pour le tableau
+      const summaryData = allFlows.map((flow) => ({
+        fluxName: flow.name,
+        affectedFoldersCount: assignmentsByFlux[flow.name] || 0,
+      }));
+
+      // 5. Appelle la nouvelle fonction de rendu pour afficher le tableau
+      renderConfigSummaryTable(summaryContainer, summaryData);
+    } catch (error) {
+      console.error(
+        "Erreur lors du chargement du récapitulatif de configuration:",
+        error,
+      );
+      summaryContainer.innerHTML = `<p style="text-align:center; color:red; margin-top:20px;">Impossible de charger le récapitulatif.</p>`;
+    }
   }
 
   // Fonction utilitaire pour rafraîchir la page de gestion des flux
