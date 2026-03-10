@@ -16,6 +16,7 @@ import {
   getProjectRootId,
   recursivelyFetchAllSubfolders,
   fetchAllProjectFolders,
+  fetchUserProjectRole,
 } from "./api.js";
 import {
   renderLoading,
@@ -660,26 +661,38 @@ import {
 
   // --- GESTIONNAIRE POUR AFFICHER LA PAGE DE CONFIGURATION ---
   async function handleConfigClick() {
-    // 1. Affiche la structure principale de la page (boutons, etc.)
-    renderConfigPage(mainContentDiv);
-    const summaryContainer = document.getElementById(
-      "config-summary-container",
-    );
-    summaryContainer.innerHTML = `<p style="text-align:center; margin-top:20px;">Chargement du récapitulatif...</p>`;
+    renderLoading(mainContentDiv);
 
-    // 2. Attache les événements aux boutons principaux
-    document
-      .getElementById("create-flux-btn")
-      .addEventListener("click", handleCreateFluxClick);
-    document
-      .getElementById("manage-flux-btn")
-      .addEventListener("click", handleManageFluxClick);
-    document
-      .getElementById("assign-flux-btn")
-      .addEventListener("click", handleAssignFluxClick);
-
-    // 3. Récupère les données nécessaires pour le tableau
     try {
+      // 1. On vérifie d'abord le rôle de l'utilisateur
+      const userRole = await fetchUserProjectRole(
+        currentProjectId,
+        globalAccessToken,
+      );
+      const isAdmin = userRole === "ADMIN";
+
+      // 2. On affiche la page, en passant le statut admin pour afficher ou non les boutons
+      renderConfigPage(mainContentDiv, isAdmin);
+
+      // 3. On attache les événements aux boutons UNIQUEMENT si l'utilisateur est admin
+      if (isAdmin) {
+        document
+          .getElementById("create-flux-btn")
+          .addEventListener("click", handleCreateFluxClick);
+        document
+          .getElementById("manage-flux-btn")
+          .addEventListener("click", handleManageFluxClick);
+        document
+          .getElementById("assign-flux-btn")
+          .addEventListener("click", handleAssignFluxClick);
+      }
+
+      // 4. Le chargement du tableau récapitulatif est fait pour TOUT LE MONDE
+      const summaryContainer = document.getElementById(
+        "config-summary-container",
+      );
+      summaryContainer.innerHTML = `<p style="text-align:center; margin-top:20px;">Chargement du récapitulatif...</p>`;
+
       const [fluxConfig, assignmentsConfig, allProjectFolders] =
         await Promise.all([
           fetchConfigurationFile(
@@ -695,31 +708,29 @@ import {
           fetchAllProjectFolders(triconnectAPI, globalAccessToken),
         ]);
 
-      // Crée une "carte de traduction" ID -> Nom
       const folderIdToNameMap = new Map(
         allProjectFolders.map((f) => [f.id, f.name]),
       );
-
       const allFlows = fluxConfig?.flux || [];
       const allAssignments = assignmentsConfig || {};
-
       const assignmentsByFlux = {};
+
       for (const folderId in allAssignments) {
         const fluxName = allAssignments[folderId];
         if (fluxName) {
           if (!assignmentsByFlux[fluxName]) {
-            assignmentsByFlux[fluxName] = []; // On initialise un tableau vide
+            assignmentsByFlux[fluxName] = [];
           }
           const folderName = folderIdToNameMap.get(folderId);
           if (folderName) {
-            assignmentsByFlux[fluxName].push(folderName); // On ajoute le nom au tableau
+            assignmentsByFlux[fluxName].push(folderName);
           }
         }
       }
 
       const summaryData = allFlows.map((flow) => ({
         fluxName: flow.name,
-        affectedFolders: assignmentsByFlux[flow.name] || [], // Renommé pour plus de clarté
+        affectedFolders: assignmentsByFlux[flow.name] || [],
         date: flow.modifiedAt || flow.createdAt || "N/A",
         creator: flow.modifiedBy || flow.createdBy || "N/A",
       }));
@@ -727,10 +738,10 @@ import {
       renderConfigSummaryTable(summaryContainer, summaryData);
     } catch (error) {
       console.error(
-        "Erreur lors du chargement du récapitulatif de configuration:",
+        "Erreur lors de l'affichage de la page de configuration:",
         error,
       );
-      summaryContainer.innerHTML = `<p style="text-align:center; color:red; margin-top:20px;">Impossible de charger le récapitulatif.</p>`;
+      renderError(mainContentDiv, error);
     }
   }
 
