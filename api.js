@@ -632,6 +632,26 @@ async function _recursivelyGetAllFolders(folderId, accessToken, folderList) {
   }
 }
 
+//  Récupère le rôle de l'utilisateur connecté pour le projet actuel
+async function fetchUserProjectRole(projectId, accessToken) {
+  // Cet endpoint est spécifique à l'utilisateur courant dans le contexte d'un projet
+  const userProjectDetailsUrl = `https://app21.connect.trimble.com/tc/api/2.0/projects/${projectId}/users/me`;
+
+  const response = await fetch(userProjectDetailsUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Impossible de récupérer le rôle de l'utilisateur pour le projet.`,
+    );
+  }
+
+  const userProjectDetails = await response.json();
+  // L'API renvoie une propriété 'role' qui peut être 'ADMIN' ou 'USER'
+  return userProjectDetails.role;
+}
+
 // On exporte les fonctions pour qu'elles soientt utilisables dans main.js
 export {
   fetchVisaDocuments,
@@ -650,4 +670,5 @@ export {
   getProjectRootId,
   recursivelyFetchAllSubfolders,
   fetchAllProjectFolders,
+  fetchUserProjectRole,
 };
