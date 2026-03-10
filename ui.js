@@ -299,16 +299,25 @@ function renderVisaTable(
 }
 
 // Affiche la page principale de configuration (avec les boutons Créer et Gérer)
-function renderConfigPage(container) {
+function renderConfigPage(container, isAdmin) {
+  // On ajoute le paramètre 'isAdmin'
+  // On utilise un opérateur ternaire pour générer le HTML des boutons uniquement si isAdmin est vrai
+  const adminButtonsHtml = isAdmin
+    ? `
+    <button id="create-flux-btn" class="config-button">Créer un flux</button>
+    <button id="manage-flux-btn" class="config-button">Gérer les flux</button>
+    <button id="assign-flux-btn" class="config-button">Affectation d'un flux</button>
+  `
+    : ""; // Sinon, on ne génère rien
+
   container.innerHTML = `
         <div class="config-page-container">
             <h1>Configuration des Flux de Visa</h1>
             <div class="config-actions">
-                <button id="create-flux-btn" class="config-button">Créer un flux</button>
-                <button id="manage-flux-btn" class="config-button">Gérer les flux</button>
-                <button id="assign-flux-btn" class="config-button">Affectation d'un flux</button>
+                ${adminButtonsHtml}
             </div>
             <div id="config-summary-container">
+                {/* Le tableau sera injecté ici plus tard */}
             </div>
         </div>
     `;
