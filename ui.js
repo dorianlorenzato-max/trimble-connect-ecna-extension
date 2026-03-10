@@ -306,14 +306,11 @@ function renderConfigPage(container) {
             <div class="config-actions">
                 <button id="create-flux-btn" class="config-button">Créer un flux</button>
                 <button id="manage-flux-btn" class="config-button">Gérer les flux</button>
-                <button class="config-button" disabled>Droits d'accès (à venir)</button>
+                {/* Le bouton "Droits d'accès" a été supprimé */}
                 <button id="assign-flux-btn" class="config-button">Affectation d'un flux</button>
             </div>
-
-            <div class="flux-list-container">
-                <div class="flux-list-body">
-                    <p>Utilisez les boutons ci-dessus pour gérer les flux de validation.</p>
-                </div>
+            <div id="config-summary-container">
+                {/* Le tableau sera injecté ici par main.js */}
             </div>
         </div>
     `;
@@ -819,6 +816,48 @@ function renderFilterPopup(
   window.addEventListener("click", handleClickOutside);
 }
 
+// fonction pour le tableau récap de la configuration
+
+function renderConfigSummaryTable(container, summaryData) {
+  // Si aucune donnée, on affiche un message
+  if (!summaryData || summaryData.length === 0) {
+    container.innerHTML =
+      '<p style="text-align:center; margin-top:20px;">Aucun flux n\'est actuellement configuré ou affecté.</p>';
+    return;
+  }
+
+  const tableRows = summaryData
+    .map(
+      (item) => `
+    <tr>
+      <td>${item.fluxName}</td>
+      <td>${item.affectedFoldersCount}</td>
+      <td>N/A</td> {/* Donnée non disponible actuellement */}
+      <td>N/A</td> {/* Donnée non disponible actuellement */}
+    </tr>
+  `,
+    )
+    .join("");
+
+  container.innerHTML = `
+    <div class="summary-table-wrapper">
+        <table class="summary-table">
+            <thead>
+                <tr>
+                    <th>Nom du flux en place</th>
+                    <th>Dossiers affectés</th>
+                    <th>Date de mise en place</th>
+                    <th>Nom du créateur</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${tableRows}
+            </tbody>
+        </table>
+    </div>
+  `;
+}
+
 // Exporter toutes les fonctions désormais
 export {
   renderLoading,
@@ -835,4 +874,5 @@ export {
   renderVisaInterfacePage,
   attachResizableTableEvents,
   renderFilterPopup,
+  renderConfigSummaryTable,
 };
