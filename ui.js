@@ -560,6 +560,7 @@ function renderAffectationPage(container, projectName) {
 
       <div class="flux-actions">
         <button id="back-to-config-btn" class="button-secondary">Retour à la Configuration</button>
+        <button id="save-all-assignments-btn" class="button-primary">Sauvegarder les affectations</button>
       </div>
     </div>
   `;
@@ -589,7 +590,6 @@ function updateAssignmentPanel(folder, allFluxNames, currentAssignedFlux) {
                     ${fluxOptions}
                 </select>
             </div>
-            <button id="save-assignment-btn" class="button-primary">Sauvegarder l'affectation</button>
         </div>
     `;
 }
