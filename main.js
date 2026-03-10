@@ -15,6 +15,7 @@ import {
   findOrCreateFolder,
   getProjectRootId,
   recursivelyFetchAllSubfolders,
+  fetchAllProjectFolders,
 } from "./api.js";
 import {
   renderLoading,
@@ -679,44 +680,50 @@ import {
 
     // 3. Récupère les données nécessaires pour le tableau
     try {
-      const [fluxConfig, assignmentsConfig] = await Promise.all([
-        fetchConfigurationFile(
-          globalAccessToken,
-          configFolderId,
-          CONFIG_FILENAME,
-        ),
-        fetchConfigurationFile(
-          globalAccessToken,
-          configFolderId,
-          ASSIGNMENTS_FILENAME,
-        ),
-      ]);
+      const [fluxConfig, assignmentsConfig, allProjectFolders] =
+        await Promise.all([
+          fetchConfigurationFile(
+            globalAccessToken,
+            configFolderId,
+            CONFIG_FILENAME,
+          ),
+          fetchConfigurationFile(
+            globalAccessToken,
+            configFolderId,
+            ASSIGNMENTS_FILENAME,
+          ),
+          fetchAllProjectFolders(triconnectAPI, globalAccessToken),
+        ]);
+
+      // Crée une "carte de traduction" ID -> Nom
+      const folderIdToNameMap = new Map(
+        allProjectFolders.map((f) => [f.id, f.name]),
+      );
 
       const allFlows = fluxConfig?.flux || [];
       const allAssignments = assignmentsConfig || {};
 
-      // 4. Traite les données pour le récapitulatif
       const assignmentsByFlux = {};
-      // Compte combien de fois chaque nom de flux est utilisé
       for (const folderId in allAssignments) {
         const fluxName = allAssignments[folderId];
         if (fluxName) {
           if (!assignmentsByFlux[fluxName]) {
-            assignmentsByFlux[fluxName] = 0;
+            assignmentsByFlux[fluxName] = []; // On initialise un tableau vide
           }
-          assignmentsByFlux[fluxName]++;
+          const folderName = folderIdToNameMap.get(folderId);
+          if (folderName) {
+            assignmentsByFlux[fluxName].push(folderName); // On ajoute le nom au tableau
+          }
         }
       }
 
-      // Crée la structure de données finale pour le tableau
       const summaryData = allFlows.map((flow) => ({
         fluxName: flow.name,
-        affectedFoldersCount: assignmentsByFlux[flow.name] || 0,
+        affectedFolders: assignmentsByFlux[flow.name] || [], // Renommé pour plus de clarté
         date: flow.modifiedAt || flow.createdAt || "N/A",
         creator: flow.modifiedBy || flow.createdBy || "N/A",
       }));
 
-      // 5. Appelle la nouvelle fonction de rendu pour afficher le tableau
       renderConfigSummaryTable(summaryContainer, summaryData);
     } catch (error) {
       console.error(
