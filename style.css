@@ -902,6 +902,16 @@ select[multiple] {
 
 /* Style pour les dates de visa en retard */
 .date-en-retard {
-    color: #fd7e14; /* Orange (identique au statut "En cours" pour la cohérence) */
-    font-weight: bold;
+  color: #fd7e14; /* Orange (identique au statut "En cours" pour la cohérence) */
+  font-weight: bold;
+}
+
+/* Case à cocher */
+
+.heredity-checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 15px;
+  cursor: help; /* Indique qu'il y a une info-bulle */
 }
