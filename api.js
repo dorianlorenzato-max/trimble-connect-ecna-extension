@@ -607,6 +607,31 @@ async function recursivelyFetchAllSubfolders(startFolderId, accessToken) {
   return allSubfolderIds;
 }
 
+// Fonction de récupération des noms de dossier pour tableau configuration
+async function fetchAllProjectFolders(triconnectAPI, accessToken) {
+  const rootId = await getProjectRootId(triconnectAPI, accessToken);
+  const allFolders = []; // On commence avec une liste vide
+  await _recursivelyGetAllFolders(rootId, accessToken, allFolders);
+  return allFolders;
+}
+
+//Fonction récursive
+async function _recursivelyGetAllFolders(folderId, accessToken, folderList) {
+  try {
+    const subFolders = await fetchFolderContents(folderId, accessToken);
+    for (const folder of subFolders) {
+      folderList.push({ id: folder.id, name: folder.name });
+      // Appel récursif pour descendre dans l'arborescence
+      await _recursivelyGetAllFolders(folder.id, accessToken, folderList);
+    }
+  } catch (error) {
+    console.warn(
+      `Impossible de scanner le contenu du dossier ${folderId}. Il sera ignoré.`,
+      error,
+    );
+  }
+}
+
 // On exporte les fonctions pour qu'elles soientt utilisables dans main.js
 export {
   fetchVisaDocuments,
@@ -624,4 +649,5 @@ export {
   findOrCreateFolder,
   getProjectRootId,
   recursivelyFetchAllSubfolders,
+  fetchAllProjectFolders,
 };
