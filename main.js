@@ -1084,22 +1084,6 @@ import {
       .addEventListener("click", handleSaveFluxClick);
   }
 
-  // --- GESTIONNAIRE POUR AFFICHER LA PAGE DE CONFIGURATION ---
-  function handleConfigClick() {
-    renderConfigPage(mainContentDiv);
-
-    document
-      .getElementById("create-flux-btn")
-      .addEventListener("click", handleCreateFluxClick);
-    document
-      .getElementById("manage-flux-btn")
-      .addEventListener("click", handleManageFluxClick);
-
-    const assignButton = document.getElementById("assign-flux-btn");
-    assignButton.disabled = false; // On active le bouton
-    assignButton.addEventListener("click", handleAssignFluxClick);
-  }
-
   // --- GESTIONNAIRE D'ÉVÉNEMENT POUR LE BOUTON D'AFFECTATION DES FLUX---
   async function handleAssignFluxClick() {
     if (!globalAccessToken || !triconnectAPI) {
