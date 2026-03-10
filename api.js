@@ -573,6 +573,40 @@ async function getProjectRootId(triconnectAPI, accessToken) {
   return rootId;
 }
 
+//  Scanne et retourne une liste plate de tous les sous-dossiers.
+
+async function recursivelyFetchAllSubfolders(startFolderId, accessToken) {
+  const allSubfolderIds = [];
+  const foldersToVisit = [startFolderId]; // On commence avec le dossier parent
+  const visitedFolders = new Set(); // Pour éviter les boucles infinies (sécurité)
+
+  while (foldersToVisit.length > 0) {
+    const currentFolderId = foldersToVisit.shift(); // On prend le premier de la liste
+
+    if (visitedFolders.has(currentFolderId)) {
+      continue; // Déjà visité, on ignore
+    }
+    visitedFolders.add(currentFolderId);
+
+    try {
+      const subFolders = await fetchFolderContents(
+        currentFolderId,
+        accessToken,
+      );
+      for (const subFolder of subFolders) {
+        allSubfolderIds.push(subFolder.id); // On ajoute l'ID à notre liste de résultats
+        foldersToVisit.push(subFolder.id); // On ajoute ce sous-dossier à la liste des prochains à visiter
+      }
+    } catch (error) {
+      console.warn(
+        `Impossible de scanner le sous-dossier ${currentFolderId}. Il sera ignoré.`,
+        error,
+      );
+    }
+  }
+  return allSubfolderIds;
+}
+
 // On exporte les fonctions pour qu'elles soientt utilisables dans main.js
 export {
   fetchVisaDocuments,
@@ -589,4 +623,5 @@ export {
   fetchFluxDefinitions,
   findOrCreateFolder,
   getProjectRootId,
+  recursivelyFetchAllSubfolders,
 };
