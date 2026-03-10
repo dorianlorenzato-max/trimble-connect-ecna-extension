@@ -63,6 +63,7 @@ import {
   let allProjectFlows = [];
   let currentAssignments = {};
   let selectedFolderInfo = null;
+  let pendingChanges = {};
 
   // --- INITIALISATION DE L'EXTENSION ---
   try {
@@ -1036,6 +1037,7 @@ import {
     }
 
     renderLoading(mainContentDiv);
+    pendingChanges = {};
     try {
       const projectInfo = await triconnectAPI.project.getCurrentProject();
 
@@ -1071,6 +1073,10 @@ import {
       document
         .getElementById("back-to-config-btn")
         .addEventListener("click", handleConfigClick);
+
+      document
+        .getElementById("save-all-assignments-btn")
+        .addEventListener("click", handleSaveAllAssignments);
     } catch (error) {
       console.error(
         "Erreur lors du chargement de la page d'affectation :",
@@ -1081,59 +1087,55 @@ import {
   }
 
   // Affiche le panneau de droite quand on clique sur un dossier
+
   function displayFolderAssignmentDetails(folder) {
-    selectedFolderInfo = folder; // Sauvegarder l'info du dossier sélectionné
-    const currentAssignedFlux = currentAssignments[folder.id] || null;
+    selectedFolderInfo = folder;
+    const displayedFlux =
+      pendingChanges[folder.id] ?? currentAssignments[folder.id] ?? null;
     const allFluxNames = allProjectFlows.map((f) => f.name);
+    updateAssignmentPanel(folder, allFluxNames, displayedFlux);
+    const selectElement = document.getElementById("flux-assignment-select");
+    if (selectElement) {
+      selectElement.addEventListener("change", (event) => {
+        const newSelectedFlux = event.target.value;
 
-    updateAssignmentPanel(folder, allFluxNames, currentAssignedFlux);
-
-    // Attacher l'événement au bouton de sauvegarde qui vient d'être créé
-    document
-      .getElementById("save-assignment-btn")
-      .addEventListener("click", handleSaveAssignment);
+        console.log(
+          `Mémorisation du changement pour ${folder.name}: '${newSelectedFlux || "Aucun"}'`,
+        );
+        pendingChanges[folder.id] = newSelectedFlux;
+      });
+    }
   }
 
   // Sauvegarde l'affectation choisie
-  async function handleSaveAssignment() {
-    if (!selectedFolderInfo) {
-      alert("Aucun dossier n'est sélectionné.");
+
+  async function handleSaveAllAssignments() {
+    if (Object.keys(pendingChanges).length === 0) {
+      alert("Aucune modification à sauvegarder.");
       return;
     }
-
-    const selectElement = document.getElementById("flux-assignment-select");
-    const selectedFluxName = selectElement.value;
-    const folderId = selectedFolderInfo.id;
-
     renderSaving(mainContentDiv);
-
-    if (selectedFluxName) {
-      // Ajouter ou mettre à jour l'affectation
-      currentAssignments[folderId] = selectedFluxName;
-      console.log(
-        `Affectation du flux '${selectedFluxName}' au dossier '${folderId}'.`,
-      );
-    } else {
-      // Supprimer l'affectation si "Aucun flux" est choisi
-      delete currentAssignments[folderId];
-      console.log(`Désaffectation du flux pour le dossier '${folderId}'.`);
-    }
+    const finalAssignments = { ...currentAssignments, ...pendingChanges };
 
     try {
       await saveConfigurationFile(
         triconnectAPI,
         globalAccessToken,
-        currentAssignments,
+        finalAssignments,
         ASSIGNMENTS_FILENAME,
         configFolderId,
       );
       renderSuccess(
         mainContentDiv,
-        "L'affectation a été sauvegardée avec succès.",
+        "Toutes les affectations ont été sauvegardées avec succès.",
       );
-      setTimeout(handleAssignFluxClick, 1500); // Recharger la page d'affectation
+      // On recharge la page pour que les "pendingChanges" deviennent la nouvelle norme
+      setTimeout(handleAssignFluxClick, 1500);
     } catch (error) {
-      console.error("Erreur lors de la sauvegarde des affectations:", error);
+      console.error(
+        "Erreur lors de la sauvegarde globale des affectations:",
+        error,
+      );
       renderError(mainContentDiv, error);
     }
   }
