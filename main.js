@@ -14,6 +14,7 @@ import {
   fetchFluxDefinitions,
   findOrCreateFolder,
   getProjectRootId,
+  recursivelyFetchAllSubfolders,
 } from "./api.js";
 import {
   renderLoading,
@@ -1093,17 +1094,52 @@ import {
     const displayedFlux =
       pendingChanges[folder.id] ?? currentAssignments[folder.id] ?? null;
     const allFluxNames = allProjectFlows.map((f) => f.name);
-    updateAssignmentPanel(folder, allFluxNames, displayedFlux);
-    const selectElement = document.getElementById("flux-assignment-select");
-    if (selectElement) {
-      selectElement.addEventListener("change", (event) => {
-        const newSelectedFlux = event.target.value;
 
+    updateAssignmentPanel(folder, allFluxNames, displayedFlux);
+
+    const selectElement = document.getElementById("flux-assignment-select");
+    const heredityCheckbox = document.getElementById("heredity-checkbox");
+
+    // Fonction interne pour appliquer les changements en mémoire
+    const applyChanges = async () => {
+      const selectedFlux = selectElement.value;
+      const applyHeredity = heredityCheckbox.checked;
+
+      // On met toujours à jour le dossier parent
+      console.log(
+        `Mémorisation pour ${folder.name}: '${selectedFlux || "Aucun"}'`,
+      );
+      pendingChanges[folder.id] = selectedFlux;
+
+      // Si la case est cochée, on applique à toute la descendance
+      if (applyHeredity && selectedFlux) {
         console.log(
-          `Mémorisation du changement pour ${folder.name}: '${newSelectedFlux || "Aucun"}'`,
+          `Application de l'hérédité en cours pour le dossier ${folder.name}...`,
         );
-        pendingChanges[folder.id] = newSelectedFlux;
-      });
+        try {
+          const allSubIds = await recursivelyFetchAllSubfolders(
+            folder.id,
+            globalAccessToken,
+          );
+          allSubIds.forEach((subId) => {
+            pendingChanges[subId] = selectedFlux;
+          });
+          console.log(
+            `Hérédité appliquée à ${allSubIds.length} sous-dossier(s).`,
+          );
+        } catch (error) {
+          console.error("Erreur lors de l'application de l'hérédité:", error);
+        }
+      }
+      // Si la case n'est pas cochée, la logique s'arrête ici, seul le parent est affecté.
+    };
+
+    // On attache la logique aux deux éléments
+    if (selectElement) {
+      selectElement.addEventListener("change", applyChanges);
+    }
+    if (heredityCheckbox) {
+      heredityCheckbox.addEventListener("change", applyChanges);
     }
   }
 
