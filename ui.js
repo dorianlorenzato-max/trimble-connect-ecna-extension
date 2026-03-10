@@ -306,11 +306,9 @@ function renderConfigPage(container) {
             <div class="config-actions">
                 <button id="create-flux-btn" class="config-button">Créer un flux</button>
                 <button id="manage-flux-btn" class="config-button">Gérer les flux</button>
-                {/* Le bouton "Droits d'accès" a été supprimé */}
                 <button id="assign-flux-btn" class="config-button">Affectation d'un flux</button>
             </div>
             <div id="config-summary-container">
-                {/* Le tableau sera injecté ici par main.js */}
             </div>
         </div>
     `;
