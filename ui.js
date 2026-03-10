@@ -590,6 +590,10 @@ function updateAssignmentPanel(folder, allFluxNames, currentAssignedFlux) {
                     ${fluxOptions}
                 </select>
             </div>
+            <div class="heredity-checkbox-container" title="Si coché, le flux sélectionné sera appliqué à ce dossier et à tous ses sous-dossiers.">
+                <input type="checkbox" id="heredity-checkbox">
+                <label for="heredity-checkbox">Appliquer l'hérédité</label>
+            </div>
         </div>
     `;
 }
