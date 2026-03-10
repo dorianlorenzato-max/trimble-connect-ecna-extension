@@ -712,6 +712,8 @@ import {
       const summaryData = allFlows.map((flow) => ({
         fluxName: flow.name,
         affectedFoldersCount: assignmentsByFlux[flow.name] || 0,
+        date: flow.modifiedAt || flow.createdAt || "N/A",
+        creator: flow.modifiedBy || flow.createdBy || "N/A",
       }));
 
       // 5. Appelle la nouvelle fonction de rendu pour afficher le tableau
@@ -988,6 +990,11 @@ import {
 
     try {
       // ÉTAPE 1: LIRE la configuration existante
+      const loggedInUser = await fetchLoggedInUserDetails(globalAccessToken);
+      const userName =
+        `${loggedInUser.firstName} ${loggedInUser.lastName}`.trim();
+      const today = new Date().toISOString().split("T")[0]; // Format YYYY-MM-DD
+
       const existingConfig = await fetchConfigurationFile(
         globalAccessToken,
         configFolderId,
@@ -1003,7 +1010,13 @@ import {
           (flux) => flux.name === currentEditedFluxName,
         );
         if (index !== -1) {
-          finalConfigurationData.flux[index] = newFluxData; // Remplacer le flux existant
+          const originalFlux = finalConfigurationData.flux[index];
+          finalConfigurationData.flux[index] = {
+            ...originalFlux, // On garde les données originales (comme 'createdAt')
+            ...newFluxData, // On écrase le nom et les étapes
+            modifiedBy: userName, // On met à jour le modificateur
+            modifiedAt: today, // On met à jour la date de modification
+          };
         } else {
           // Cas inattendu : le flux à éditer n'est plus là, on l'ajoute
           finalConfigurationData.flux.push(newFluxData);
@@ -1029,7 +1042,14 @@ import {
           attachCreateEditFluxEvents();
           return;
         }
-        finalConfigurationData.flux.push(newFluxData); // Ajouter un nouveau flux
+        const fluxToCreate = {
+          ...newFluxData,
+          createdBy: userName,
+          createdAt: today,
+          modifiedBy: userName, // Au moment de la création, le créateur et le modificateur sont les mêmes
+          modifiedAt: today,
+        };
+        finalConfigurationData.flux.push(fluxToCreate); // Ajouter un nouveau flux
         console.log(`Nouveau flux "${fluxName}" ajouté.`);
       }
 
