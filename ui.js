@@ -830,8 +830,8 @@ function renderConfigSummaryTable(container, summaryData) {
     <tr>
       <td>${item.fluxName}</td>
       <td>${item.affectedFoldersCount}</td>
-      <td>N/A</td> {/* Donnée non disponible actuellement */}
-      <td>N/A</td> {/* Donnée non disponible actuellement */}
+      <td>${item.date === "N/A" ? "N/A" : new Date(item.date).toLocaleDateString()}</td>
+      <td>${item.creator}</td>
     </tr>
   `,
     )
