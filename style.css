@@ -915,3 +915,32 @@ select[multiple] {
   margin-top: 15px;
   cursor: help; /* Indique qu'il y a une info-bulle */
 }
+
+/* Styles pour tableau de configuration */
+
+.summary-table-wrapper {
+  margin-top: 40px;
+  overflow-x: auto;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  border: 1px solid #ddd;
+}
+
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.summary-table th,
+.summary-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #ddd;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.summary-table th {
+  background-color: #f8f8f8;
+  font-weight: bold;
+}
