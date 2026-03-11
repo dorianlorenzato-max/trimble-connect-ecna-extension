@@ -111,7 +111,7 @@ import {
       .addEventListener("click", () => handleTableDisplay("documents"));
 
     // Afficher l'accueil
-    renderWelcome(mainContentDiv);
+    handleDashboardDisplay();
   } catch (error) {
     console.error(
       "Erreur critique lors de l'initialisation de l'extension :",
@@ -237,7 +237,6 @@ import {
           configFolderId,
           VISA_TRACKING_FILENAME,
         ).then((data) => data || {}),
-        // On fetch tous les documents pour avoir une vue globale
         fetchVisaDocuments(
           globalAccessToken,
           triconnectAPI,
@@ -246,7 +245,31 @@ import {
           { mode: "documents" },
         ),
       ]);
-      allFluxDefinitions = fluxDefinitions; // Assigner à la variable globale
+      allFluxDefinitions = fluxDefinitions;
+
+      // --- DÉBUT DE LA CORRECTION : Récupérer les ID des groupes de l'utilisateur connecté ---
+      // Cette boucle est nécessaire car l'objet `loggedInUser` de l'API /users/me ne contient pas directement les groupes.
+      // Nous devons interroger chaque groupe du projet pour voir si l'utilisateur en fait partie.
+      const loggedInUserGroupIds = [];
+      for (const group of allGroupsInProject) {
+        const usersInGroupResponse = await fetch(
+          `https://app21.connect.trimble.com/tc/api/2.0/groups/${group.id}/users`,
+          {
+            headers: { Authorization: `Bearer ${globalAccessToken}` },
+          },
+        );
+        if (usersInGroupResponse.ok) {
+          const groupUsers = await usersInGroupResponse.json();
+          if (groupUsers.some((user) => user.id === loggedInUser.id)) {
+            loggedInUserGroupIds.push(group.id);
+          }
+        } else {
+          console.warn(
+            `Impossible de récupérer les utilisateurs pour le groupe ${group.name}.`,
+          );
+        }
+      }
+      // --- FIN DE LA CORRECTION ---
 
       // --- 2. Calcul des indicateurs (KPIs) ---
 
@@ -257,13 +280,13 @@ import {
         REF: 0,
         SO: 0,
         "En Cours": 0,
-        Annulés: 0, // 'Annulés' en prévision
+        Annulés: 0,
       };
       allVisaDocuments.forEach((doc) => {
         if (donutData.hasOwnProperty(doc.status)) {
           donutData[doc.status]++;
         } else {
-          donutData["En Cours"]++; // Cas par défaut
+          donutData["En Cours"]++;
         }
       });
 
@@ -290,9 +313,10 @@ import {
 
         for (const step of fluxDef.steps) {
           for (const groupId of step.groupIds) {
+            // S'assurer que le groupe existe dans notre structure barChartData
             if (!barChartData[groupId]) continue;
 
-            barChartData[groupId].total++; // Incrémente le nombre total de visas à traiter pour ce groupe
+            barChartData[groupId].total++;
 
             const hasVoted = (trackingData[doc.id] || []).some(
               (entry) => entry.groupId === groupId,
@@ -301,22 +325,24 @@ import {
             if (hasVoted) {
               barChartData[groupId].emis++;
             } else {
-              // Calcul du retard
               const deadline = new Date(doc.depositDateObject);
               deadline.setDate(deadline.getDate() + step.durationDays);
+
+              // --- MODIFICATION : Utiliser le tableau d'IDs correct `loggedInUserGroupIds` ---
               if (deadline < today) {
                 barChartData[groupId].enRetard++;
-                // Vérification pour le KPI utilisateur
-                if (loggedInUser.groups.some((ug) => ug.id === groupId)) {
+                if (loggedInUserGroupIds.includes(groupId)) {
+                  // Vérifie si le groupe est celui de l'utilisateur connecté
                   userKpiData.enRetard++;
                 }
               } else {
                 barChartData[groupId].aEmettre++;
-                // Vérification pour le KPI utilisateur
-                if (loggedInUser.groups.some((ug) => ug.id === groupId)) {
+                if (loggedInUserGroupIds.includes(groupId)) {
+                  // Vérifie si le groupe est celui de l'utilisateur connecté
                   userKpiData.enAttente++;
                 }
               }
+              // --- FIN MODIFICATION ---
             }
           }
         }
@@ -333,7 +359,7 @@ import {
       renderDashboardPage(mainContentDiv, {
         donutData,
         userKpiData,
-        barChartData: Object.values(barChartData).filter((d) => d.total > 0), // Ne garder que les groupes avec des visas
+        barChartData: Object.values(barChartData).filter((d) => d.total > 0),
         depositedDocs,
       });
     } catch (error) {
