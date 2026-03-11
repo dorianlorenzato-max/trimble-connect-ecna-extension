@@ -102,7 +102,7 @@ import {
       .addEventListener("click", () => handleTableDisplay("missions"));
     document
       .getElementById("dashboardBtn")
-      .addEventListener("click", () => renderWelcome(mainContentDiv));
+      .addEventListener("click", handleDashboardDisplay);
     document
       .getElementById("configBtn")
       .addEventListener("click", handleConfigClick);
@@ -197,6 +197,148 @@ import {
     } catch (error) {
       console.error(
         `Erreur lors de la récupération des données pour le mode "${mode}" :`,
+        error,
+      );
+      renderError(mainContentDiv, error);
+    }
+  }
+
+  // fonction pour l'interface du tableau de bord
+
+  async function handleDashboardDisplay() {
+    renderLoading(mainContentDiv);
+    try {
+      // --- 1. Récupération de toutes les données en parallèle ---
+      const projectInfo = await triconnectAPI.project.getCurrentProject();
+      currentProjectId = projectInfo.id;
+
+      const [
+        loggedInUser,
+        fluxDefinitions,
+        allGroupsInProject,
+        assignments,
+        trackingData,
+        allVisaDocuments,
+      ] = await Promise.all([
+        fetchLoggedInUserDetails(globalAccessToken),
+        fetchFluxDefinitions(
+          globalAccessToken,
+          configFolderId,
+          CONFIG_FILENAME,
+        ),
+        fetchProjectGroups(projectInfo.id, globalAccessToken),
+        fetchConfigurationFile(
+          globalAccessToken,
+          configFolderId,
+          ASSIGNMENTS_FILENAME,
+        ),
+        fetchConfigurationFile(
+          globalAccessToken,
+          configFolderId,
+          VISA_TRACKING_FILENAME,
+        ).then((data) => data || {}),
+        // On fetch tous les documents pour avoir une vue globale
+        fetchVisaDocuments(
+          globalAccessToken,
+          triconnectAPI,
+          configFolderId,
+          ASSIGNMENTS_FILENAME,
+          { mode: "documents" },
+        ),
+      ]);
+      allFluxDefinitions = fluxDefinitions; // Assigner à la variable globale
+
+      // --- 2. Calcul des indicateurs (KPIs) ---
+
+      // Données pour le Donut Chart (Visuel 1)
+      const donutData = {
+        VSO: 0,
+        VAO: 0,
+        REF: 0,
+        SO: 0,
+        "En Cours": 0,
+        Annulés: 0, // 'Annulés' en prévision
+      };
+      allVisaDocuments.forEach((doc) => {
+        if (donutData.hasOwnProperty(doc.status)) {
+          donutData[doc.status]++;
+        } else {
+          donutData["En Cours"]++; // Cas par défaut
+        }
+      });
+
+      // Données pour les Cartes Utilisateur (Visuel 3)
+      const userKpiData = { enAttente: 0, enRetard: 0 };
+
+      // Données pour le Bar Chart (Visuel 2)
+      const barChartData = {};
+      allGroupsInProject.forEach((g) => {
+        barChartData[g.id] = {
+          name: g.name,
+          emis: 0,
+          aEmettre: 0,
+          enRetard: 0,
+          total: 0,
+        };
+      });
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      for (const doc of allVisaDocuments) {
+        const fluxDef = allFluxDefinitions.find((f) => f.name === doc.fluxName);
+        if (!fluxDef) continue;
+
+        for (const step of fluxDef.steps) {
+          for (const groupId of step.groupIds) {
+            if (!barChartData[groupId]) continue;
+
+            barChartData[groupId].total++; // Incrémente le nombre total de visas à traiter pour ce groupe
+
+            const hasVoted = (trackingData[doc.id] || []).some(
+              (entry) => entry.groupId === groupId,
+            );
+
+            if (hasVoted) {
+              barChartData[groupId].emis++;
+            } else {
+              // Calcul du retard
+              const deadline = new Date(doc.depositDateObject);
+              deadline.setDate(deadline.getDate() + step.durationDays);
+              if (deadline < today) {
+                barChartData[groupId].enRetard++;
+                // Vérification pour le KPI utilisateur
+                if (loggedInUser.groups.some((ug) => ug.id === groupId)) {
+                  userKpiData.enRetard++;
+                }
+              } else {
+                barChartData[groupId].aEmettre++;
+                // Vérification pour le KPI utilisateur
+                if (loggedInUser.groups.some((ug) => ug.id === groupId)) {
+                  userKpiData.enAttente++;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Données pour la liste des documents déposés (Visuel 4)
+      const depositedDocs = allVisaDocuments.filter(
+        (doc) =>
+          doc.depositorName ===
+          `${loggedInUser.firstName} ${loggedInUser.lastName}`,
+      );
+
+      // --- 3. Appel de la fonction de rendu ---
+      renderDashboardPage(mainContentDiv, {
+        donutData,
+        userKpiData,
+        barChartData: Object.values(barChartData).filter((d) => d.total > 0), // Ne garder que les groupes avec des visas
+        depositedDocs,
+      });
+    } catch (error) {
+      console.error(
+        "Erreur lors de la construction du tableau de bord :",
         error,
       );
       renderError(mainContentDiv, error);
