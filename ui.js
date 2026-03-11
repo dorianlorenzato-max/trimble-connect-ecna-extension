@@ -865,6 +865,146 @@ function renderConfigSummaryTable(container, summaryData) {
   `;
 }
 
+// fonction pour l'interface de tableau de bord
+
+function renderDashboardPage(container, dashboardData) {
+  const { donutData, userKpiData, barChartData, depositedDocs } = dashboardData;
+
+  // --- HTML de la structure de la page ---
+  container.innerHTML = `
+        <h1>Tableau de bord du suivi des visas</h1>
+        <div class="dashboard-grid">
+            
+            <div class="dashboard-card">
+                <h2>Répartition des statuts</h2>
+                <div class="chart-container" style="height:300px;">
+                    <canvas id="donutChart"></canvas>
+                </div>
+            </div>
+
+            <div class="dashboard-card kpi-card-container">
+                 <div class="kpi-card">
+                    <h3>Visa en attente</h3>
+                    <div class="kpi-value">
+                        <img src="https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/pending-icon.png" alt="Icone attente"/>
+                        <span>${userKpiData.enAttente}</span>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <h3>Visa en retard</h3>
+                    <div class="kpi-value">
+                        <img src="https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/late-icon.png" alt="Icone retard"/>
+                        <span>${userKpiData.enRetard}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-card">
+                <h2>État des visas par groupe</h2>
+                <div class="chart-container" style="height:350px;">
+                    <canvas id="barChart"></canvas>
+                </div>
+            </div>
+
+            <div class="dashboard-card">
+                <h2>Mes derniers dépôts</h2>
+                <div class="deposited-docs-list">
+                    ${
+                      depositedDocs.length > 0
+                        ? `
+                        <ul>
+                            ${depositedDocs
+                              .slice(0, 10)
+                              .map(
+                                (doc) => `
+                                <li>
+                                    <span class="doc-name">${doc.name} (v${doc.version})</span>
+                                    <span class="status-cell-tag status-${doc.status.toLowerCase().replace(" ", "-")}">${doc.status}</span>
+                                </li>
+                            `,
+                              )
+                              .join("")}
+                        </ul>
+                    `
+                        : "<p>Vous n'avez déposé aucun document soumis à visa.</p>"
+                    }
+                </div>
+            </div>
+        </div>
+    `;
+
+  // --- Initialisation des graphiques ---
+
+  // 1. Donut Chart
+  const donutCtx = document.getElementById("donutChart").getContext("2d");
+  new Chart(donutCtx, {
+    type: "doughnut",
+    data: {
+      labels: Object.keys(donutData),
+      datasets: [
+        {
+          data: Object.values(donutData),
+          backgroundColor: [
+            "#28a745",
+            "#ffc107",
+            "#dc3545",
+            "#6c757d",
+            "#007bff",
+            "#343a40",
+          ],
+          borderColor: "#fff",
+          borderWidth: 2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "right" },
+      },
+    },
+  });
+
+  // 2. Bar Chart
+  const barCtx = document.getElementById("barChart").getContext("2d");
+  new Chart(barCtx, {
+    type: "bar",
+    data: {
+      labels: barChartData.map((d) => d.name),
+      datasets: [
+        {
+          label: "Visas émis",
+          data: barChartData.map((d) => d.emis),
+          backgroundColor: "#1abc9c",
+        },
+        {
+          label: "À émettre",
+          data: barChartData.map((d) => d.aEmettre),
+          backgroundColor: "#f39c12",
+        },
+        {
+          label: "En retard",
+          data: barChartData.map((d) => d.enRetard),
+          backgroundColor: "#e74c3c",
+        },
+      ],
+    },
+    options: {
+      indexAxis: "y", // Pour avoir des barres horizontales
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true },
+      },
+      plugins: {
+        legend: { position: "bottom" },
+      },
+    },
+  });
+}
+
 // Exporter toutes les fonctions désormais
 export {
   renderLoading,
@@ -882,4 +1022,5 @@ export {
   attachResizableTableEvents,
   renderFilterPopup,
   renderConfigSummaryTable,
+  renderDashboardPage,
 };
