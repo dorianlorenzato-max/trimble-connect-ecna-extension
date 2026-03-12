@@ -1075,12 +1075,12 @@ select[multiple] {
   background-color: #6c757d;
   color: white;
 }
-/* CHANGEMENT : "En Cours" est bleu dans le donut, donc on l'harmonise */
+
 .status-en-cours {
   background-color: #007bff;
   color: white;
 }
-/* AJOUT pour le statut "Annulés" (s'il est utilisé dans vos données) */
+
 .status-annules {
   background-color: #343a40;
   color: white;
@@ -1089,4 +1089,112 @@ select[multiple] {
 .status-default {
   background-color: #e9ecef;
   color: #495057;
+}
+/* === TABLEAU DE BORD === */
+.dashboard-grid {
+    display: grid;
+    /* Ajusté pour 2 colonnes par défaut, s'adapte en dessous */
+    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); 
+    gap: 20px;
+    padding: 10px;
+}
+
+
+.dashboard-grid > h2 {
+    grid-column: 2 / -1; /* Place le titre "Mes statistiques" dans la deuxième colonne */
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 1.2rem;
+    color: #003a72;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+/* Pour les écrans plus petits, le titre prend toute la largeur */
+@media (max-width: 900px) {
+    .dashboard-grid > h2 {
+        grid-column: 1 / -1;
+    }
+}
+
+
+.dashboard-card {
+    background-color: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+}
+
+.dashboard-card h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 1.2rem;
+    color: #003a72;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+.chart-container {
+    position: relative;
+    flex-grow: 1;
+}
+
+/* Cartes KPI */
+.kpi-card-container {
+    flex-direction: column; /* ANNOTATION 2A : Reviens à column car le titre est à part */
+    /* retire justify-content: space-around; */
+    align-items: center;
+    gap: 20px;
+}
+.kpi-cards-wrapper { /* Wrapper pour les deux cartes individuelles */
+    display: flex;
+    justify-content: space-around;
+    gap: 10px;
+    width: 100%;
+}
+.kpi-card {
+    flex: 1;
+    text-align: center;
+}
+.kpi-card h3 {
+    margin: 0 0 15px 0;
+    font-size: 1rem;
+    color: #555;
+}
+.kpi-value {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+}
+.kpi-icon {
+    font-size: 2.5rem; /* Taille de l'icône */
+    line-height: 1; /* Assure un bon alignement vertical */
+}
+.kpi-value span {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #005a70;
+}
+
+/* Liste des documents déposés */
+.deposited-docs-list {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+.deposited-docs-list ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.deposited-docs-list li {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 5px;
+    border-bottom: 1px solid #f0f0f0;
+}
+.deposited-docs-list .doc-name {
+    font-size: 0.9rem;
+    color: #333;
 }
