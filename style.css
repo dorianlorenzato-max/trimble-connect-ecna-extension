@@ -1026,3 +1026,67 @@ select[multiple] {
   font-size: 0.9rem;
   color: #333;
 }
+
+/* AJOUT POUR LES CARTES KPI */
+.kpi-cards-wrapper {
+  display: flex;
+  justify-content: space-around; /* Pour espacer les deux cartes */
+  gap: 10px; /* Espace entre les cartes */
+  width: 100%; /* S'assurer qu'il prend toute la largeur du parent */
+}
+
+/* Ajustement pour le conteneur des KPI pour aligner le titre et les cartes */
+.dashboard-card.kpi-card-container {
+  flex-direction: column; /* Organiser le titre et les cartes en colonne */
+  align-items: flex-start; /* Aligner le titre à gauche */
+}
+
+.dashboard-card.kpi-card-container h2 {
+  width: 100%; /* Le titre prend toute la largeur */
+  text-align: left; /* Texte du titre aligné à gauche */
+}
+
+/* Styles pour les étiquettes de statut dans "Mes derniers dépôts" */
+.deposited-docs-list li .status-cell-tag {
+  padding: 4px 8px; /* Un peu moins de padding que les tags du tableau pour la compacité */
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 0.8em; /* Plus petit pour la liste */
+}
+
+/* COULEURS DES STATUTS (à harmoniser avec le dashboard) */
+/* VSO reste le même */
+.status-vso {
+  background-color: #28a745;
+  color: white;
+}
+/* VAO reste le même */
+.status-vao {
+  background-color: #ffc107;
+  color: #212529;
+}
+/* REF reste le même */
+.status-ref {
+  background-color: #dc3545;
+  color: white;
+}
+/* SO reste le même */
+.status-so {
+  background-color: #6c757d;
+  color: white;
+}
+/* CHANGEMENT : "En Cours" est bleu dans le donut, donc on l'harmonise */
+.status-en-cours {
+  background-color: #007bff;
+  color: white;
+}
+/* AJOUT pour le statut "Annulés" (s'il est utilisé dans vos données) */
+.status-annules {
+  background-color: #343a40;
+  color: white;
+} /* Gris foncé, comme sur le visuel */
+/* Statut par défaut */
+.status-default {
+  background-color: #e9ecef;
+  color: #495057;
+}
