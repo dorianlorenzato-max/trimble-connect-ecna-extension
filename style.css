@@ -950,7 +950,7 @@ select[multiple] {
   grid-template-columns: repeat(2, 1fr);
   gap: 20px;
   padding: 10px;
-  align-items: start; /* <--- AJOUT EZ CETTE LIGNE POUR ALIGNER LES CARTES EN HAUT */
+  align-items: start; /* Permet d'aligner les cartes sur le haut de leur cellule de grille */
 }
 
 .dashboard-card {
@@ -958,8 +958,8 @@ select[multiple] {
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-  display: flex;
-  flex-direction: column;
+  display: flex; /* Utilise flexbox pour l'alignement interne (h2, etc.) */
+  flex-direction: column; /* Les éléments internes s'empilent */
 }
 
 .dashboard-card h2 {
@@ -978,21 +978,21 @@ select[multiple] {
 
 /* Cartes KPI */
 .kpi-card-container {
-  flex-direction: column; /* Pour que le h2 et le kpi-cards-wrapper s'empilent */
-  align-items: flex-start; /* Aligne le contenu (h2 et kpi-cards-wrapper) à gauche */
-  gap: 20px; /* Espace entre le titre h2 et le kpi-cards-wrapper */
+  flex-direction: column; /* Les enfants s'empilent verticalement (h2, puis kpi-cards-group) */
+  align-items: flex-start; /* Aligne le h2 et le kpi-cards-group au début de l'axe transversal (donc à gauche) */
+  gap: 20px; /* Espace entre le h2 et le kpi-cards-group */
 }
-.kpi-cards-wrapper {
-  /* Ce wrapper contient les deux kpi-card pour les aligner horizontalement */
-  display: flex;
-  justify-content: space-around;
-  gap: 10px;
-  width: 100%;
+.kpi-cards-group {
+    display: flex;
+    justify-content: space-around;
+    gap: 10px;
+    width: 100%; /* S'assure qu'il prend toute la largeur disponible */
 }
 .kpi-card {
-  flex: 1;
+  flex: 1; /* Permet aux cartes de prendre une taille égale et de s'adapter */
   text-align: center;
 }
+
 .kpi-card h3 {
   margin: 0 0 15px 0;
   font-size: 1rem;
@@ -1012,4 +1012,30 @@ select[multiple] {
   font-size: 2.5rem;
   font-weight: bold;
   color: #005a70;
+}
+
+/* Liste des documents déposés */
+.deposited-docs-list {
+  flex-grow: 1;
+  overflow-y: auto;
+}
+.deposited-docs-list ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.deposited-docs-list li {
+  display: flex; /* ANNOTATION : Active flexbox pour l'élément de liste */
+  justify-content: space-between; /* ANNOTATION : Espace le nom du document et le statut */
+  align-items: center; /* ANNOTATION : Centre verticalement le nom et le statut */
+  padding: 10px 5px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.deposited-docs-list li .doc-name {
+  /* ANNOTATION : Style le nom du document */
+  flex-grow: 1; /* Prend l'espace restant */
+  white-space: nowrap; /* Empêche le retour à la ligne */
+  overflow: hidden; /* Cache le texte qui dépasse */
+  text-overflow: ellipsis; /* Ajoute "..." si le texte est tronqué */
+  margin-right: 10px; /* Espacement entre le nom du doc et le statut */
 }
