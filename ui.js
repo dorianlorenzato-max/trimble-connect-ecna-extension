@@ -870,12 +870,19 @@ function renderConfigSummaryTable(container, summaryData) {
 function renderDashboardPage(container, dashboardData) {
   const { donutData, userKpiData, barChartData, depositedDocs } = dashboardData;
 
-  // Calcul du nombre total de documents pour le titre du Donut Chart
+  // ANNOTATION 1A & 1B : Filtrage des valeurs nulles et calcul du total pour le centre du donut
+  const filteredLabels = [];
+  const filteredData = [];
+  let totalDocsDonut = 0;
 
-  const totalDocsDonut = Object.values(donutData).reduce(
-    (sum, count) => sum + count,
-    0,
-  );
+  Object.entries(donutData).forEach(([label, value]) => {
+    if (value > 0) {
+      // Ne pas afficher les tranches avec une valeur de 0
+      filteredLabels.push(label);
+      filteredData.push(value);
+      totalDocsDonut += value;
+    }
+  });
 
   // --- HTML de la structure de la page ---
   container.innerHTML = `
@@ -883,26 +890,27 @@ function renderDashboardPage(container, dashboardData) {
         <div class="dashboard-grid">
             
             <div class="dashboard-card">
-                <h2>Répartition des statuts (${totalDocsDonut} documents)</h2> <!-- ANNOTATION 1 : TITRE AVEC TOTAL DOCS -->
+                <h2>Répartition des statuts</h2> 
                 <div class="chart-container" style="height:300px;">
                     <canvas id="donutChart"></canvas>
                 </div>
             </div>
 
-            <div class="dashboard-card kpi-card-container">
-                 <h2>Mes statistiques</h2> <!-- ANNOTATION 2 : TITRE POUR KPI CARDS -->
-                 <div class="kpi-cards-wrapper"> <!-- NOUVEAU WRAPPER POUR LES KPI POUR LA MISE EN PAGE -->
+            
+            <h2>Mes Missions</h2> 
+            <div class="dashboard-card kpi-card-container"> 
+                 <div class="kpi-cards-wrapper"> 
                     <div class="kpi-card">
                         <h3>Visa en attente</h3>
                         <div class="kpi-value">
-                            <img src="https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/pending-icon.png" alt="Icone attente"/>
+                            <span class="kpi-icon">⏳</span> 
                             <span>${userKpiData.enAttente}</span>
                         </div>
                     </div>
                     <div class="kpi-card">
                         <h3>Visa en retard</h3>
                         <div class="kpi-value">
-                            <img src="https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/late-icon.png" alt="Icone retard"/>
+                            <span class="kpi-icon">❗</span> 
                             <span>${userKpiData.enRetard}</span>
                         </div>
                     </div>
@@ -917,7 +925,7 @@ function renderDashboardPage(container, dashboardData) {
             </div>
 
             <div class="dashboard-card">
-                <h2>Mes derniers dépôts</h2>
+                <h2>Mes suivis de visas</h2>
                 <div class="deposited-docs-list">
                     ${
                       depositedDocs.length > 0
@@ -947,15 +955,37 @@ function renderDashboardPage(container, dashboardData) {
   // Enregistrer le plugin Datalabels globalement (important de le faire une seule fois)
   Chart.register(ChartDataLabels);
 
+  // ANNOTATION 1B : Plugin pour le texte au centre du donut
+  const centerTextPlugin = {
+    id: "centerText",
+    beforeDraw: (chart) => {
+      if (chart.config.options.plugins.centerText) {
+        const { text, font, color } = chart.config.options.plugins.centerText;
+        const { ctx, width, height } = chart;
+        ctx.restore();
+        const fontSize = (height / 114).toFixed(2); // Taille relative à la hauteur du graphique
+        ctx.font = `${font.weight} ${fontSize}em ${font.family}`;
+        ctx.textBaseline = "middle";
+        ctx.textAlign = "center"; // Centrer le texte
+        const textX = width / 2;
+        const textY = height / 2;
+        ctx.fillStyle = color;
+        ctx.fillText(text, textX, textY);
+        ctx.save();
+      }
+    },
+  };
+  Chart.register(centerTextPlugin);
+
   // 1. Donut Chart (Visuel 1)
   const donutCtx = document.getElementById("donutChart").getContext("2d");
   new Chart(donutCtx, {
     type: "doughnut",
     data: {
-      labels: Object.keys(donutData),
+      labels: filteredLabels, // ANNOTATION 1A : Labels filtrés
       datasets: [
         {
-          data: Object.values(donutData),
+          data: filteredData, // ANNOTATION 1A : Données filtrées
           // Couleurs ajustées pour correspondre au visuel (VSO, VAO, REF, SO, En Cours, Annulés)
           backgroundColor: [
             "#28a745",
@@ -976,20 +1006,38 @@ function renderDashboardPage(container, dashboardData) {
       plugins: {
         legend: { position: "right" },
         datalabels: {
-          color: "#fff", // Couleur du texte
-          textAlign: "center", // Centrer le texte
+          // ANNOTATION 1C : Configuration pour les labels sur les tranches
+          color: (context) => {
+            // Couleur dynamique en fonction de la couleur de la tranche
+            // La couleur #ffc107 est le jaune (VAO) qui nécessite un texte noir. Les autres sont foncées, texte blanc.
+            return context.dataset.backgroundColor[context.dataIndex] ===
+              "#ffc107"
+              ? "#000"
+              : "#fff";
+          },
+          textAlign: "center",
           font: {
-            weight: "bold", // Texte en gras
+            weight: "bold",
+            size: 14, // ANNOTATION 1C : Taille légèrement plus grande
           },
           formatter: (value, ctx) => {
             let sum = 0;
-            let dataArr = ctx.chart.data.datasets[0].data;
-            dataArr.map((data) => {
+            ctx.chart.data.datasets[0].data.map((data) => {
               sum += data;
             });
-            let percentage = ((value * 100) / sum).toFixed(0) + "%";
-            return `${value}\n(${percentage})`;
+            const percentage = ((value * 100) / sum).toFixed(0) + "%";
+            // Affiche le nombre et le pourcentage sur deux lignes, uniquement si la valeur > 0
+            return value > 0 ? `${value}\n(${percentage})` : "";
           },
+        },
+        centerText: {
+          // ANNOTATION 1B : Configuration pour le texte au centre du donut
+          text: totalDocsDonut.toString(), // Affiche le total des documents
+          font: {
+            family: "Arial",
+            weight: "bold",
+          },
+          color: "#333",
         },
       },
     },
@@ -1005,17 +1053,17 @@ function renderDashboardPage(container, dashboardData) {
         {
           label: "Visas émis",
           data: barChartData.map((d) => d.emis),
-          backgroundColor: "#1abc9c", // Couleur verte pour "Visas émis"
+          backgroundColor: "#1abc9c",
         },
         {
           label: "À émettre",
           data: barChartData.map((d) => d.aEmettre),
-          backgroundColor: "#f39c12", // Couleur jaune-orange pour "À émettre"
+          backgroundColor: "#f39c12",
         },
         {
           label: "En retard",
           data: barChartData.map((d) => d.enRetard),
-          backgroundColor: "#e74c3c", // Couleur rouge pour "En retard"
+          backgroundColor: "#e74c3c",
         },
       ],
     },
@@ -1024,18 +1072,23 @@ function renderDashboardPage(container, dashboardData) {
       responsive: true,
       maintainAspectRatio: false,
       scales: {
-        x: { stacked: true },
+        x: {
+          stacked: true,
+          ticks: {
+            stepSize: 1, // ANNOTATION 3 : Seulement des nombres entiers
+          },
+        },
         y: { stacked: true },
       },
       plugins: {
-        legend: { position: "bottom" }, // L'interactivité de la légende est gérée par Chart.js par défaut
+        legend: { position: "bottom" },
         datalabels: {
-          color: "#fff", // Couleur du texte
+          color: "#fff",
           font: {
-            weight: "bold", // Texte en gras
+            weight: "bold",
+            size: 12, // Taille du texte dans les barres
           },
           formatter: (value) => {
-            // Affiche la valeur seulement si elle est supérieure à 0
             return value > 0 ? value : "";
           },
         },
