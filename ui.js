@@ -909,8 +909,8 @@ function renderDashboardPage(container, dashboardData) {
             </div>
 
             <div class="dashboard-card kpi-card-container"> 
-                 <h2>Mes statistiques</h2>
-                 <div class="kpi-cards-wrapper"> 
+                <h2>Mes statistiques</h2>
+                <div class="kpi-cards-group"> <!-- NOUVEAU CONTENEUR pour les deux cartes KPI -->
                     <div class="kpi-card">
                         <h3>Visa en attente</h3>
                         <div class="kpi-value">
@@ -927,7 +927,7 @@ function renderDashboardPage(container, dashboardData) {
                     </div>
                 </div>
             </div>
-
+            
             <div class="dashboard-card">
                 <h2>État des visas par groupe</h2>
                 <div class="chart-container" style="height:350px;">
@@ -970,13 +970,14 @@ function renderDashboardPage(container, dashboardData) {
     beforeDraw: (chart) => {
       if (chart.config.options.plugins.centerText) {
         const { text, font, color } = chart.config.options.plugins.centerText;
-        const { ctx, chartArea } = chart; 
+        const { ctx, chartArea } = chart;
         ctx.restore();
-        const fontSize = (chartArea.height / 50).toFixed(1); // Ajustement de la taille de la police pour qu'elle soit plus lisible et centrée verticalement
+
+        const fontSize = (chartArea.height / 90).toFixed(1);
         ctx.font = `${font.weight} ${fontSize}em ${font.family}`;
         ctx.textBaseline = "middle";
         ctx.textAlign = "center";
-        // Calcul du centre de la zone de dessin du graphique (le donut lui-même)
+
         const textX = chartArea.left + chartArea.width / 2;
         const textY = chartArea.top + chartArea.height / 2;
         ctx.fillStyle = color;
@@ -985,18 +986,18 @@ function renderDashboardPage(container, dashboardData) {
       }
     },
   };
-  Chart.register(centerTextPlugin); 
+  Chart.register(centerTextPlugin);
 
   // 1. Donut Chart (Visuel 1)
   const donutCtx = document.getElementById("donutChart").getContext("2d");
   new Chart(donutCtx, {
     type: "doughnut",
     data: {
-      labels: filteredLabels, 
+      labels: filteredLabels,
       datasets: [
         {
-          data: filteredData, 
-          backgroundColor: filteredColors, 
+          data: filteredData,
+          backgroundColor: filteredColors,
           borderColor: "#fff",
           borderWidth: 2,
         },
@@ -1008,7 +1009,6 @@ function renderDashboardPage(container, dashboardData) {
       plugins: {
         legend: { position: "right" },
         datalabels: {
-         
           color: (context) => {
             // Couleur dynamique en fonction de la couleur de la tranche
             // Utilise la couleur d'arrière-plan de la tranche pour déterminer la couleur du texte
@@ -1019,7 +1019,7 @@ function renderDashboardPage(container, dashboardData) {
           textAlign: "center",
           font: {
             weight: "bold",
-            size: 14, 
+            size: 14,
           },
           formatter: (value, ctx) => {
             let sum = 0;
@@ -1032,7 +1032,6 @@ function renderDashboardPage(container, dashboardData) {
           },
         },
         centerText: {
-          
           text: totalDocsDonut.toString(), // Affiche le total des documents
           font: {
             family: "Arial",
