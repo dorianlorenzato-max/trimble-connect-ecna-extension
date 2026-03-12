@@ -908,7 +908,6 @@ function renderDashboardPage(container, dashboardData) {
                 </div>
             </div>
 
-            <!-- ANNOTATION 2A : Le titre 'Mes statistiques' est de retour DANS LE dashboard-card -->
             <div class="dashboard-card kpi-card-container"> 
                  <h2>Mes statistiques</h2>
                  <div class="kpi-cards-wrapper"> 
@@ -964,41 +963,40 @@ function renderDashboardPage(container, dashboardData) {
     `;
 
   // --- Initialisation des graphiques ---
-  // Enregistrer le plugin Datalabels globalement (important de le faire une seule fois)
   Chart.register(ChartDataLabels);
 
-  // ANNOTATION 1B : Plugin pour le texte au centre du donut
   const centerTextPlugin = {
     id: "centerText",
     beforeDraw: (chart) => {
       if (chart.config.options.plugins.centerText) {
         const { text, font, color } = chart.config.options.plugins.centerText;
-        const { ctx, width, height } = chart;
+        const { ctx, chartArea } = chart; 
         ctx.restore();
-        const fontSize = (height / 114).toFixed(2); // Taille relative à la hauteur du graphique
+        const fontSize = (chartArea.height / 50).toFixed(1); // Ajustement de la taille de la police pour qu'elle soit plus lisible et centrée verticalement
         ctx.font = `${font.weight} ${fontSize}em ${font.family}`;
         ctx.textBaseline = "middle";
-        ctx.textAlign = "center"; // Centrer le texte
-        const textX = width / 2;
-        const textY = height / 2;
+        ctx.textAlign = "center";
+        // Calcul du centre de la zone de dessin du graphique (le donut lui-même)
+        const textX = chartArea.left + chartArea.width / 2;
+        const textY = chartArea.top + chartArea.height / 2;
         ctx.fillStyle = color;
         ctx.fillText(text, textX, textY);
         ctx.save();
       }
     },
   };
-  Chart.register(centerTextPlugin);
+  Chart.register(centerTextPlugin); 
 
   // 1. Donut Chart (Visuel 1)
   const donutCtx = document.getElementById("donutChart").getContext("2d");
   new Chart(donutCtx, {
     type: "doughnut",
     data: {
-      labels: filteredLabels, // ANNOTATION 1A : Labels filtrés
+      labels: filteredLabels, 
       datasets: [
         {
-          data: filteredData, // ANNOTATION 1A : Données filtrées
-          backgroundColor: filteredColors, // <-- UTILISATION DES COULEURS FILTRÉES
+          data: filteredData, 
+          backgroundColor: filteredColors, 
           borderColor: "#fff",
           borderWidth: 2,
         },
@@ -1010,7 +1008,7 @@ function renderDashboardPage(container, dashboardData) {
       plugins: {
         legend: { position: "right" },
         datalabels: {
-          // ANNOTATION 1C : Configuration pour les labels sur les tranches
+         
           color: (context) => {
             // Couleur dynamique en fonction de la couleur de la tranche
             // Utilise la couleur d'arrière-plan de la tranche pour déterminer la couleur du texte
@@ -1021,7 +1019,7 @@ function renderDashboardPage(container, dashboardData) {
           textAlign: "center",
           font: {
             weight: "bold",
-            size: 14, // ANNOTATION 1C : Taille légèrement plus grande
+            size: 14, 
           },
           formatter: (value, ctx) => {
             let sum = 0;
@@ -1034,7 +1032,7 @@ function renderDashboardPage(container, dashboardData) {
           },
         },
         centerText: {
-          // ANNOTATION 1B : Configuration pour le texte au centre du donut
+          
           text: totalDocsDonut.toString(), // Affiche le total des documents
           font: {
             family: "Arial",
