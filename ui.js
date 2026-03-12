@@ -870,9 +870,20 @@ function renderConfigSummaryTable(container, summaryData) {
 function renderDashboardPage(container, dashboardData) {
   const { donutData, userKpiData, barChartData, depositedDocs } = dashboardData;
 
+  // Définition de la palette de couleurs pour chaque statut
+  const statusColorMap = {
+    VSO: "#28a745", // Vert
+    VAO: "#ffc107", // Jaune
+    REF: "#dc3545", // Rouge
+    SO: "#6c757d", // Gris
+    "En Cours": "#007bff", // Bleu (comme sur votre visuel initial du donut)
+    Annulés: "#343a40", // Gris foncé
+  };
+
   // ANNOTATION 1A & 1B : Filtrage des valeurs nulles et calcul du total pour le centre du donut
   const filteredLabels = [];
   const filteredData = [];
+  const filteredColors = []; // <-- NOUVEAU : pour stocker les couleurs filtrées
   let totalDocsDonut = 0;
 
   Object.entries(donutData).forEach(([label, value]) => {
@@ -880,6 +891,7 @@ function renderDashboardPage(container, dashboardData) {
       // Ne pas afficher les tranches avec une valeur de 0
       filteredLabels.push(label);
       filteredData.push(value);
+      filteredColors.push(statusColorMap[label] || "#cccccc"); // Assignation dynamique de la couleur
       totalDocsDonut += value;
     }
   });
@@ -890,15 +902,15 @@ function renderDashboardPage(container, dashboardData) {
         <div class="dashboard-grid">
             
             <div class="dashboard-card">
-                <h2>Répartition des statuts</h2> 
+                <h2>Répartition des statuts</h2>
                 <div class="chart-container" style="height:300px;">
                     <canvas id="donutChart"></canvas>
                 </div>
             </div>
 
-            
-            <h2>Mes Missions</h2> 
+            <!-- ANNOTATION 2A : Le titre 'Mes statistiques' est de retour DANS LE dashboard-card -->
             <div class="dashboard-card kpi-card-container"> 
+                 <h2>Mes statistiques</h2>
                  <div class="kpi-cards-wrapper"> 
                     <div class="kpi-card">
                         <h3>Visa en attente</h3>
@@ -910,7 +922,7 @@ function renderDashboardPage(container, dashboardData) {
                     <div class="kpi-card">
                         <h3>Visa en retard</h3>
                         <div class="kpi-value">
-                            <span class="kpi-icon">❗</span> 
+                            <span class="kpi-icon">❗</span>
                             <span>${userKpiData.enRetard}</span>
                         </div>
                     </div>
@@ -925,7 +937,7 @@ function renderDashboardPage(container, dashboardData) {
             </div>
 
             <div class="dashboard-card">
-                <h2>Mes suivis de visas</h2>
+                <h2>Mes derniers dépôts</h2>
                 <div class="deposited-docs-list">
                     ${
                       depositedDocs.length > 0
@@ -937,7 +949,7 @@ function renderDashboardPage(container, dashboardData) {
                                 (doc) => `
                                 <li>
                                     <span class="doc-name">${doc.name} (v${doc.version})</span>
-                                    <span class="status-cell-tag status-${doc.status.toLowerCase().replace(" ", "-") || "default"}">${doc.status}</span>
+                                    <span class="status-cell-tag status-${doc.status.toLowerCase().replace(" ", "-").replace("é", "e").replace("à", "a") || "default"}">${doc.status}</span>
                                 </li>
                             `,
                               )
@@ -986,15 +998,7 @@ function renderDashboardPage(container, dashboardData) {
       datasets: [
         {
           data: filteredData, // ANNOTATION 1A : Données filtrées
-          // Couleurs ajustées pour correspondre au visuel (VSO, VAO, REF, SO, En Cours, Annulés)
-          backgroundColor: [
-            "#28a745",
-            "#ffc107",
-            "#dc3545",
-            "#6c757d",
-            "#007bff",
-            "#343a40",
-          ],
+          backgroundColor: filteredColors, // <-- UTILISATION DES COULEURS FILTRÉES
           borderColor: "#fff",
           borderWidth: 2,
         },
@@ -1009,11 +1013,10 @@ function renderDashboardPage(container, dashboardData) {
           // ANNOTATION 1C : Configuration pour les labels sur les tranches
           color: (context) => {
             // Couleur dynamique en fonction de la couleur de la tranche
-            // La couleur #ffc107 est le jaune (VAO) qui nécessite un texte noir. Les autres sont foncées, texte blanc.
-            return context.dataset.backgroundColor[context.dataIndex] ===
-              "#ffc107"
-              ? "#000"
-              : "#fff";
+            // Utilise la couleur d'arrière-plan de la tranche pour déterminer la couleur du texte
+            const trancheColor =
+              context.dataset.backgroundColor[context.dataIndex];
+            return trancheColor === "#ffc107" ? "#000" : "#fff"; // Texte noir pour le jaune, blanc pour les autres.
           },
           textAlign: "center",
           font: {
@@ -1086,7 +1089,7 @@ function renderDashboardPage(container, dashboardData) {
           color: "#fff",
           font: {
             weight: "bold",
-            size: 12, // Taille du texte dans les barres
+            size: 12,
           },
           formatter: (value) => {
             return value > 0 ? value : "";
