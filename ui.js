@@ -876,7 +876,7 @@ function renderDashboardPage(container, dashboardData) {
     VAO: "#ffc107", // Jaune
     REF: "#dc3545", // Rouge
     SO: "#6c757d", // Gris
-    "En Cours": "#007bff", // Bleu (comme sur votre visuel initial du donut)
+    "En Cours": "#fd7e14", // Bleu (comme sur votre visuel initial du donut)
     Annulés: "#343a40", // Gris foncé
   };
 
@@ -902,15 +902,15 @@ function renderDashboardPage(container, dashboardData) {
         <div class="dashboard-grid">
             
             <div class="dashboard-card">
-                <h2>Répartition des statuts</h2>
+                <h2>Répartition des visas des documents</h2>
                 <div class="chart-container" style="height:300px;">
                     <canvas id="donutChart"></canvas>
                 </div>
             </div>
 
             <div class="dashboard-card kpi-card-container"> 
-                <h2>Mes statistiques</h2>
-                <div class="kpi-cards-group"> <!-- NOUVEAU CONTENEUR pour les deux cartes KPI -->
+                <h2>Mes missions de visas</h2>
+                <div class="kpi-cards-group"> 
                     <div class="kpi-card">
                         <h3>Visa en attente</h3>
                         <div class="kpi-value">
@@ -927,16 +927,16 @@ function renderDashboardPage(container, dashboardData) {
                     </div>
                 </div>
             </div>
-            
+
             <div class="dashboard-card">
-                <h2>État des visas par groupe</h2>
+                <h2>État des visas des documents par groupe</h2>
                 <div class="chart-container" style="height:350px;">
                     <canvas id="barChart"></canvas>
                 </div>
             </div>
 
             <div class="dashboard-card">
-                <h2>Mes derniers dépôts</h2>
+                <h2>Statuts des visas de mes documents</h2>
                 <div class="deposited-docs-list">
                     ${
                       depositedDocs.length > 0
