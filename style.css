@@ -1123,56 +1123,56 @@ select[multiple] {
 }
 
 /* Cartes KPI */
-.kpi-card-container { 
-    flex-direction: row; /* ANNOTATION : Remet les cartes en ligne */
-    justify-content: space-around; /* Pour espacer les deux cartes */
-    align-items: center; /* Centrer verticalement */
-    gap: 20px;
+.kpi-card-container {
+  flex-direction: column; /* ANNOTATION : Remet les cartes en ligne */
+  justify-content: space-around; /* Pour espacer les deux cartes */
+  align-items: center; /* Centrer verticalement */
+  gap: 20px;
 }
 
 /* Les règles kpi-card, kpi-icon, kpi-value, etc. restent inchangées */
 .kpi-card {
-    flex: 1;
-    text-align: center;
+  flex: 1;
+  text-align: center;
 }
 .kpi-card h3 {
-    margin: 0 0 15px 0;
-    font-size: 1rem;
-    color: #555;
+  margin: 0 0 15px 0;
+  font-size: 1rem;
+  color: #555;
 }
 .kpi-value {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
 }
 .kpi-icon {
-    font-size: 2.5rem; 
-    line-height: 1; 
+  font-size: 2.5rem;
+  line-height: 1;
 }
 .kpi-value span {
-    font-size: 2.5rem;
-    font-weight: bold;
-    color: #005a70;
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #005a70;
 }
 
 /* Liste des documents déposés */
 .deposited-docs-list {
-    flex-grow: 1;
-    overflow-y: auto;
+  flex-grow: 1;
+  overflow-y: auto;
 }
 .deposited-docs-list ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
 .deposited-docs-list li {
-    display: flex;
-    justify-content: space-between;
-    padding: 10px 5px;
-    border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 5px;
+  border-bottom: 1px solid #f0f0f0;
 }
 .deposited-docs-list .doc-name {
-    font-size: 0.9rem;
-    color: #333;
+  font-size: 0.9rem;
+  color: #333;
 }
