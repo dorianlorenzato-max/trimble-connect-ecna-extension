@@ -1124,9 +1124,8 @@ select[multiple] {
 
 /* Cartes KPI */
 .kpi-card-container {
-  flex-direction: column; /* ANNOTATION : Remet les cartes en ligne */
-  justify-content: space-around; /* Pour espacer les deux cartes */
-  align-items: center; /* Centrer verticalement */
+  flex-direction: column; 
+  align-items: flex-start; 
   gap: 20px;
 }
 
