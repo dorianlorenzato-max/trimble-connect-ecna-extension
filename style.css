@@ -947,156 +947,10 @@ select[multiple] {
 /* === TABLEAU DE BORD === */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 20px;
-  padding: 10px;
-}
-
-.dashboard-card {
-  background-color: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-  display: flex;
-  flex-direction: column;
-}
-
-.dashboard-card h2 {
-  margin-top: 0;
-  margin-bottom: 20px;
-  font-size: 1.2rem;
-  color: #003a72;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 10px;
-}
-
-.chart-container {
-  position: relative;
-  flex-grow: 1;
-}
-
-/* Cartes KPI */
-.kpi-card-container {
-  flex-direction: row;
-  justify-content: space-around;
-  align-items: center;
-  gap: 20px;
-}
-.kpi-card {
-  flex: 1;
-  text-align: center;
-}
-.kpi-card h3 {
-  margin: 0 0 15px 0;
-  font-size: 1rem;
-  color: #555;
-}
-.kpi-value {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 15px;
-}
-.kpi-value img {
-  height: 40px;
-}
-.kpi-value span {
-  font-size: 2.5rem;
-  font-weight: bold;
-  color: #005a70;
-}
-
-/* Liste des documents déposés */
-.deposited-docs-list {
-  flex-grow: 1;
-  overflow-y: auto;
-}
-.deposited-docs-list ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.deposited-docs-list li {
-  display: flex;
-  justify-content: space-between;
-  padding: 10px 5px;
-  border-bottom: 1px solid #f0f0f0;
-}
-.deposited-docs-list .doc-name {
-  font-size: 0.9rem;
-  color: #333;
-}
-
-/* AJOUT POUR LES CARTES KPI */
-.kpi-cards-wrapper {
-  display: flex;
-  justify-content: space-around; /* Pour espacer les deux cartes */
-  gap: 10px; /* Espace entre les cartes */
-  width: 100%; /* S'assurer qu'il prend toute la largeur du parent */
-}
-
-/* Ajustement pour le conteneur des KPI pour aligner le titre et les cartes */
-.dashboard-card.kpi-card-container {
-  flex-direction: column; /* Organiser le titre et les cartes en colonne */
-  align-items: flex-start; /* Aligner le titre à gauche */
-}
-
-.dashboard-card.kpi-card-container h2 {
-  width: 100%; /* Le titre prend toute la largeur */
-  text-align: left; /* Texte du titre aligné à gauche */
-}
-
-/* Styles pour les étiquettes de statut dans "Mes derniers dépôts" */
-.deposited-docs-list li .status-cell-tag {
-  padding: 4px 8px; /* Un peu moins de padding que les tags du tableau pour la compacité */
-  border-radius: 4px;
-  font-weight: bold;
-  font-size: 0.8em; /* Plus petit pour la liste */
-}
-
-/* COULEURS DES STATUTS (à harmoniser avec le dashboard) */
-/* VSO reste le même */
-.status-vso {
-  background-color: #28a745;
-  color: white;
-}
-/* VAO reste le même */
-.status-vao {
-  background-color: #ffc107;
-  color: #212529;
-}
-/* REF reste le même */
-.status-ref {
-  background-color: #dc3545;
-  color: white;
-}
-/* SO reste le même */
-.status-so {
-  background-color: #6c757d;
-  color: white;
-}
-
-.status-en-cours {
-  background-color: #007bff;
-  color: white;
-}
-
-.status-annules {
-  background-color: #343a40;
-  color: white;
-} /* Gris foncé, comme sur le visuel */
-/* Statut par défaut */
-.status-default {
-  background-color: #e9ecef;
-  color: #495057;
-}
-/* === TABLEAU DE BORD === */
-.dashboard-grid {
-  display: grid;
-  /* ANNOTATION : Force une grille 2x2 pour le layout par défaut */
   grid-template-columns: repeat(2, 1fr);
   gap: 20px;
   padding: 10px;
+  align-items: start; /* <--- AJOUT EZ CETTE LIGNE POUR ALIGNER LES CARTES EN HAUT */
 }
 
 .dashboard-card {
@@ -1124,12 +978,17 @@ select[multiple] {
 
 /* Cartes KPI */
 .kpi-card-container {
-  flex-direction: column; 
-  align-items: flex-start; 
-  gap: 20px;
+  flex-direction: column; /* Pour que le h2 et le kpi-cards-wrapper s'empilent */
+  align-items: flex-start; /* Aligne le contenu (h2 et kpi-cards-wrapper) à gauche */
+  gap: 20px; /* Espace entre le titre h2 et le kpi-cards-wrapper */
 }
-
-/* Les règles kpi-card, kpi-icon, kpi-value, etc. restent inchangées */
+.kpi-cards-wrapper {
+  /* Ce wrapper contient les deux kpi-card pour les aligner horizontalement */
+  display: flex;
+  justify-content: space-around;
+  gap: 10px;
+  width: 100%;
+}
 .kpi-card {
   flex: 1;
   text-align: center;
@@ -1153,25 +1012,4 @@ select[multiple] {
   font-size: 2.5rem;
   font-weight: bold;
   color: #005a70;
-}
-
-/* Liste des documents déposés */
-.deposited-docs-list {
-  flex-grow: 1;
-  overflow-y: auto;
-}
-.deposited-docs-list ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.deposited-docs-list li {
-  display: flex;
-  justify-content: space-between;
-  padding: 10px 5px;
-  border-bottom: 1px solid #f0f0f0;
-}
-.deposited-docs-list .doc-name {
-  font-size: 0.9rem;
-  color: #333;
 }
