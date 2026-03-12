@@ -865,10 +865,17 @@ function renderConfigSummaryTable(container, summaryData) {
   `;
 }
 
-// fonction pour l'interface de tableau de bord
+// Fonction qui Affiche la page du tableau de bord
 
 function renderDashboardPage(container, dashboardData) {
   const { donutData, userKpiData, barChartData, depositedDocs } = dashboardData;
+
+  // Calcul du nombre total de documents pour le titre du Donut Chart
+
+  const totalDocsDonut = Object.values(donutData).reduce(
+    (sum, count) => sum + count,
+    0,
+  );
 
   // --- HTML de la structure de la page ---
   container.innerHTML = `
@@ -876,25 +883,28 @@ function renderDashboardPage(container, dashboardData) {
         <div class="dashboard-grid">
             
             <div class="dashboard-card">
-                <h2>Répartition des statuts</h2>
+                <h2>Répartition des statuts (${totalDocsDonut} documents)</h2> <!-- ANNOTATION 1 : TITRE AVEC TOTAL DOCS -->
                 <div class="chart-container" style="height:300px;">
                     <canvas id="donutChart"></canvas>
                 </div>
             </div>
 
             <div class="dashboard-card kpi-card-container">
-                 <div class="kpi-card">
-                    <h3>Visa en attente</h3>
-                    <div class="kpi-value">
-                        <img src="https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/pending-icon.png" alt="Icone attente"/>
-                        <span>${userKpiData.enAttente}</span>
+                 <h2>Mes statistiques</h2> <!-- ANNOTATION 2 : TITRE POUR KPI CARDS -->
+                 <div class="kpi-cards-wrapper"> <!-- NOUVEAU WRAPPER POUR LES KPI POUR LA MISE EN PAGE -->
+                    <div class="kpi-card">
+                        <h3>Visa en attente</h3>
+                        <div class="kpi-value">
+                            <img src="https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/pending-icon.png" alt="Icone attente"/>
+                            <span>${userKpiData.enAttente}</span>
+                        </div>
                     </div>
-                </div>
-                <div class="kpi-card">
-                    <h3>Visa en retard</h3>
-                    <div class="kpi-value">
-                        <img src="https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/late-icon.png" alt="Icone retard"/>
-                        <span>${userKpiData.enRetard}</span>
+                    <div class="kpi-card">
+                        <h3>Visa en retard</h3>
+                        <div class="kpi-value">
+                            <img src="https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/late-icon.png" alt="Icone retard"/>
+                            <span>${userKpiData.enRetard}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -919,7 +929,7 @@ function renderDashboardPage(container, dashboardData) {
                                 (doc) => `
                                 <li>
                                     <span class="doc-name">${doc.name} (v${doc.version})</span>
-                                    <span class="status-cell-tag status-${doc.status.toLowerCase().replace(" ", "-")}">${doc.status}</span>
+                                    <span class="status-cell-tag status-${doc.status.toLowerCase().replace(" ", "-") || "default"}">${doc.status}</span>
                                 </li>
                             `,
                               )
@@ -934,8 +944,10 @@ function renderDashboardPage(container, dashboardData) {
     `;
 
   // --- Initialisation des graphiques ---
+  // Enregistrer le plugin Datalabels globalement (important de le faire une seule fois)
+  Chart.register(ChartDataLabels);
 
-  // 1. Donut Chart
+  // 1. Donut Chart (Visuel 1)
   const donutCtx = document.getElementById("donutChart").getContext("2d");
   new Chart(donutCtx, {
     type: "doughnut",
@@ -944,6 +956,7 @@ function renderDashboardPage(container, dashboardData) {
       datasets: [
         {
           data: Object.values(donutData),
+          // Couleurs ajustées pour correspondre au visuel (VSO, VAO, REF, SO, En Cours, Annulés)
           backgroundColor: [
             "#28a745",
             "#ffc107",
@@ -962,11 +975,27 @@ function renderDashboardPage(container, dashboardData) {
       maintainAspectRatio: false,
       plugins: {
         legend: { position: "right" },
+        datalabels: {
+          color: "#fff", // Couleur du texte
+          textAlign: "center", // Centrer le texte
+          font: {
+            weight: "bold", // Texte en gras
+          },
+          formatter: (value, ctx) => {
+            let sum = 0;
+            let dataArr = ctx.chart.data.datasets[0].data;
+            dataArr.map((data) => {
+              sum += data;
+            });
+            let percentage = ((value * 100) / sum).toFixed(0) + "%";
+            return `${value}\n(${percentage})`;
+          },
+        },
       },
     },
   });
 
-  // 2. Bar Chart
+  // 2. Bar Chart (Visuel 2)
   const barCtx = document.getElementById("barChart").getContext("2d");
   new Chart(barCtx, {
     type: "bar",
@@ -976,17 +1005,17 @@ function renderDashboardPage(container, dashboardData) {
         {
           label: "Visas émis",
           data: barChartData.map((d) => d.emis),
-          backgroundColor: "#1abc9c",
+          backgroundColor: "#1abc9c", // Couleur verte pour "Visas émis"
         },
         {
           label: "À émettre",
           data: barChartData.map((d) => d.aEmettre),
-          backgroundColor: "#f39c12",
+          backgroundColor: "#f39c12", // Couleur jaune-orange pour "À émettre"
         },
         {
           label: "En retard",
           data: barChartData.map((d) => d.enRetard),
-          backgroundColor: "#e74c3c",
+          backgroundColor: "#e74c3c", // Couleur rouge pour "En retard"
         },
       ],
     },
@@ -999,7 +1028,17 @@ function renderDashboardPage(container, dashboardData) {
         y: { stacked: true },
       },
       plugins: {
-        legend: { position: "bottom" },
+        legend: { position: "bottom" }, // L'interactivité de la légende est gérée par Chart.js par défaut
+        datalabels: {
+          color: "#fff", // Couleur du texte
+          font: {
+            weight: "bold", // Texte en gras
+          },
+          formatter: (value) => {
+            // Affiche la valeur seulement si elle est supérieure à 0
+            return value > 0 ? value : "";
+          },
+        },
       },
     },
   });
