@@ -34,6 +34,7 @@ import {
   attachResizableTableEvents,
   renderFilterPopup,
   renderConfigSummaryTable,
+  renderDashboardPage,
 } from "./ui.js";
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
@@ -1709,3 +1710,4 @@ import {
     document.body.removeChild(link);
   }
 })();
+
