@@ -58,7 +58,8 @@ body {
   display: flex; /* Utilise flexbox pour l'agencement */
   flex-direction: column; /* Agencement vertical (header, body, footer) */
   height: 70vh; /* Hauteur fixe, par exemple 70% de la hauteur de la vue */
-  max-width: 1200px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
   border: 1px solid #ddd; /* Ajout d'une bordure globale */
   border-radius: 8px;
@@ -983,10 +984,10 @@ select[multiple] {
   gap: 20px; /* Espace entre le h2 et le kpi-cards-group */
 }
 .kpi-cards-group {
-    display: flex;
-    justify-content: space-around;
-    gap: 10px;
-    width: 100%; /* S'assure qu'il prend toute la largeur disponible */
+  display: flex;
+  justify-content: space-around;
+  gap: 10px;
+  width: 100%; /* S'assure qu'il prend toute la largeur disponible */
 }
 .kpi-card {
   flex: 1; /* Permet aux cartes de prendre une taille égale et de s'adapter */
