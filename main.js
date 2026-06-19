@@ -569,6 +569,14 @@ import {
       });
     });
 
+    document.querySelectorAll(".observation-icon").forEach((icon) => {
+      icon.addEventListener("click", (event) => {
+        event.stopPropagation(); // TRÈS IMPORTANT : Empêche la navigation
+        const observations = JSON.parse(icon.dataset.observations);
+        renderObservationPopup(icon, observations);
+      });
+    });
+
     const visaTableElement = document.querySelector(".visa-table");
     if (visaTableElement) {
       attachResizableTableEvents(visaTableElement);
