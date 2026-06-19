@@ -1054,3 +1054,41 @@ select[multiple] {
   cursor: help; /* Affiche un curseur avec un point d'interrogation, idéal pour une infobulle */
   font-size: 1.2em;
 }
+/* Style pour la popup d'observation */
+.observation-popup {
+  position: absolute;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  width: 300px;
+  font-size: 0.9rem;
+}
+.observation-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: #f7f7f7;
+  border-bottom: 1px solid #eee;
+  font-weight: bold;
+}
+.observation-popup-header .close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.observation-popup-content {
+  padding: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap; /* Respecte les sauts de ligne */
+}
+.observation-popup-content hr {
+  border: none;
+  border-top: 1px dashed #ccc;
+  margin: 10px 0;
+}
