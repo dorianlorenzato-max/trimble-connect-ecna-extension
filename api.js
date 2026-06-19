@@ -37,7 +37,16 @@ async function fetchVisaDocuments(
   );
 
   const nestedPdfFiles = await Promise.all(pdfFilePromises);
-  let allPdfFiles = nestedPdfFiles.flat();
+  const latestPdfFiles = nestedLatestPdfFiles.flat();
+
+  // Pour chaque fichier trouvé, on crée une promesse pour récupérer tout son historique
+  const allVersionsPromises = latestPdfFiles.map((file) =>
+    fetchFileAllVersions(file.id, accessToken),
+  );
+  // On attend que toutes les récupérations de versions soient terminées
+  const nestedAllVersions = await Promise.all(allVersionsPromises);
+  // On aplatit le tableau de tableaux pour avoir une liste unique de toutes les versions de tous les fichiers
+  let allPdfFiles = nestedAllVersions.flat();
 
   let filesToProcess = allPdfFiles;
 
@@ -100,6 +109,8 @@ async function fetchVisaDocuments(
 
   const visaDocuments = [];
   for (const file of filesToProcess) {
+    const versionNumber = file.revision || "N/A";
+    const trackingId = `${file.id}_v${versionNumber}`;
     const currentFileFRN = `frn:tcfile:${file.id}`;
     const docTrackingInfo = trackingData ? trackingData[file.id] || [] : [];
     const status = calculateGeneralStatus(docTrackingInfo);
@@ -117,10 +128,11 @@ async function fetchVisaDocuments(
 
     visaDocuments.push({
       id: file.id,
+      trackingId: trackingId,
       projectId: projectId,
       parentId: file.parentId,
       name: file.name,
-      version: file.revision || "N/A",
+      version: versionNumber,
       lot: lot,
       depositorName: depositorName,
       depositDate: depositDate,
@@ -662,6 +674,28 @@ function calculateGeneralStatus(docTrackingInfo) {
   }
 
   return "En Cours"; // Si aucun statut prioritaire n'est trouvé.
+}
+
+/**
+ * Récupère toutes les versions d'un fichier spécifique.
+ * @param {string} fileId - L'ID du fichier.
+ * @param {string} accessToken - Le token d'accès.
+ * @returns {Promise<Array>} - Une promesse qui résout en un tableau de versions du fichier.
+ */
+async function fetchFileAllVersions(fileId, accessToken) {
+  const versionsApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/files/${fileId}/versions`;
+  const response = await fetch(versionsApiUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) {
+    console.warn(
+      `Impossible de récupérer les versions pour le fichier ${fileId}.`,
+    );
+    return []; // Retourne un tableau vide en cas d'erreur pour ne pas bloquer le reste.
+  }
+  const versions = await response.json();
+  // L'API renvoie des objets de version, on s'assure qu'ils ont bien un ID de fichier parent pour la cohérence
+  return versions.map((v) => ({ ...v, parentId: v.folderId }));
 }
 
 // On exporte les fonctions pour qu'elles soientt utilisables dans main.js
