@@ -750,7 +750,7 @@ import {
 
       const updatePSetTask = updatePSetStatus(
         visaData.doc.projectId,
-        docId,
+        visaData.doc.id,
         generalStatus,
         globalAccessToken,
       );
