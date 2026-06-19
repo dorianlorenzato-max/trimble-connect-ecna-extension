@@ -151,6 +151,7 @@ function renderVisaTable(
   let tableRows = visaDocuments
     .map((doc) => {
       const statusClass = statusClassMap[doc.status] || defaultStatusClass;
+      const rowClass = doc.isOutdated ? "outdated-version" : "";
       let dynamicCells = "";
 
       if (mode === "documents") {
@@ -207,7 +208,7 @@ function renderVisaTable(
       }
 
       return `
-        <tr>
+        <tr class="${rowClass}">
           <td class="action-col" data-column-index="0"><span class="view-doc-icon" data-doc-id="${doc.id}" title="Visualiser le document">👁️</span></td>
           <td data-column-index="1" class="sticky-column-name">${doc.name || ""}</td>
           <td data-column-index="2">${doc.version || ""}</td>
