@@ -290,6 +290,20 @@ import {
         }
       });
 
+      // On ne garde que la dernière version de chaque document pour les calculs de missions.
+      const maxVersionMap = new Map();
+      allVisaDocuments.forEach((doc) => {
+        const fileId = doc.id;
+        const version = parseInt(doc.version, 10) || 0;
+        if (!maxVersionMap.has(fileId) || version > maxVersionMap.get(fileId)) {
+          maxVersionMap.set(fileId, version);
+        }
+      });
+      const latestVersionsOnly = allVisaDocuments.filter((doc) => {
+        const version = parseInt(doc.version, 10) || 0;
+        return version === maxVersionMap.get(doc.id);
+      });
+
       // Données pour les Cartes Utilisateur (Visuel 3)
       const userKpiData = { enAttente: 0, enRetard: 0 };
 
@@ -307,7 +321,7 @@ import {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      for (const doc of allVisaDocuments) {
+      for (const doc of latestVersionsOnly) {
         const fluxDef = allFluxDefinitions.find((f) => f.name === doc.fluxName);
         if (!fluxDef) continue;
 
