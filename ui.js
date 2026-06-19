@@ -107,6 +107,12 @@ function renderVisaTable(
       field: "depositDate",
     },
     { text: "Statut", filterable: true, sortable: true, field: "status" },
+    {
+      text: "Observations",
+      filterable: false,
+      sortable: false,
+      field: "observations",
+    },
   ];
 
   let headerRow1 = "";
@@ -216,6 +222,13 @@ function renderVisaTable(
           <td data-column-index="4">${doc.depositorName || ""}</td>
           <td data-column-index="5">${doc.depositDate || ""}</td>
           <td data-column-index="6"><span class="status-cell-tag ${statusClass}">${doc.status || "N/A"}</span></td>
+          <td data-column-index="7">
+            ${
+              doc.allObservations && doc.allObservations.length > 0
+                ? `<span class="observation-icon" title="${doc.allObservations.join("\n\n—\n\n")}">💬</span>`
+                : ""
+            }
+          </td>
           ${dynamicCells}
         </tr>
       `;
