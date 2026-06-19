@@ -54,23 +54,22 @@ async function fetchVisaDocuments(
   let filesToProcess = allPdfFiles;
 
   if (mode === "missions") {
-    
     // 1. On crée une Map pour stocker le numéro de la plus haute version pour chaque ID de fichier.
     const maxVersionMap = new Map();
-    filesToProcess.forEach(file => {
-        const fileId = file.id;
-        const version = parseInt(file.revision, 10) || 0;
-        if (!maxVersionMap.has(fileId) || version > maxVersionMap.get(fileId)) {
-            maxVersionMap.set(fileId, version);
-        }
+    filesToProcess.forEach((file) => {
+      const fileId = file.id;
+      const version = parseInt(file.revision, 10) || 0;
+      if (!maxVersionMap.has(fileId) || version > maxVersionMap.get(fileId)) {
+        maxVersionMap.set(fileId, version);
+      }
     });
 
     // 2. On filtre la liste `filesToProcess` pour ne garder que les fichiers dont la version correspond à la version maximale stockée dans notre Map.
-    filesToProcess = filesToProcess.filter(file => {
-        const version = parseInt(file.revision, 10) || 0;
-        return version === maxVersionMap.get(file.id);
+    filesToProcess = filesToProcess.filter((file) => {
+      const version = parseInt(file.revision, 10) || 0;
+      return version === maxVersionMap.get(file.id);
     });
-    
+
     if (!loggedInUserGroupIds || !allFluxDefinitions || !trackingData) {
       console.error("Données manquantes pour le filtrage des missions.");
       return [];
@@ -90,7 +89,10 @@ async function fetchVisaDocuments(
       );
       if (userInvolvedSteps.length === 0) return false;
 
-      const docTrackingInfo = trackingData[file.id] || [];
+      const versionNumber = file.revision || "N/A";
+      const trackingId = `${file.id}_v${versionNumber}`;
+
+      const docTrackingInfo = trackingData[trackingId] || [];
       const userVisaEntriesForDoc = docTrackingInfo.filter((entry) =>
         loggedInUserGroupIds.includes(entry.groupId),
       );
@@ -718,7 +720,10 @@ async function fetchFileAllVersions(fileId, accessToken) {
   }
   const versions = await response.json();
   // L'API renvoie des objets de version, on s'assure qu'ils ont bien un ID de fichier parent pour la cohérence
-  return versions.map((v) => ({ ...v, parentId: v.folderId }));
+  return versions.map((versionObject) => ({
+    ...versionObject,
+    parentId: versionObject.folderId,
+  }));
 }
 
 // On exporte les fonctions pour qu'elles soientt utilisables dans main.js
