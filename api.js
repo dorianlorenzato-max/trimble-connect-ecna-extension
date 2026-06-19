@@ -32,22 +32,25 @@ async function fetchVisaDocuments(
     return [];
   }
 
+  // ÉTAPE A : Créer les promesses pour récupérer la DERNIÈRE version de chaque PDF dans les dossiers affectés
   const pdfFilePromises = assignedFolderIds.map((folderId) =>
     fetchPDFFilesInFolder(folderId, accessToken).catch(() => []),
   );
 
-  const nestedPdfFiles = await Promise.all(pdfFilePromises);
+  // ÉTAPE B : Exécuter ces promesses et aplatir le résultat
+  const nestedLatestPdfFiles = await Promise.all(pdfFilePromises);
   const latestPdfFiles = nestedLatestPdfFiles.flat();
 
-  // Pour chaque fichier trouvé, on crée une promesse pour récupérer tout son historique
+  // ÉTAPE C : Pour chaque fichier (dernière version), créer une nouvelle promesse pour récupérer TOUTES ses versions
   const allVersionsPromises = latestPdfFiles.map((file) =>
     fetchFileAllVersions(file.id, accessToken),
   );
-  // On attend que toutes les récupérations de versions soient terminées
+
+  // ÉTAPE D : Exécuter ces nouvelles promesses et aplatir le résultat final
   const nestedAllVersions = await Promise.all(allVersionsPromises);
-  // On aplatit le tableau de tableaux pour avoir une liste unique de toutes les versions de tous les fichiers
   let allPdfFiles = nestedAllVersions.flat();
 
+  // ÉTAPE E : La variable `filesToProcess` contient maintenant toutes les versions de tous les documents
   let filesToProcess = allPdfFiles;
 
   if (mode === "missions") {
