@@ -54,6 +54,23 @@ async function fetchVisaDocuments(
   let filesToProcess = allPdfFiles;
 
   if (mode === "missions") {
+    
+    // 1. On crée une Map pour stocker le numéro de la plus haute version pour chaque ID de fichier.
+    const maxVersionMap = new Map();
+    filesToProcess.forEach(file => {
+        const fileId = file.id;
+        const version = parseInt(file.revision, 10) || 0;
+        if (!maxVersionMap.has(fileId) || version > maxVersionMap.get(fileId)) {
+            maxVersionMap.set(fileId, version);
+        }
+    });
+
+    // 2. On filtre la liste `filesToProcess` pour ne garder que les fichiers dont la version correspond à la version maximale stockée dans notre Map.
+    filesToProcess = filesToProcess.filter(file => {
+        const version = parseInt(file.revision, 10) || 0;
+        return version === maxVersionMap.get(file.id);
+    });
+    
     if (!loggedInUserGroupIds || !allFluxDefinitions || !trackingData) {
       console.error("Données manquantes pour le filtrage des missions.");
       return [];
@@ -114,9 +131,12 @@ async function fetchVisaDocuments(
   for (const file of filesToProcess) {
     const versionNumber = file.revision || "N/A";
     const trackingId = `${file.id}_v${versionNumber}`;
-    const currentFileFRN = `frn:tcfile:${file.id}`;
-    const docTrackingInfo = trackingData ? trackingData[file.id] || [] : [];
+
+    // On récupère les infos de suivi spécifiques à CETTE version
+    const docTrackingInfo = trackingData ? trackingData[trackingId] || [] : [];
+    // On calcule le statut basé sur l'historique de CETTE version
     const status = calculateGeneralStatus(docTrackingInfo);
+
     const depositorId = file.modifiedBy ? file.modifiedBy.id : null;
     const depositorName = file.modifiedBy
       ? `${file.modifiedBy.firstName || ""} ${file.modifiedBy.lastName || ""}`.trim()
@@ -131,7 +151,7 @@ async function fetchVisaDocuments(
 
     visaDocuments.push({
       id: file.id,
-      trackingId: trackingId,
+      trackingId: trackingId, // L'identifiant unique composite
       projectId: projectId,
       parentId: file.parentId,
       name: file.name,
@@ -139,8 +159,8 @@ async function fetchVisaDocuments(
       lot: lot,
       depositorName: depositorName,
       depositDate: depositDate,
-      status: status,
-      trackingInfo: trackingData ? trackingData[file.id] || [] : [],
+      status: status, // Le statut, maintenant correctement calculé pour cette version
+      trackingInfo: docTrackingInfo, // L'historique, maintenant spécifique à cette version
       fluxName: fluxName,
       depositDateObject: file.modifiedOn ? new Date(file.modifiedOn) : null,
     });
