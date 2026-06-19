@@ -68,66 +68,53 @@ async function fetchVisaDocuments(
 
     // 2. On filtre la liste `filesToProcess` pour ne garder que les fichiers dont la version correspond à la version maximale stockée dans notre Map.
     filesToProcess = filesToProcess.filter((file) => {
-      const version = parseInt(file.revision, 10) || 0;
-      return version === maxVersionMap.get(file.id);
-    });
-
-    if (!loggedInUserGroupIds || !allFluxDefinitions || !trackingData) {
-      console.error("Données manquantes pour le filtrage des missions.");
-      return [];
-    }
-
-    filesToProcess = filesToProcess.filter((file) => {
       const assignedFluxName = assignmentsConfig[file.parentId];
       if (!assignedFluxName) return false;
 
       const fluxDefinition = allFluxDefinitions.find(
-        (flux) => flux.name === assignedFluxName,
+        (f) => f.name === assignedFluxName,
       );
       if (!fluxDefinition || !fluxDefinition.steps) return false;
 
-      const userInvolvedSteps = fluxDefinition.steps.filter((step) =>
-        step.groupIds.some((groupId) => loggedInUserGroupIds.includes(groupId)),
-      );
-      if (userInvolvedSteps.length === 0) return false;
-
       const versionNumber = file.revision || "N/A";
       const trackingId = `${file.id}_v${versionNumber}`;
-
       const docTrackingInfo = trackingData[trackingId] || [];
-      const userVisaEntriesForDoc = docTrackingInfo.filter((entry) =>
-        loggedInUserGroupIds.includes(entry.groupId),
-      );
 
-      for (const step of userInvolvedSteps) {
-        const hasUserActedForThisStep = userVisaEntriesForDoc.some((entry) =>
+      // 1. Trouver la première étape qui n'est pas encore complète
+      let currentActiveStep = null;
+      for (const step of fluxDefinition.steps) {
+        const requiredVotes = step.groupIds.length;
+        const actualVotes = docTrackingInfo.filter((entry) =>
           step.groupIds.includes(entry.groupId),
-        );
-        if (hasUserActedForThisStep) {
-          continue;
-        }
-
-        if (step.step === 1) {
-          return true;
-        }
-
-        const previousStep = fluxDefinition.steps.find(
-          (s) => s.step === step.step - 1,
-        );
-        if (!previousStep) continue;
-
-        const previousStepGroupIds = previousStep.groupIds;
-        const previousStepVisaCount = docTrackingInfo.filter((entry) =>
-          previousStepGroupIds.includes(entry.groupId),
         ).length;
-        const isPreviousStepComplete =
-          previousStepVisaCount === previousStepGroupIds.length;
-
-        if (isPreviousStepComplete) {
-          return true;
+        if (actualVotes < requiredVotes) {
+          currentActiveStep = step;
+          break; // C'est l'étape active, on arrête de chercher
         }
       }
-      return false;
+
+      // 2. Si toutes les étapes sont complètes ou s'il n'y a pas d'étape, ce n'est pas une mission.
+      if (!currentActiveStep) {
+        return false;
+      }
+
+      // 3. Vérifier si l'utilisateur actuel fait partie des groupes de cette étape active.
+      const userIsInCurrentActiveStep = currentActiveStep.groupIds.some(
+        (groupId) => loggedInUserGroupIds.includes(groupId),
+      );
+      if (!userIsInCurrentActiveStep) {
+        return false; // Pas le tour de l'utilisateur.
+      }
+
+      // 4. Vérifier si l'utilisateur a déjà voté pour son/ses groupe(s) dans cette étape.
+      const userHasVotedForCurrentStep = docTrackingInfo.some(
+        (entry) =>
+          currentActiveStep.groupIds.includes(entry.groupId) &&
+          loggedInUserGroupIds.includes(entry.groupId),
+      );
+
+      // La mission s'affiche SI l'utilisateur est dans l'étape active ET qu'il n'a PAS encore voté.
+      return !userHasVotedForCurrentStep;
     });
   }
 
