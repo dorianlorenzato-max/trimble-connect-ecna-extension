@@ -721,11 +721,13 @@ import {
       const today = new Date().toISOString().split("T")[0]; // Format YYYY-MM-DD
 
       if (groupEntryIndex > -1) {
-        newTrackingData[docId][groupEntryIndex].status = selectedStatus;
-        newTrackingData[docId][groupEntryIndex].date = today;
-        newTrackingData[docId][groupEntryIndex].user = visaData.userName;
+        // On met à jour une entrée existante pour CETTE version
+        newTrackingData[trackingId][groupEntryIndex].status = selectedStatus;
+        newTrackingData[trackingId][groupEntryIndex].date = today;
+        newTrackingData[trackingId][groupEntryIndex].user = visaData.userName;
       } else {
-        newTrackingData[docId].push({
+        // On ajoute une nouvelle entrée pour CETTE version
+        newTrackingData[trackingId].push({
           groupId: userGroupId,
           status: selectedStatus,
           date: today,
