@@ -225,7 +225,7 @@ function renderVisaTable(
           <td data-column-index="7">
             ${
               doc.allObservations && doc.allObservations.length > 0
-                ? `<span class="observation-icon" title="${doc.allObservations.join("\n\n—\n\n")}">💬</span>`
+                ? `<span class="observation-icon" data-observations='${JSON.stringify(doc.allObservations)}'>💬</span>`
                 : ""
             }
           </td>
@@ -1109,6 +1109,55 @@ function renderDashboardPage(container, dashboardData) {
       },
     },
   });
+}
+
+/**
+ * Affiche une popup personnalisée avec les observations.
+ * @param {HTMLElement} targetElement - L'icône sur laquelle l'utilisateur a cliqué.
+ * @param {string[]} observations - Le tableau des observations à afficher.
+ */
+function renderObservationPopup(targetElement, observations) {
+  // Supprime toute popup existante pour éviter les doublons
+  document.querySelectorAll(".observation-popup").forEach((p) => p.remove());
+
+  const popup = document.createElement("div");
+  popup.className = "observation-popup";
+
+  // Formate les observations avec des séparateurs
+  popup.innerHTML = `
+    <div class="observation-popup-header">
+      <span>Observations</span>
+      <button class="close-btn">&times;</button>
+    </div>
+    <div class="observation-popup-content">
+      ${observations.join("<hr>")}
+    </div>
+  `;
+
+  document.body.appendChild(popup);
+
+  // Positionne la popup près de l'icône
+  const rect = targetElement.getBoundingClientRect();
+  popup.style.left = `${rect.left + window.scrollX}px`;
+  popup.style.top = `${rect.bottom + window.scrollY + 5}px`;
+
+  // Logique pour fermer la popup
+  const close = () => popup.remove();
+  popup.querySelector(".close-btn").addEventListener("click", close);
+
+  // Ferme aussi si on clique en dehors
+  setTimeout(() => {
+    // setTimeout pour éviter que le clic initial ne ferme la popup
+    window.addEventListener(
+      "click",
+      (e) => {
+        if (!popup.contains(e.target)) {
+          close();
+        }
+      },
+      { once: true },
+    ); // L'événement ne s'exécute qu'une fois
+  }, 100);
 }
 
 // Exporter toutes les fonctions désormais
