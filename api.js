@@ -42,8 +42,10 @@ async function fetchVisaDocuments(
   const latestPdfFiles = nestedLatestPdfFiles.flat();
 
   // ÉTAPE C : Pour chaque fichier (dernière version), créer une nouvelle promesse pour récupérer TOUTES ses versions
-  const allVersionsPromises = latestPdfFiles.map((file) =>
-    fetchFileAllVersions(file.id, accessToken),
+  const allVersionsPromises = latestPdfFiles.map((latestFile) =>
+    fetchFileAllVersions(latestFile.id, accessToken).then((versions) =>
+      versions.map((v) => ({ ...v, parentId: latestFile.parentId })),
+    ),
   );
 
   // ÉTAPE D : Exécuter ces nouvelles promesses et aplatir le résultat final
@@ -75,7 +77,7 @@ async function fetchVisaDocuments(
       return [];
     }
 
-    filesToProcess = allPdfFiles.filter((file) => {
+    filesToProcess = filesToProcess.filter((file) => {
       const assignedFluxName = assignmentsConfig[file.parentId];
       if (!assignedFluxName) return false;
 
