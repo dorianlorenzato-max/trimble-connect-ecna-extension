@@ -164,7 +164,8 @@ async function fetchVisaDocuments(
       depositorName: depositorName,
       depositDate: depositDate,
       status: status, // Le statut, maintenant correctement calculé pour cette version
-      trackingInfo: docTrackingInfo, // L'historique, maintenant spécifique à cette version
+      trackingInfo: docTrackingInfo,
+      allObservations: allObservations, // L'historique, maintenant spécifique à cette version
       fluxName: fluxName,
       depositDateObject: file.modifiedOn ? new Date(file.modifiedOn) : null,
     });
