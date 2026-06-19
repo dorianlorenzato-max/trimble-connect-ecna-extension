@@ -34,6 +34,7 @@ import {
   renderFilterPopup,
   renderConfigSummaryTable,
   renderDashboardPage,
+  renderObservationPopup,
 } from "./ui.js";
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
