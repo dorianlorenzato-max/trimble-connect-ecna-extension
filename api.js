@@ -152,6 +152,9 @@ async function fetchVisaDocuments(
       ? userToGroupMap.get(depositorId) || "Non assigné"
       : "Non assigné";
     const fluxName = assignmentsConfig[file.parentId] || null;
+    const allObservations = docTrackingInfo
+      .map((entry) => entry.observation)
+      .filter((obs) => obs);
 
     visaDocuments.push({
       id: file.id,
