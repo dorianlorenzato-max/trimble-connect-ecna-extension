@@ -734,19 +734,24 @@ import {
 
       const today = new Date().toISOString().split("T")[0]; // Format YYYY-MM-DD
 
+      const visaEntry = {
+        groupId: userGroupId,
+        status: selectedStatus,
+        date: today,
+        user: visaData.userName,
+      };
+
+      // On ajoute la propriété 'observation' uniquement si elle n'est pas vide
+      if (observations.trim() !== "") {
+        visaEntry.observation = observations;
+      }
+
       if (groupEntryIndex > -1) {
-        // On met à jour une entrée existante pour CETTE version
-        newTrackingData[trackingId][groupEntryIndex].status = selectedStatus;
-        newTrackingData[trackingId][groupEntryIndex].date = today;
-        newTrackingData[trackingId][groupEntryIndex].user = visaData.userName;
+        // On met à jour une entrée existante en la remplaçant par la nouvelle
+        newTrackingData[trackingId][groupEntryIndex] = visaEntry;
       } else {
-        // On ajoute une nouvelle entrée pour CETTE version
-        newTrackingData[trackingId].push({
-          groupId: userGroupId,
-          status: selectedStatus,
-          date: today,
-          user: visaData.userName,
-        });
+        // On ajoute la nouvelle entrée
+        newTrackingData[trackingId].push(visaEntry);
       }
 
       const statusPriority = ["REF", "VAO", "VSO", "SO", "En Cours"];
