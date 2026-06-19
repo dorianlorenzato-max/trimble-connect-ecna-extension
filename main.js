@@ -21,7 +21,6 @@ import {
 import {
   renderLoading,
   renderError,
-  renderWelcome,
   renderVisaTable,
   renderConfigPage,
   renderCreateFluxPage,
@@ -411,7 +410,25 @@ import {
         return direction === "asc" ? comparison : -comparison;
       });
     }
+    // On cherche d'abord la version maximale pour chaque document (par son ID de base)
+    const maxVersions = {};
+    processedVisaDocuments.forEach((doc) => {
+      const docVersionInt = parseInt(doc.version, 10) || 0;
+      const currentMax = maxVersions[doc.id] || 0;
+      if (docVersionInt > currentMax) {
+        maxVersions[doc.id] = docVersionInt;
+      }
+    });
 
+    // Ensuite, on marque chaque document qui n'est pas la version maximale comme "obsolète"
+    processedVisaDocuments.forEach((doc) => {
+      const docVersionInt = parseInt(doc.version, 10) || 0;
+      if (docVersionInt < maxVersions[doc.id]) {
+        doc.isOutdated = true;
+      } else {
+        doc.isOutdated = false;
+      }
+    });
     // 3. Appliquer la pagination
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
@@ -691,13 +708,13 @@ import {
       const userGroupId = userGroupObject.id;
 
       const newTrackingData = trackingData || {};
-      const docId = visaData.doc.id;
+      const trackingId = visaData.doc.trackingId;
 
-      if (!newTrackingData[docId]) {
-        newTrackingData[docId] = [];
+      if (!newTrackingData[trackingId]) {
+        newTrackingData[trackingId] = [];
       }
 
-      const groupEntryIndex = newTrackingData[docId].findIndex(
+      const groupEntryIndex = newTrackingData[trackingId].findIndex(
         (entry) => entry.groupId === userGroupId,
       );
 
@@ -717,7 +734,9 @@ import {
       }
 
       const statusPriority = ["REF", "VAO", "VSO", "SO", "En Cours"];
-      const docStatuses = newTrackingData[docId].map((entry) => entry.status);
+      const docStatuses = newTrackingData[trackingId].map(
+        (entry) => entry.status,
+      );
 
       let generalStatus = "En Cours"; // Statut par défaut
       for (const priorityStatus of statusPriority) {
@@ -1710,4 +1729,3 @@ import {
     document.body.removeChild(link);
   }
 })();
-
