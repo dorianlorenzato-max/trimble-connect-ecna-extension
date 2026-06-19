@@ -1178,4 +1178,5 @@ export {
   renderFilterPopup,
   renderConfigSummaryTable,
   renderDashboardPage,
+  renderObservationPopup,
 };
