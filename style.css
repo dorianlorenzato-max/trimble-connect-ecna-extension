@@ -1040,3 +1040,12 @@ select[multiple] {
   text-overflow: ellipsis; /* Ajoute "..." si le texte est tronqué */
   margin-right: 10px; /* Espacement entre le nom du doc et le statut */
 }
+/* Style pour les lignes des versions antérieures de documents */
+.outdated-version {
+  background-color: #fffde7 !important; /* Un jaune très clair, !important pour s'assurer qu'il s'applique */
+}
+
+/* Style au survol pour garder l'interactivité */
+.outdated-version:hover {
+  background-color: #fff9c4 !important; /* Un jaune un peu plus soutenu */
+}
