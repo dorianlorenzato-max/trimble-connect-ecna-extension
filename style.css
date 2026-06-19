@@ -1049,3 +1049,8 @@ select[multiple] {
 .outdated-version:hover {
   background-color: #fff9c4 !important; /* Un jaune un peu plus soutenu */
 }
+/* Style pour l'icône d'observation dans le tableau */
+.observation-icon {
+  cursor: help; /* Affiche un curseur avec un point d'interrogation, idéal pour une infobulle */
+  font-size: 1.2em;
+}
