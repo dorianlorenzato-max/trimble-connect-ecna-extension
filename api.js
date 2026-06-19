@@ -15,28 +15,17 @@ async function fetchVisaDocuments(
 
   const { mode, loggedInUserGroupIds, allFluxDefinitions } = options;
 
-  const [userToGroupMap, assignmentsConfig, allProjectPSets, trackingData] =
-    await Promise.all([
-      fetchUsersAndGroups(projectId, accessToken),
-      fetchConfigurationFile(accessToken, configFolderId, assignmentsFilename),
-      fetch(
-        `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/psets`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
-      ).then((res) => (res.ok ? res.json() : { items: [] })),
-      fetchConfigurationFile(
-        accessToken,
-        configFolderId,
-        "visa-tracking.json",
-      ).then((data) => data || {}),
-    ]);
+  const [userToGroupMap, assignmentsConfig, trackingData] = await Promise.all([
+    fetchUsersAndGroups(projectId, accessToken),
+    fetchConfigurationFile(accessToken, configFolderId, assignmentsFilename),
+    fetchConfigurationFile(
+      accessToken,
+      configFolderId,
+      "visa-tracking.json",
+    ).then((data) => data || {}),
+  ]);
 
   const visaPropertyId = "775c8d80-179b-11f1-b157-5bc3cc52c2d2";
-  const psetMap = new Map();
-  allProjectPSets.items?.forEach((pset) => {
-    if (pset.link && pset.props?.[visaPropertyId]) {
-      psetMap.set(pset.link, pset.props[visaPropertyId]);
-    }
-  });
 
   const assignedFolderIds = Object.keys(assignmentsConfig || {});
   if (assignedFolderIds.length === 0) {
@@ -112,7 +101,7 @@ async function fetchVisaDocuments(
   const visaDocuments = [];
   for (const file of filesToProcess) {
     const currentFileFRN = `frn:tcfile:${file.id}`;
-    const status = psetMap.get(currentFileFRN) || "En Cours";
+    const status = calculateGeneralStatus(docTrackingInfo);
     const depositorId = file.modifiedBy ? file.modifiedBy.id : null;
     const depositorName = file.modifiedBy
       ? `${file.modifiedBy.firstName || ""} ${file.modifiedBy.lastName || ""}`.trim()
@@ -652,6 +641,28 @@ async function fetchUserProjectRole(projectId, accessToken) {
   return userProjectDetails.role;
 }
 
+/**
+ * Calcule le statut général d'un document basé sur la priorité des visas enregistrés.
+ * @param {Array} docTrackingInfo - Le tableau des entrées de suivi pour un document.
+ * @returns {string} Le statut général calculé ('REF', 'VAO', 'VSO', 'SO', 'En Cours').
+ */
+function calculateGeneralStatus(docTrackingInfo) {
+  if (!docTrackingInfo || docTrackingInfo.length === 0) {
+    return "En Cours"; // Statut par défaut si aucun visa n'a été posé.
+  }
+
+  const statusPriority = ["REF", "VAO", "VSO", "SO"];
+  const docStatuses = docTrackingInfo.map((entry) => entry.status);
+
+  for (const priorityStatus of statusPriority) {
+    if (docStatuses.includes(priorityStatus)) {
+      return priorityStatus; // On retourne le premier statut prioritaire trouvé.
+    }
+  }
+
+  return "En Cours"; // Si aucun statut prioritaire n'est trouvé.
+}
+
 // On exporte les fonctions pour qu'elles soientt utilisables dans main.js
 export {
   fetchVisaDocuments,
@@ -671,4 +682,5 @@ export {
   recursivelyFetchAllSubfolders,
   fetchAllProjectFolders,
   fetchUserProjectRole,
+  calculateGeneralStatus,
 };
