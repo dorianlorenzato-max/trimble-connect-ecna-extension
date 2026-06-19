@@ -101,6 +101,7 @@ async function fetchVisaDocuments(
   const visaDocuments = [];
   for (const file of filesToProcess) {
     const currentFileFRN = `frn:tcfile:${file.id}`;
+    const docTrackingInfo = trackingData ? trackingData[file.id] || [] : [];
     const status = calculateGeneralStatus(docTrackingInfo);
     const depositorId = file.modifiedBy ? file.modifiedBy.id : null;
     const depositorName = file.modifiedBy
