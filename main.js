@@ -1630,6 +1630,7 @@ import {
       "Dépositaire",
       "Date Dépôt",
       "Statut Global",
+      "Observations",
     ];
     staticHeaders.forEach((h) => {
       head[0].push({ content: h, rowSpan: 2 });
@@ -1665,6 +1666,7 @@ import {
             halign: "center",
           },
         },
+        (d.allObservations || []).join("\n"),
       ];
       currentViseurGroups.forEach((group) => {
         let pourLeDate = "N/A";
@@ -1732,6 +1734,7 @@ import {
       "Dépositaire",
       "Date Dépôt",
       "Statut Global",
+      "Observations",
     ];
     currentViseurGroups.forEach((group) => {
       headers.push(
@@ -1744,6 +1747,8 @@ import {
     const csvRows = [headers.join(";")]; // Entête du CSV
 
     allOriginalVisaDocuments.forEach((d) => {
+      const observationsText = (d.allObservations || []).join(" | "); // On joint avec un séparateur lisible
+      const escapedObservations = observationsText.replace(/"/g, '""'); // On échappe les guillemets internes
       const row = [
         `"${d.name}"`,
         d.version,
@@ -1751,6 +1756,7 @@ import {
         d.depositorName,
         d.depositDate,
         d.status,
+        `"${escapedObservations}"`,
       ];
       currentViseurGroups.forEach((group) => {
         let pourLeDate = "N/A";
