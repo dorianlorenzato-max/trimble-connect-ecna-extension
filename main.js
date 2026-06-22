@@ -248,7 +248,7 @@ import {
       ]);
       allFluxDefinitions = fluxDefinitions;
 
-      // --- DÉBUT DE LA CORRECTION : Récupérer les ID des groupes de l'utilisateur connecté ---
+      //  Récupérer les ID des groupes de l'utilisateur connecté ---
       // Cette boucle est nécessaire car l'objet `loggedInUser` de l'API /users/me ne contient pas directement les groupes.
       // Nous devons interroger chaque groupe du projet pour voir si l'utilisateur en fait partie.
       const loggedInUserGroupIds = [];
@@ -270,7 +270,6 @@ import {
           );
         }
       }
-      // --- FIN DE LA CORRECTION ---
 
       // --- 2. Calcul des indicateurs (KPIs) ---
 
@@ -325,40 +324,79 @@ import {
       for (const doc of latestVersionsOnly) {
         const fluxDef = allFluxDefinitions.find((f) => f.name === doc.fluxName);
         if (!fluxDef) continue;
+        const docTrackingInfo = trackingData[doc.trackingId] || [];
 
         for (const step of fluxDef.steps) {
+          let isStepActive = false;
+          if (step.step === 1) {
+            isStepActive = true;
+          } else {
+            const previousStep = fluxDef.steps.find(
+              (s) => s.step === step.step - 1,
+            );
+            if (previousStep) {
+              const previousStepGroupIds = previousStep.groupIds;
+              const previousStepVisaCount = docTrackingInfo.filter((entry) =>
+                previousStepGroupIds.includes(entry.groupId),
+              ).length;
+              if (previousStepVisaCount === previousStepGroupIds.length) {
+                isStepActive = true;
+              }
+            }
+          }
           for (const groupId of step.groupIds) {
-            // S'assurer que le groupe existe dans notre structure barChartData
             if (!barChartData[groupId]) continue;
 
             barChartData[groupId].total++;
 
-            const hasVoted = (trackingData[doc.id] || []).some(
+            const hasVoted = docTrackingInfo.some(
               (entry) => entry.groupId === groupId,
             );
 
             if (hasVoted) {
+              // Le décompte des visas émis est toujours correct
               barChartData[groupId].emis++;
-            } else {
+            }
+            // --- CORRIGÉ : On ne calcule "en retard" et "à émettre" QUE si l'étape est active ---
+            else if (isStepActive) {
               const deadline = new Date(doc.depositDateObject);
-              deadline.setDate(deadline.getDate() + step.durationDays);
+              let baseDateForDeadline = new Date(doc.depositDateObject);
 
-              // --- MODIFICATION : Utiliser le tableau d'IDs correct `loggedInUserGroupIds` ---
+              // Si ce n'est pas l'étape 1, la base du calcul est la date du visa précédent
+              if (step.step > 1) {
+                const previousStep = fluxDef.steps.find(
+                  (s) => s.step === step.step - 1,
+                );
+                const previousStepVisas = docTrackingInfo.filter((entry) =>
+                  previousStep.groupIds.includes(entry.groupId),
+                );
+                const latestPreviousVisaDate = new Date(
+                  Math.max.apply(
+                    null,
+                    previousStepVisas.map((entry) => new Date(entry.date)),
+                  ),
+                );
+                baseDateForDeadline = latestPreviousVisaDate;
+              }
+
+              deadline.setDate(
+                baseDateForDeadline.getDate() + step.durationDays,
+              );
+
+              // Incrémentation des compteurs "par groupe" et "pour l'utilisateur"
               if (deadline < today) {
                 barChartData[groupId].enRetard++;
                 if (loggedInUserGroupIds.includes(groupId)) {
-                  // Vérifie si le groupe est celui de l'utilisateur connecté
                   userKpiData.enRetard++;
                 }
               } else {
                 barChartData[groupId].aEmettre++;
                 if (loggedInUserGroupIds.includes(groupId)) {
-                  // Vérifie si le groupe est celui de l'utilisateur connecté
                   userKpiData.enAttente++;
                 }
               }
-              // --- FIN MODIFICATION ---
             }
+            // Si l'étape n'est pas active et que le groupe n'a pas voté, on ne fait rien.
           }
         }
       }
