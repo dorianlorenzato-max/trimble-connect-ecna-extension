@@ -1669,7 +1669,7 @@ import {
         (d.allObservations || []).join("\n"),
       ];
       currentViseurGroups.forEach((group) => {
-        let pourLeDate = "N/A";
+        let pourLeDateHtml = "N/A";
         let deadlineObject = null;
         const fluxDef = allFluxDefinitions.find((f) => f.name === d.fluxName);
         if (fluxDef && d.depositDateObject) {
