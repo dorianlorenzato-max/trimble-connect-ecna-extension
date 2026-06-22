@@ -1670,17 +1670,45 @@ import {
       ];
       currentViseurGroups.forEach((group) => {
         let pourLeDate = "N/A";
+        let deadlineObject = null;
         const fluxDef = allFluxDefinitions.find((f) => f.name === d.fluxName);
         if (fluxDef && d.depositDateObject) {
           const stepInfo = fluxDef.steps.find((s) =>
             s.groupIds.includes(group.id),
           );
-          if (stepInfo && stepInfo.step === 1) {
-            const deadline = new Date(d.depositDateObject);
-            deadline.setDate(deadline.getDate() + stepInfo.durationDays);
-            pourLeDate = deadline.toLocaleDateString();
-          } else {
-            pourLeDate = "En attente";
+
+          if (stepInfo) {
+            if (stepInfo.step === 1) {
+              deadlineObject = new Date(d.depositDateObject);
+              deadlineObject.setDate(
+                deadlineObject.getDate() + stepInfo.durationDays,
+              );
+              pourLeDateHtml = deadlineObject.toLocaleDateString();
+            } else {
+              const previousStep = fluxDef.steps.find(
+                (s) => s.step === stepInfo.step - 1,
+              );
+              if (previousStep) {
+                const previousStepVisas = d.trackingInfo.filter((entry) =>
+                  previousStep.groupIds.includes(entry.groupId),
+                );
+                if (previousStepVisas.length === previousStep.groupIds.length) {
+                  const latestPreviousVisaDate = new Date(
+                    Math.max.apply(
+                      null,
+                      previousStepVisas.map((entry) => new Date(entry.date)),
+                    ),
+                  );
+                  deadlineObject = new Date(latestPreviousVisaDate);
+                  deadlineObject.setDate(
+                    deadlineObject.getDate() + stepInfo.durationDays,
+                  );
+                  pourLeDateHtml = deadlineObject.toLocaleDateString();
+                } else {
+                  pourLeDateHtml = "En attente";
+                }
+              }
+            }
           }
         }
         const viseLeDate =
@@ -1760,17 +1788,46 @@ import {
       ];
       currentViseurGroups.forEach((group) => {
         let pourLeDate = "N/A";
+        let deadlineObject = null;
+
         const fluxDef = allFluxDefinitions.find((f) => f.name === d.fluxName);
         if (fluxDef && d.depositDateObject) {
           const stepInfo = fluxDef.steps.find((s) =>
             s.groupIds.includes(group.id),
           );
-          if (stepInfo && stepInfo.step === 1) {
-            const deadline = new Date(d.depositDateObject);
-            deadline.setDate(deadline.getDate() + stepInfo.durationDays);
-            pourLeDate = deadline.toLocaleDateString();
-          } else {
-            pourLeDate = "En attente";
+
+          if (stepInfo) {
+            if (stepInfo.step === 1) {
+              deadlineObject = new Date(d.depositDateObject);
+              deadlineObject.setDate(
+                deadlineObject.getDate() + stepInfo.durationDays,
+              );
+              pourLeDate = deadlineObject.toLocaleDateString();
+            } else {
+              const previousStep = fluxDef.steps.find(
+                (s) => s.step === stepInfo.step - 1,
+              );
+              if (previousStep) {
+                const previousStepVisas = d.trackingInfo.filter((entry) =>
+                  previousStep.groupIds.includes(entry.groupId),
+                );
+                if (previousStepVisas.length === previousStep.groupIds.length) {
+                  const latestPreviousVisaDate = new Date(
+                    Math.max.apply(
+                      null,
+                      previousStepVisas.map((entry) => new Date(entry.date)),
+                    ),
+                  );
+                  deadlineObject = new Date(latestPreviousVisaDate);
+                  deadlineObject.setDate(
+                    deadlineObject.getDate() + stepInfo.durationDays,
+                  );
+                  pourLeDate = deadlineObject.toLocaleDateString();
+                } else {
+                  pourLeDate = "En attente";
+                }
+              }
+            }
           }
         }
         const viseLeDate =
