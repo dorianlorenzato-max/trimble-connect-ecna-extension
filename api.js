@@ -56,18 +56,25 @@ async function fetchVisaDocuments(
   let filesToProcess = allPdfFiles;
 
   if (mode === "missions") {
-    // 1. On crée une Map pour stocker le numéro de la plus haute version pour chaque ID de fichier.
+   // On commence par identifier la dernière version de chaque document à partir de la liste complète.
     const maxVersionMap = new Map();
-    filesToProcess.forEach((file) => {
-      const fileId = file.id;
-      const version = parseInt(file.revision, 10) || 0;
-      if (!maxVersionMap.has(fileId) || version > maxVersionMap.get(fileId)) {
-        maxVersionMap.set(fileId, version);
-      }
+    allPdfFiles.forEach(file => {
+        const fileId = file.id; // L'ID du document est la clé
+        const version = parseInt(file.revision, 10) || 0;
+        if (!maxVersionMap.has(fileId) || version > maxVersionMap.get(fileId)) {
+            maxVersionMap.set(fileId, version);
+        }
     });
 
-    // 2. On filtre la liste `filesToProcess` pour ne garder que les fichiers dont la version correspond à la version maximale stockée dans notre Map.
-    filesToProcess = filesToProcess.filter((file) => {
+    // 2. On crée une liste ne contenant QUE ces dernières versions.
+    const latestVersionsOfFiles = allPdfFiles.filter(file => {
+        const fileId = file.id;
+        const version = parseInt(file.revision, 10) || 0;
+        return version === maxVersionMap.get(fileId);
+    });
+
+    //  On applique le filtre des missions 
+    filesToProcess = latestVersionsOfFiles.filter((file) => {
       const assignedFluxName = assignmentsConfig[file.parentId];
       if (!assignedFluxName) return false;
 
