@@ -829,66 +829,194 @@ import {
         configFolderId,
       );
 
+      // création du PDF de visa
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
 
-      doc
-        .setFont("helvetica", "bold")
-        .setFontSize(16)
-        .text("Fiche de Visa", 105, 20, { align: "center" });
-      doc.setFont("helvetica", "normal").setFontSize(10);
+      // ===================================================================================
+      // PARTIE 1 : Initialisation et Constantes de mise en page
+      // On définit ici toutes nos variables pour la mise en page (marges, couleurs, etc.)
+      // Si vous voulez changer une couleur ou un espacement, c'est ici que ça se passe !
+      // ===================================================================================
 
-      const drawBubble = (label, value, x, y, width, height) => {
+      const EIFFAGE_RED = [255, 0, 0]; // Couleur Rouge
+      const BORDER_COLOR = [100, 100, 100]; // Une couleur de bordure neutre
+      const TEXT_COLOR = [0, 0, 0]; // Noir
+      const LABEL_COLOR = [255, 255, 255]; // Blanc pour les titres dans les boîtes
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 15;
+      const maxContentWidth = pageWidth - margin * 2;
+      const leftColX = margin;
+      const rightColX = margin + maxContentWidth / 2 + 5; // Colonne de droite, avec un petit espace
+      const colWidth = maxContentWidth / 2 - 5;
+
+      let yPos = 25; // Notre "curseur" vertical. Il démarre à 25mm du haut.
+
+      // ===================================================================================
+      // PARTIE 2 : La nouvelle fonction "drawInfoBox"
+      // C'est notre outil principal. Il dessine un bloc d'info complet.
+      // ===================================================================================
+
+      /**
+       * Dessine une boîte d'information avec un titre et une valeur.
+       * @param {string} label - Le titre de la boîte (ex: "Nom du projet").
+       * @param {string} value - La valeur à afficher sous le titre.
+       * @param {number} x - La position horizontale de la boîte.
+       * @param {number} y - La position verticale de la boîte.
+       * @param {number} width - La largeur de la boîte.
+       * @returns {number} La nouvelle position Y après avoir dessiné la boîte.
+       */
+      const drawInfoBox = (label, value, x, y, width) => {
+        // 1. Dessin du cadre extérieur de la boîte
+        doc.setDrawColor(...BORDER_COLOR);
+        doc.setFillColor(...EIFFAGE_RED);
+        // Le 'FD' signifie : F = Fill (remplir), D = Draw (dessiner la bordure)
+        doc.roundedRect(x, y, width, 18, 5, 5, "FD");
+
+        // 2. Écriture du titre (label) en blanc et en gras
         doc
-          .setDrawColor(201, 214, 224)
-          .setFillColor(240, 245, 249)
-          .roundedRect(x, y, width, height, 3, 3, "FD");
-        doc.setFont("helvetica", "bold").text(label, x + 3, y + 6);
-        const stringValue = String(value || "");
-        const textLines = doc.splitTextToSize(stringValue, width - 6);
-        doc.setFont("helvetica", "normal").text(textLines, x + 3, y + 12);
+          .setFont("helvetica", "bold")
+          .setFontSize(9)
+          .setTextColor(...LABEL_COLOR);
+        doc.text(label, x + 5, y + 6);
+
+        // 3. Écriture de la valeur en dessous
+        doc
+          .setFont("helvetica", "normal")
+          .setFontSize(10)
+          .setTextColor(...TEXT_COLOR);
+        // `splitTextToSize` est très utile : il coupe le texte pour qu'il ne dépasse pas de la boîte
+        const textLines = doc.splitTextToSize(
+          String(value || "N/A"),
+          width - 10,
+        );
+        doc.text(textLines, x + 5, y + 13);
+
+        // 4. On retourne la position Y pour le prochain élément, en ajoutant un espace
+        return y + 18 + 7; // 18 (hauteur de la boîte) + 7 (marge en dessous)
       };
 
-      drawBubble(
-        "Nom du Groupe de l'utilisateur",
-        visaData.userGroup,
-        15,
-        30,
-        60,
-        15,
-      );
-      drawBubble("Nom de l'utilisateur", visaData.userName, 15, 50, 60, 15);
-      drawBubble(
-        "Date de Visa",
-        new Date().toLocaleDateString(),
-        15,
-        70,
-        60,
-        15,
-      );
-      drawBubble("Nom du projet", visaData.projectName, 85, 30, 110, 15);
-      drawBubble("État du Visa", selectedStatus, 85, 50, 50, 15);
-      drawBubble("Nom du fichier", visaData.doc.name, 85, 70, 110, 20);
-      drawBubble("Nom du flux de visa", visaData.fluxName, 145, 50, 50, 15);
-      drawBubble("Indice du document", visaData.doc.version, 145, 70, 50, 15);
-      drawBubble(
-        "Dernière date de dépôt",
-        visaData.doc.depositDate,
-        145,
-        95,
-        50,
-        15,
-      );
-      drawBubble(
-        "Nom du dernier dépositaire",
-        visaData.doc.depositorName,
-        145,
-        120,
-        50,
-        15,
-      );
-      drawBubble("Observations", observations, 15, 145, 180, 60);
+      // ===================================================================================
+      // PARTIE 3 : La construction du PDF, étape par étape
+      // On appelle nos outils pour "peindre" le document.
+      // ===================================================================================
 
+      // --- Le Titre ---
+      doc
+        .setFont("helvetica", "bold")
+        .setFontSize(20)
+        .setTextColor(...TEXT_COLOR);
+      doc.text("Fiche Visa", pageWidth / 2, yPos, { align: "center" });
+      yPos += 15; // On descend notre curseur
+
+      // --- Les deux colonnes ---
+      let leftColY = yPos;
+      let rightColY = yPos;
+
+      // --- COLONNE DE GAUCHE ---
+      // Placeholder pour la photo du projet
+      doc.setDrawColor(...BORDER_COLOR).setFillColor(230, 230, 230);
+      doc.roundedRect(leftColX, leftColY, colWidth, 60, 10, 10, "FD");
+      doc
+        .setFont("helvetica", "normal")
+        .setFontSize(12)
+        .setTextColor(150, 150, 150);
+      doc.text("Photo du projet", leftColX + colWidth / 2, leftColY + 30, {
+        align: "center",
+      });
+      leftColY += 60 + 15; // On descend le curseur de la colonne de gauche
+
+      leftColY = drawInfoBox(
+        "Nom du document",
+        visaData.doc.name,
+        leftColX,
+        leftColY,
+        colWidth,
+      );
+      leftColY = drawInfoBox(
+        "Indice du document",
+        visaData.doc.version,
+        leftColX,
+        leftColY,
+        colWidth,
+      );
+      leftColY = drawInfoBox(
+        "Nom du dépositaire",
+        visaData.doc.depositorName,
+        leftColX,
+        leftColY,
+        colWidth,
+      );
+
+      // --- COLONNE DE DROITE ---
+      rightColY = drawInfoBox(
+        "Nom du projet",
+        visaData.projectName,
+        rightColX,
+        rightColY,
+        colWidth,
+      );
+      rightColY = drawInfoBox(
+        "Groupe de l'émetteur de visa",
+        visaData.userGroup,
+        rightColX,
+        rightColY,
+        colWidth,
+      );
+      rightColY = drawInfoBox(
+        "Émetteur du visa",
+        visaData.userName,
+        rightColX,
+        rightColY,
+        colWidth,
+      );
+      rightColY = drawInfoBox(
+        "Date de visa",
+        new Date().toLocaleDateString(),
+        rightColX,
+        rightColY,
+        colWidth,
+      );
+      rightColY = drawInfoBox(
+        "État du visa",
+        selectedStatus,
+        rightColX,
+        rightColY,
+        colWidth,
+      );
+      rightColY = drawInfoBox(
+        "Date dépôt document",
+        visaData.doc.depositDate,
+        rightColX,
+        rightColY,
+        colWidth,
+      );
+
+      // --- La Section Observations ---
+      // On prend la position la plus basse des deux colonnes comme point de départ
+      yPos = Math.max(leftColY, rightColY) + 10;
+
+      doc.setDrawColor(...BORDER_COLOR);
+      doc.setFillColor(...EIFFAGE_RED);
+      doc.roundedRect(margin, yPos, maxContentWidth, 60, 10, 10, "FD");
+      doc
+        .setFont("helvetica", "bold")
+        .setFontSize(14)
+        .setTextColor(...LABEL_COLOR);
+      doc.text("Observations", pageWidth / 2, yPos + 10, { align: "center" });
+
+      doc
+        .setFont("helvetica", "normal")
+        .setFontSize(10)
+        .setTextColor(...TEXT_COLOR);
+      const observationLines = doc.splitTextToSize(
+        observations || "Aucune observation.",
+        maxContentWidth - 20,
+      );
+      doc.text(observationLines, margin + 10, yPos + 20);
+
+      // --- Finalisation ---
       const pdfBlob = doc.output("blob");
       const newFilename = `VISA_${visaData.userGroup}_${visaData.doc.name}`;
 
