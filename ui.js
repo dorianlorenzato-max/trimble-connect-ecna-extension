@@ -184,7 +184,44 @@ function renderVisaTable(
                 );
                 pourLeDateHtml = deadlineObject.toLocaleDateString();
               } else {
-                pourLeDateHtml = "En attente";
+                const previousStep = fluxDefinition.steps.find(
+                  (s) => s.step === stepNumber - 1,
+                );
+
+                if (previousStep) {
+                  const previousStepGroupIds = previousStep.groupIds;
+
+                  // 2. Récupérer les visas de l'étape précédente pour ce document
+                  const previousStepVisas = doc.trackingInfo.filter((entry) =>
+                    previousStepGroupIds.includes(entry.groupId),
+                  );
+
+                  // 3. Vérifier si l'étape précédente est complète
+                  const isPreviousStepComplete =
+                    previousStepVisas.length === previousStepGroupIds.length;
+
+                  if (isPreviousStepComplete) {
+                    // 4. Si elle est complète, trouver la date de visa la plus récente de cette étape
+                    const latestPreviousVisaDate = new Date(
+                      Math.max.apply(
+                        null,
+                        previousStepVisas.map((entry) => new Date(entry.date)),
+                      ),
+                    );
+
+                    // 5. Calculer la nouvelle date limite à partir de CETTE date
+                    deadlineObject = new Date(latestPreviousVisaDate);
+                    deadlineObject.setDate(
+                      deadlineObject.getDate() + stepInfo.durationDays,
+                    ); // On utilise la durée de l'étape ACTUELLE
+                    pourLeDateHtml = deadlineObject.toLocaleDateString();
+                  } else {
+                    // Si l'étape précédente n'est pas terminée, on reste en attente
+                    pourLeDateHtml = "En attente";
+                  }
+                } else {
+                  pourLeDateHtml = "N/A"; // Cas d'erreur (flux mal configuré)
+                }
               }
             }
           }
