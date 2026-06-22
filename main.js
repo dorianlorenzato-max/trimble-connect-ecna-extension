@@ -870,221 +870,218 @@ import {
       const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
 
       // ===================================================================================
-      // PARTIE 1 : Initialisation et Constantes de mise en page
-      // On définit ici toutes nos variables pour la mise en page (marges, couleurs, etc.)
-      // Si vous voulez changer une couleur ou un espacement, c'est ici que ça se passe !
+      // PARTIE 1 : Constantes de mise en page et de style
+      // On définit ici toutes nos variables (marges, couleurs, tailles).
       // ===================================================================================
 
-      const Couleur_bleue = [19, 78, 95]; // Couleur Rouge
-      const BORDER_COLOR = [100, 100, 100]; // Une couleur de bordure neutre
-      const TEXT_COLOR = [0, 0, 0]; // Noir
-      const LABEL_COLOR = [255, 255, 255]; // Blanc pour les titres dans les boîtes
+      const EIFFAGE_BLUE = [19, 78, 95];
+      const BORDER_COLOR = [10, 48, 65];
+      const TEXT_COLOR_IN_BUBBLE = [255, 255, 255];
+      const TEXT_COLOR_NORMAL = [0, 0, 0];
+
+      // Palette de couleurs pour les statuts de visa, alignée sur celle du tableau
+      const statusColorMap = {
+        VSO: [40, 167, 69], // Vert
+        VAO: [255, 193, 7], // Jaune
+        REF: [220, 53, 69], // Rouge
+        SO: [108, 117, 125], // Gris
+        "En Cours": [253, 126, 20], // Orange
+      };
+      // La couleur du texte pour le statut VAO (jaune) doit être noire pour la lisibilité
+      const textColorForStatus = (status) =>
+        status === "VAO" ? [0, 0, 0] : TEXT_COLOR_IN_BUBBLE;
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const margin = 15;
       const maxContentWidth = pageWidth - margin * 2;
-      const leftColX = margin;
-      const rightColX = margin + maxContentWidth / 2 + 5; // Colonne de droite, avec un petit espace
-      const colWidth = maxContentWidth / 2 - 5;
+      const col1X = margin;
+      const col2X = margin + maxContentWidth / 2 + 4;
+      const smallBubbleWidth = maxContentWidth / 2 - 4;
 
-      let yPos = 25; // Notre "curseur" vertical. Il démarre à 25mm du haut.
+      let yPos = 20; // Le "curseur" vertical qui descend sur la page
 
       // ===================================================================================
-      // PARTIE 2 : La nouvelle fonction "drawInfoBox"
-      // C'est notre outil principal. Il dessine un bloc d'info complet.
+      // PARTIE 2 : Fonctions "outils" pour dessiner les bulles
+      // Chaque fonction est spécialisée dans un type de bulle.
       // ===================================================================================
 
-      /**
-       * Dessine une boîte d'information avec un titre et une valeur.
-       * @param {string} label - Le titre de la boîte (ex: "Nom du projet").
-       * @param {string} value - La valeur à afficher sous le titre.
-       * @param {number} x - La position horizontale de la boîte.
-       * @param {number} y - La position verticale de la boîte.
-       * @param {number} width - La largeur de la boîte.
-       * @returns {number} La nouvelle position Y après avoir dessiné la boîte.
-       */
-      const drawInfoBox = (label, value, x, y, width) => {
-        // 1. Dessin du cadre extérieur de la boîte
-        doc.setDrawColor(...BORDER_COLOR);
-        doc.setFillColor(...Couleur_bleue);
-        // Le 'FD' signifie : F = Fill (remplir), D = Draw (dessiner la bordure)
-        doc.roundedRect(x, y, width, 18, 5, 5, "FD");
+      // Outil pour les bulles qui n'ont pas de titre interne (ex: "Indice: X")
+      const drawSimpleBubble = (
+        text,
+        x,
+        y,
+        width,
+        height,
+        fontSize,
+        isBold = false,
+      ) => {
+        doc.setFillColor(...EIFFAGE_BLUE).setDrawColor(...BORDER_COLOR);
+        doc.roundedRect(x, y, width, height, 5, 5, "FD");
+        doc
+          .setFont("helvetica", isBold ? "bold" : "normal")
+          .setFontSize(fontSize)
+          .setTextColor(...TEXT_COLOR_IN_BUBBLE);
+        doc.text(text, x + width / 2, y + height / 2, {
+          align: "center",
+          baseline: "middle",
+        });
+      };
 
-        // 2. Écriture du titre (label) en blanc et en gras
+      // Outil pour les bulles qui ont un titre au-dessus et la valeur en dessous
+      const drawTitledBubble = (title, value, x, y, width, height) => {
+        doc.setFillColor(...EIFFAGE_BLUE).setDrawColor(...BORDER_COLOR);
+        doc.roundedRect(x, y, width, height, 5, 5, "FD");
         doc
           .setFont("helvetica", "bold")
-          .setFontSize(9)
-          .setTextColor(...LABEL_COLOR);
-        doc.text(label, x + 5, y + 6);
-
-        // 3. Écriture de la valeur en dessous
+          .setFontSize(8)
+          .setTextColor(...TEXT_COLOR_IN_BUBBLE);
+        doc.text(title, x + width / 2, y + 5, { align: "center" });
         doc
           .setFont("helvetica", "normal")
           .setFontSize(10)
-          .setTextColor(...TEXT_COLOR);
-        // `splitTextToSize` est très utile : il coupe le texte pour qu'il ne dépasse pas de la boîte
-        const textLines = doc.splitTextToSize(
-          String(value || "N/A"),
-          width - 10,
-        );
-        doc.text(textLines, x + 5, y + 13);
-
-        // 4. On retourne la position Y pour le prochain élément, en ajoutant un espace
-        return y + 15 + 5; // 18 (hauteur de la boîte) + 7 (marge en dessous)
+          .setTextColor(...TEXT_COLOR_IN_BUBBLE);
+        doc.text(String(value), x + width / 2, y + 12, { align: "center" });
       };
 
       // ===================================================================================
-      // PARTIE 3 : La construction du PDF, étape par étape
-      // On appelle nos outils pour "peindre" le document.
+      // PARTIE 3 : La construction du PDF, bloc par bloc
       // ===================================================================================
 
-      // --- Le Titre ---
+      // --- Titre général ---
       doc
         .setFont("helvetica", "bold")
         .setFontSize(20)
-        .setTextColor(...TEXT_COLOR);
+        .setTextColor(...TEXT_COLOR_NORMAL);
       doc.text("Fiche Visa", pageWidth / 2, yPos, { align: "center" });
-      yPos += 15; // On descend notre curseur
+      yPos += 12;
 
-      // --- Les deux colonnes ---
+      // --- Bulle "Nom du projet" (pleine largeur, grande police) ---
+      drawSimpleBubble(
+        visaData.projectName,
+        margin,
+        yPos,
+        maxContentWidth,
+        15,
+        14,
+        true,
+      );
+      yPos += 15 + 5; // Hauteur de la bulle + marge
+
+      // --- Bulle "Nom du document" (pleine largeur, police moyenne) ---
+      drawSimpleBubble(
+        visaData.doc.name,
+        margin,
+        yPos,
+        maxContentWidth,
+        12,
+        11,
+        true,
+      );
+      yPos += 12 + 8; // Hauteur de la bulle + marge
+
+      // --- Rangée : Indice, Date de dépôt, Déposé par ---
+      const smallBubbleHeight = 10;
+      drawSimpleBubble(
+        `Indice: ${visaData.doc.version}`,
+        col1X,
+        yPos,
+        smallBubbleWidth,
+        smallBubbleHeight,
+        9,
+      );
+      drawSimpleBubble(
+        `Date: ${visaData.doc.depositDate}`,
+        col2X,
+        yPos,
+        smallBubbleWidth,
+        smallBubbleHeight,
+        9,
+      );
+      yPos += smallBubbleHeight + 3;
+      drawSimpleBubble(
+        `Déposé par : ${visaData.doc.depositorName}`,
+        col1X,
+        yPos,
+        maxContentWidth,
+        smallBubbleHeight,
+        9,
+      );
+      yPos += smallBubbleHeight + 8;
+
+      // --- Rangée : Groupe, Émetteur, Statut et Date de visa ---
+      const titledBubbleHeight = 16;
       let leftColY = yPos;
       let rightColY = yPos;
 
-      // --- COLONNE DE GAUCHE ---
-      // On vérifie si l'image a bien été récupérée
-      if (projectImageBase64) {
-        // Si oui, on l'ajoute au document. jsPDF est assez intelligent pour gérer la chaîne Base64 directement.
-        doc.addImage(
-          projectImageBase64,
-          "JPEG",
-          leftColX,
-          leftColY,
-          colWidth,
-          60,
-        );
-        // On ajoute une bordure par-dessus pour un meilleur rendu
-        doc.setDrawColor(...BORDER_COLOR);
-        doc.roundedRect(leftColX, leftColY, colWidth, 60, 10, 10, "S"); // 'S' = Stroke (dessiner la bordure uniquement)
-      } else {
-        // Si non (erreur, pas d'image, ...), on dessine l'ancien placeholder
-        doc.setDrawColor(...BORDER_COLOR).setFillColor(230, 230, 230);
-        doc.roundedRect(leftColX, leftColY, colWidth, 60, 10, 10, "FD");
-        doc
-          .setFont("helvetica", "normal")
-          .setFontSize(12)
-          .setTextColor(150, 150, 150);
-        doc.text(
-          "Photo du projet non disponible",
-          leftColX + colWidth / 2,
-          leftColY + 30,
-          { align: "center" },
-        );
-      }
-      leftColY += 60 + 7; // On descend le curseur de la colonne de gauche, que l'image ait été dessinée ou non
-
-      leftColY = drawInfoBox(
-        "Nom du document",
-        visaData.doc.name,
-        leftColX,
-        leftColY,
-        colWidth,
-      );
-      leftColY = drawInfoBox(
-        "Indice du document",
-        visaData.doc.version,
-        leftColX,
-        leftColY,
-        colWidth,
-      );
-      leftColY = drawInfoBox(
-        "Nom du dépositaire",
-        visaData.doc.depositorName,
-        leftColX,
-        leftColY,
-        colWidth,
-      );
-
-      // --- COLONNE DE DROITE ---
-      rightColY = drawInfoBox(
-        "Nom du projet",
-        visaData.projectName,
-        rightColX,
-        rightColY,
-        colWidth,
-      );
-      rightColY = drawInfoBox(
+      // Colonne de gauche
+      drawTitledBubble(
         "Groupe de l'émetteur de visa",
         visaData.userGroup,
-        rightColX,
-        rightColY,
-        colWidth,
+        col1X,
+        leftColY,
+        smallBubbleWidth,
+        titledBubbleHeight,
       );
-      rightColY = drawInfoBox(
+      leftColY += titledBubbleHeight + 3;
+      drawTitledBubble(
         "Émetteur du visa",
         visaData.userName,
-        rightColX,
-        rightColY,
-        colWidth,
+        col1X,
+        leftColY,
+        smallBubbleWidth,
+        titledBubbleHeight,
       );
-      rightColY = drawInfoBox(
-        "Date de visa",
-        new Date().toLocaleDateString(),
-        rightColX,
+
+      // Colonne de droite
+      // La bulle "État du visa" avec couleur et taille dynamique
+      const statusBubbleColor = statusColorMap[selectedStatus] || EIFFAGE_BLUE;
+      const statusBubbleTextColor = textColorForStatus(selectedStatus);
+      doc.setFillColor(...statusBubbleColor).setDrawColor(...BORDER_COLOR);
+      doc.roundedRect(
+        col2X,
         rightColY,
-        colWidth,
-      );
-      rightColY = drawInfoBox(
-        "État du visa",
+        smallBubbleWidth,
+        titledBubbleHeight + 3 + smallBubbleHeight,
+        5,
+        5,
+        "FD",
+      ); // La hauteur combinée
+      doc
+        .setFont("helvetica", "bold")
+        .setFontSize(14)
+        .setTextColor(...statusBubbleTextColor);
+      doc.text(
         selectedStatus,
-        rightColX,
-        rightColY,
-        colWidth,
-      );
-      rightColY = drawInfoBox(
-        "Date dépôt document",
-        visaData.doc.depositDate,
-        rightColX,
-        rightColY,
-        colWidth,
+        col2X + smallBubbleWidth / 2,
+        rightColY + (titledBubbleHeight + 3 + smallBubbleHeight) / 2 - 5,
+        { align: "center", baseline: "middle" },
       );
 
-      // --- La Section Observations ---
-      // On prend la position la plus basse des deux colonnes comme point de départ
-      yPos = Math.max(leftColY, rightColY) + 10;
+      // La bulle "Date de visa"
+      rightColY += titledBubbleHeight + 3 + smallBubbleHeight + 8; // On descend pour la prochaine bulle de droite, mais on ne l'ajoute pas ici.
 
-      // ===================================================================================
-      // ÉTAPE 1 : On mesure la taille du texte des observations AVANT de dessiner
-      // ===================================================================================
+      // On se positionne pour la suite en prenant la colonne la plus basse
+      yPos = Math.max(leftColY, rightColY);
+
+      // --- Section Observations (dynamique) ---
+      yPos += 5; // Petite marge avant les observations
       const observationsText = observations || "Aucune observation.";
-      const padding = 10; // Marge intérieure de la boîte
-      const headerHeight = 22; // Espace en haut pour le titre "Observations"
-      const footerHeight = 10; // Espace en bas après le texte
+      const padding = 10;
+      const headerHeight = 18;
+      const footerHeight = 5;
 
-      // On demande à jsPDF de couper le texte en lignes qui ne dépassent pas la largeur de la boîte
       const observationLines = doc.splitTextToSize(
         observationsText,
         maxContentWidth - padding * 2,
       );
-
-      // On calcule la hauteur réelle du texte en millimètres
       const lineHeight = doc.getLineHeight() / doc.internal.scaleFactor;
       const textHeight = observationLines.length * lineHeight;
-
-      // La hauteur totale de notre boîte sera donc :
       const totalBoxHeight = headerHeight + textHeight + footerHeight;
 
-      // ===================================================================================
-      // ÉTAPE 2 : On vérifie s'il y a assez de place sur la page actuelle
-      // ===================================================================================
       const pageHeight = doc.internal.pageSize.getHeight();
-      const spaceLeftOnPage = pageHeight - yPos - margin; // Espace entre le curseur et la marge du bas
-
-      if (totalBoxHeight > spaceLeftOnPage) {
-        // S'il n'y a pas assez de place...
-        doc.addPage(); // ...on ajoute une nouvelle page !
-        yPos = margin; // Et on réinitialise notre curseur en haut de la nouvelle page.
-
-        // Pour le contexte, on peut ajouter un petit titre sur la nouvelle page
+      if (totalBoxHeight > pageHeight - yPos - margin) {
+        doc.addPage();
+        yPos = margin;
         doc
           .setFont("helvetica", "italic")
           .setFontSize(8)
@@ -1098,13 +1095,7 @@ import {
         yPos += 10;
       }
 
-      // ===================================================================================
-      // ÉTAPE 3 : On dessine la boîte avec la bonne hauteur, sur la bonne page
-      // ===================================================================================
-
-      // On dessine le fond et la bordure de la boîte avec notre hauteur calculée
-      doc.setDrawColor(...BORDER_COLOR);
-      doc.setFillColor(...EIFFAGE_BLUE);
+      doc.setFillColor(...EIFFAGE_BLUE).setDrawColor(...BORDER_COLOR);
       doc.roundedRect(
         margin,
         yPos,
@@ -1114,23 +1105,22 @@ import {
         10,
         "FD",
       );
-
-      // On dessine le titre "Observations"
       doc
         .setFont("helvetica", "bold")
-        .setFontSize(14)
-        .setTextColor(...LABEL_COLOR);
-      doc.text("Observations", pageWidth / 2, yPos + 12, { align: "center" });
-
-      // Et enfin, on dessine le texte des observations
+        .setFontSize(12)
+        .setTextColor(...TEXT_COLOR_IN_BUBBLE);
+      doc.text("Observations", margin + padding, yPos + 10);
       doc
         .setFont("helvetica", "normal")
         .setFontSize(10)
-        .setTextColor(...TEXT_COLOR);
+        .setTextColor(...TEXT_COLOR_IN_BUBBLE);
       doc.text(observationLines, margin + padding, yPos + headerHeight);
 
       // --- Finalisation ---
       const pdfBlob = doc.output("blob");
+
+      // fin de la génaration du PDF
+
       const newFilename = `VISA_${visaData.userGroup}_${visaData.doc.name}`;
 
       const savePdfTask = saveConfigurationFile(
