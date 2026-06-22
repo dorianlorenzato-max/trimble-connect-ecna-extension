@@ -874,7 +874,7 @@ import {
       // On définit ici toutes nos variables (marges, couleurs, tailles).
       // ===================================================================================
 
-      const EIFFAGE_BLUE = [19, 78, 95];
+      const EIFFAGE_BLUE = [190, 205, 249];
       const BORDER_COLOR = [10, 48, 65];
       const TEXT_COLOR_IN_BUBBLE = [255, 255, 255];
       const TEXT_COLOR_NORMAL = [0, 0, 0];
