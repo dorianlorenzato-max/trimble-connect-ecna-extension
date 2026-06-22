@@ -871,25 +871,28 @@ import {
 
       // ===================================================================================
       // PARTIE 1 : Constantes de mise en page et de style
-      // On définit ici toutes nos variables (marges, couleurs, tailles).
       // ===================================================================================
 
-      const EIFFAGE_BLUE = [190, 205, 249];
-      const BORDER_COLOR = [10, 48, 65];
-      const TEXT_COLOR_IN_BUBBLE = [255, 255, 255];
+      const BUBBLE_BACKGROUND = [217, 231, 252];
+      const BORDER_COLOR = [201, 214, 224];
       const TEXT_COLOR_NORMAL = [0, 0, 0];
 
-      // Palette de couleurs pour les statuts de visa, alignée sur celle du tableau
       const statusColorMap = {
-        VSO: [40, 167, 69], // Vert
-        VAO: [255, 193, 7], // Jaune
-        REF: [220, 53, 69], // Rouge
-        SO: [108, 117, 125], // Gris
-        "En Cours": [253, 126, 20], // Orange
+        VSO: [40, 167, 69],
+        VAO: [255, 193, 7],
+        REF: [220, 53, 69],
+        SO: [108, 117, 125],
+        "En Cours": [253, 126, 20],
       };
-      // La couleur du texte pour le statut VAO (jaune) doit être noire pour la lisibilité
+      const statusDescriptionMap = {
+        VSO: "Validé Sans Observation",
+        VAO: "Validé Avec Observation",
+        REF: "Refusé",
+        SO: "Sans Objet",
+        "En Cours": "En cours de Visa",
+      };
       const textColorForStatus = (status) =>
-        status === "VAO" ? [0, 0, 0] : TEXT_COLOR_IN_BUBBLE;
+        status === "VAO" ? [0, 0, 0] : [255, 255, 255];
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const margin = 15;
@@ -898,96 +901,80 @@ import {
       const col2X = margin + maxContentWidth / 2 + 4;
       const smallBubbleWidth = maxContentWidth / 2 - 4;
 
-      let yPos = 20; // Le "curseur" vertical qui descend sur la page
+      let yPos = 20;
 
       // ===================================================================================
       // PARTIE 2 : Fonctions "outils" pour dessiner les bulles
-      // Chaque fonction est spécialisée dans un type de bulle.
       // ===================================================================================
 
-      // Outil pour les bulles qui n'ont pas de titre interne (ex: "Indice: X")
-      const drawSimpleBubble = (
-        text,
-        x,
-        y,
-        width,
-        height,
-        fontSize,
-        isBold = false,
-      ) => {
-        doc.setFillColor(...EIFFAGE_BLUE).setDrawColor(...BORDER_COLOR);
+      const drawSimpleBubble = (text, x, y, width, height, fontSize) => {
+        doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
         doc.roundedRect(x, y, width, height, 5, 5, "FD");
         doc
-          .setFont("helvetica", isBold ? "bold" : "normal")
+          .setFont("helvetica", "bold")
           .setFontSize(fontSize)
-          .setTextColor(...TEXT_COLOR_IN_BUBBLE);
+          .setTextColor(...TEXT_COLOR_NORMAL);
         doc.text(text, x + width / 2, y + height / 2, {
           align: "center",
           baseline: "middle",
         });
       };
 
-      // Outil pour les bulles qui ont un titre au-dessus et la valeur en dessous
       const drawTitledBubble = (title, value, x, y, width, height) => {
-        doc.setFillColor(...EIFFAGE_BLUE).setDrawColor(...BORDER_COLOR);
+        doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
         doc.roundedRect(x, y, width, height, 5, 5, "FD");
+        // --- MODIFIÉ : Espacement vertical ajusté pour une meilleure lisibilité ---
         doc
           .setFont("helvetica", "bold")
-          .setFontSize(8)
-          .setTextColor(...TEXT_COLOR_IN_BUBBLE);
-        doc.text(title, x + width / 2, y + 5, { align: "center" });
+          .setFontSize(9)
+          .setTextColor(...TEXT_COLOR_NORMAL);
+        doc.text(title, x + width / 2, y + 6, { align: "center" });
         doc
-          .setFont("helvetica", "normal")
-          .setFontSize(10)
-          .setTextColor(...TEXT_COLOR_IN_BUBBLE);
-        doc.text(String(value), x + width / 2, y + 12, { align: "center" });
+          .setFont("helvetica", "bold")
+          .setFontSize(11)
+          .setTextColor(...TEXT_COLOR_NORMAL);
+        doc.text(String(value), x + width / 2, y + 14, { align: "center" });
       };
 
       // ===================================================================================
-      // PARTIE 3 : La construction du PDF, bloc par bloc
+      // PARTIE 3 : La construction du PDF
       // ===================================================================================
 
-      // --- Titre général ---
       doc
         .setFont("helvetica", "bold")
-        .setFontSize(20)
+        .setFontSize(22)
         .setTextColor(...TEXT_COLOR_NORMAL);
       doc.text("Fiche Visa", pageWidth / 2, yPos, { align: "center" });
-      yPos += 12;
+      yPos += 15;
 
-      // --- Bulle "Nom du projet" (pleine largeur, grande police) ---
       drawSimpleBubble(
         visaData.projectName,
         margin,
         yPos,
         maxContentWidth,
-        15,
-        14,
-        true,
+        16,
+        16,
       );
-      yPos += 15 + 5; // Hauteur de la bulle + marge
+      yPos += 16 + 6;
 
-      // --- Bulle "Nom du document" (pleine largeur, police moyenne) ---
       drawSimpleBubble(
         visaData.doc.name,
         margin,
         yPos,
         maxContentWidth,
-        12,
-        11,
-        true,
+        14,
+        13,
       );
-      yPos += 12 + 8; // Hauteur de la bulle + marge
+      yPos += 14 + 10;
 
-      // --- Rangée : Indice, Date de dépôt, Déposé par ---
-      const smallBubbleHeight = 10;
+      const smallBubbleHeight = 12;
       drawSimpleBubble(
         `Indice: ${visaData.doc.version}`,
         col1X,
         yPos,
         smallBubbleWidth,
         smallBubbleHeight,
-        9,
+        11,
       );
       drawSimpleBubble(
         `Date: ${visaData.doc.depositDate}`,
@@ -995,21 +982,20 @@ import {
         yPos,
         smallBubbleWidth,
         smallBubbleHeight,
-        9,
+        11,
       );
-      yPos += smallBubbleHeight + 3;
+      yPos += smallBubbleHeight + 4;
       drawSimpleBubble(
         `Déposé par : ${visaData.doc.depositorName}`,
         col1X,
         yPos,
         maxContentWidth,
         smallBubbleHeight,
-        9,
+        11,
       );
-      yPos += smallBubbleHeight + 8;
+      yPos += smallBubbleHeight + 10;
 
-      // --- Rangée : Groupe, Émetteur, Statut et Date de visa ---
-      const titledBubbleHeight = 16;
+      const titledBubbleHeight = 18;
       let leftColY = yPos;
       let rightColY = yPos;
 
@@ -1022,7 +1008,7 @@ import {
         smallBubbleWidth,
         titledBubbleHeight,
       );
-      leftColY += titledBubbleHeight + 3;
+      leftColY += titledBubbleHeight + 4;
       drawTitledBubble(
         "Émetteur du visa",
         visaData.userName,
@@ -1033,43 +1019,59 @@ import {
       );
 
       // Colonne de droite
-      // La bulle "État du visa" avec couleur et taille dynamique
-      const statusBubbleColor = statusColorMap[selectedStatus] || EIFFAGE_BLUE;
+      const statusBubbleHeight = titledBubbleHeight;
+      const statusBubbleColor =
+        statusColorMap[selectedStatus] || BUBBLE_BACKGROUND;
       const statusBubbleTextColor = textColorForStatus(selectedStatus);
+      const statusDescription = statusDescriptionMap[selectedStatus] || "";
+
       doc.setFillColor(...statusBubbleColor).setDrawColor(...BORDER_COLOR);
       doc.roundedRect(
         col2X,
         rightColY,
         smallBubbleWidth,
-        titledBubbleHeight + 3 + smallBubbleHeight,
+        statusBubbleHeight,
         5,
         5,
         "FD",
-      ); // La hauteur combinée
+      );
       doc
         .setFont("helvetica", "bold")
         .setFontSize(14)
         .setTextColor(...statusBubbleTextColor);
+      doc.text(selectedStatus, col2X + smallBubbleWidth / 2, rightColY + 8, {
+        align: "center",
+      }); // Statut (ex: REF)
+      doc
+        .setFont("helvetica", "normal")
+        .setFontSize(8)
+        .setTextColor(...statusBubbleTextColor);
       doc.text(
-        selectedStatus,
+        statusDescription,
         col2X + smallBubbleWidth / 2,
-        rightColY + (titledBubbleHeight + 3 + smallBubbleHeight) / 2 - 5,
-        { align: "center", baseline: "middle" },
+        rightColY + 14,
+        { align: "center" },
+      ); // Description (ex: Refusé)
+      rightColY += statusBubbleHeight + 4;
+
+      // -- Ajout de la bulle "Date de visa" qui manquait ---
+      drawTitledBubble(
+        "Date de visa",
+        new Date().toLocaleDateString(),
+        col2X,
+        rightColY,
+        smallBubbleWidth,
+        titledBubbleHeight,
       );
+      rightColY += titledBubbleHeight; // On incrémente bien le curseur de la colonne de droite
 
-      // La bulle "Date de visa"
-      rightColY += titledBubbleHeight + 3 + smallBubbleHeight + 8; // On descend pour la prochaine bulle de droite, mais on ne l'ajoute pas ici.
+      yPos = Math.max(leftColY, rightColY) + 15;
 
-      // On se positionne pour la suite en prenant la colonne la plus basse
-      yPos = Math.max(leftColY, rightColY);
-
-      // --- Section Observations (dynamique) ---
-      yPos += 5; // Petite marge avant les observations
+      // --- Section Observations (le code est déjà correct et dynamique) ---
       const observationsText = observations || "Aucune observation.";
       const padding = 10;
       const headerHeight = 18;
       const footerHeight = 5;
-
       const observationLines = doc.splitTextToSize(
         observationsText,
         maxContentWidth - padding * 2,
@@ -1077,7 +1079,6 @@ import {
       const lineHeight = doc.getLineHeight() / doc.internal.scaleFactor;
       const textHeight = observationLines.length * lineHeight;
       const totalBoxHeight = headerHeight + textHeight + footerHeight;
-
       const pageHeight = doc.internal.pageSize.getHeight();
       if (totalBoxHeight > pageHeight - yPos - margin) {
         doc.addPage();
@@ -1094,8 +1095,7 @@ import {
         );
         yPos += 10;
       }
-
-      doc.setFillColor(...EIFFAGE_BLUE).setDrawColor(...BORDER_COLOR);
+      doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
       doc.roundedRect(
         margin,
         yPos,
@@ -1108,12 +1108,12 @@ import {
       doc
         .setFont("helvetica", "bold")
         .setFontSize(12)
-        .setTextColor(...TEXT_COLOR_IN_BUBBLE);
+        .setTextColor(...TEXT_COLOR_NORMAL);
       doc.text("Observations", margin + padding, yPos + 10);
       doc
         .setFont("helvetica", "normal")
         .setFontSize(10)
-        .setTextColor(...TEXT_COLOR_IN_BUBBLE);
+        .setTextColor(...TEXT_COLOR_NORMAL);
       doc.text(observationLines, margin + padding, yPos + headerHeight);
 
       // --- Finalisation ---
