@@ -442,7 +442,7 @@ async function fetchLoggedInUserDetails(accessToken) {
   });
   if (!response.ok)
     throw new Error(
-      `Impossible de récupérer les détails de l'utilisateur connecté.`,
+      `Recharger la page. Impossible de récupérer les détails de l'utilisateur connecté.`,
     );
   return await response.json();
 }
