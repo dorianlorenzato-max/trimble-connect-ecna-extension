@@ -723,6 +723,41 @@ import {
     }
   }
 
+  //récupère l'image du projet
+
+  function fetchProjectImageAsBase64(projectId, accessToken) {
+    return new Promise(async (resolve) => {
+      try {
+        const imageUrl = `https://app21.connect.trimble.com/tc/api/2.0/projects/${projectId}/image`;
+        const response = await fetch(imageUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (!response.ok) {
+          console.warn("Impossible de récupérer l'image du projet.");
+          resolve(null); // On ne bloque pas tout, on retourne juste null.
+          return;
+        }
+
+        // On récupère l'image sous forme de "Blob" (un objet de données brutes)
+        const imageBlob = await response.blob();
+
+        // On utilise l'API FileReader pour convertir le Blob en une chaîne de caractères Base64
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve(reader.result); // Le résultat est la chaîne Base64 complète (ex: "data:image/jpeg;base64,...")
+        };
+        reader.onerror = () => {
+          console.error("Erreur lors de la conversion de l'image en Base64.");
+          resolve(null);
+        };
+        reader.readAsDataURL(imageBlob);
+      } catch (error) {
+        console.error("Erreur dans fetchProjectImageAsBase64:", error);
+        resolve(null);
+      }
+    });
+  }
   // génération de l'interface et des données du PDF pour le visa
 
   async function handleSaveVisaClick(visaData) {
@@ -731,13 +766,14 @@ import {
     renderSaving(mainContentDiv);
 
     try {
-      const [trackingData, allGroups] = await Promise.all([
+      const [trackingData, allGroups, projectImageBase64] = await Promise.all([
         fetchConfigurationFile(
           globalAccessToken,
           configFolderId,
           VISA_TRACKING_FILENAME,
         ),
         fetchProjectGroups(currentProjectId, globalAccessToken),
+        fetchProjectImageAsBase64(visaData.doc.projectId, globalAccessToken),
       ]);
 
       const projectRootId = await getProjectRootId(
@@ -915,17 +951,36 @@ import {
       let rightColY = yPos;
 
       // --- COLONNE DE GAUCHE ---
-      // Placeholder pour la photo du projet
-      doc.setDrawColor(...BORDER_COLOR).setFillColor(230, 230, 230);
-      doc.roundedRect(leftColX, leftColY, colWidth, 60, 10, 10, "FD");
-      doc
-        .setFont("helvetica", "normal")
-        .setFontSize(12)
-        .setTextColor(150, 150, 150);
-      doc.text("Photo du projet", leftColX + colWidth / 2, leftColY + 30, {
-        align: "center",
-      });
-      leftColY += 60 + 15; // On descend le curseur de la colonne de gauche
+      // On vérifie si l'image a bien été récupérée
+      if (projectImageBase64) {
+        // Si oui, on l'ajoute au document. jsPDF est assez intelligent pour gérer la chaîne Base64 directement.
+        doc.addImage(
+          projectImageBase64,
+          "JPEG",
+          leftColX,
+          leftColY,
+          colWidth,
+          60,
+        );
+        // On ajoute une bordure par-dessus pour un meilleur rendu
+        doc.setDrawColor(...BORDER_COLOR);
+        doc.roundedRect(leftColX, leftColY, colWidth, 60, 10, 10, "S"); // 'S' = Stroke (dessiner la bordure uniquement)
+      } else {
+        // Si non (erreur, pas d'image, ...), on dessine l'ancien placeholder
+        doc.setDrawColor(...BORDER_COLOR).setFillColor(230, 230, 230);
+        doc.roundedRect(leftColX, leftColY, colWidth, 60, 10, 10, "FD");
+        doc
+          .setFont("helvetica", "normal")
+          .setFontSize(12)
+          .setTextColor(150, 150, 150);
+        doc.text(
+          "Photo du projet non disponible",
+          leftColX + colWidth / 2,
+          leftColY + 30,
+          { align: "center" },
+        );
+      }
+      leftColY += 60 + 15; // On descend le curseur de la colonne de gauche, que l'image ait été dessinée ou non
 
       leftColY = drawInfoBox(
         "Nom du document",
