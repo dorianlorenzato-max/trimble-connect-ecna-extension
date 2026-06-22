@@ -1720,7 +1720,7 @@ import {
         const visaStatusStyle = statusColors[visaStatus];
 
         row.push(
-          pourLeDate,
+          pourLeDateHtml,
           viseLeDate ? new Date(viseLeDate).toLocaleDateString() : "",
           // On fait de même pour la cellule de visa dynamique
           {
