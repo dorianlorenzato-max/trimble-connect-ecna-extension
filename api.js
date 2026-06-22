@@ -56,24 +56,24 @@ async function fetchVisaDocuments(
   let filesToProcess = allPdfFiles;
 
   if (mode === "missions") {
-   // On commence par identifier la dernière version de chaque document à partir de la liste complète.
+    // On commence par identifier la dernière version de chaque document à partir de la liste complète.
     const maxVersionMap = new Map();
-    allPdfFiles.forEach(file => {
-        const fileId = file.id; // L'ID du document est la clé
-        const version = parseInt(file.revision, 10) || 0;
-        if (!maxVersionMap.has(fileId) || version > maxVersionMap.get(fileId)) {
-            maxVersionMap.set(fileId, version);
-        }
+    allPdfFiles.forEach((file) => {
+      const fileId = file.id; // L'ID du document est la clé
+      const version = parseInt(file.revision, 10) || 0;
+      if (!maxVersionMap.has(fileId) || version > maxVersionMap.get(fileId)) {
+        maxVersionMap.set(fileId, version);
+      }
     });
 
     // 2. On crée une liste ne contenant QUE ces dernières versions.
-    const latestVersionsOfFiles = allPdfFiles.filter(file => {
-        const fileId = file.id;
-        const version = parseInt(file.revision, 10) || 0;
-        return version === maxVersionMap.get(fileId);
+    const latestVersionsOfFiles = allPdfFiles.filter((file) => {
+      const fileId = file.id;
+      const version = parseInt(file.revision, 10) || 0;
+      return version === maxVersionMap.get(fileId);
     });
 
-    //  On applique le filtre des missions 
+    //  On applique le filtre des missions
     filesToProcess = latestVersionsOfFiles.filter((file) => {
       const assignedFluxName = assignmentsConfig[file.parentId];
       if (!assignedFluxName) return false;
@@ -93,22 +93,43 @@ async function fetchVisaDocuments(
       const versionNumber = file.revision || "N/A";
       const trackingId = `${file.id}_v${versionNumber}`;
       const docTrackingInfo = trackingData[trackingId] || [];
+      console.log(
+        `--- Analyse pour le document : %c${file.name} (v${versionNumber})`,
+        "font-weight: bold;",
+      );
+      console.log("   ID de suivi généré (trackingId) :", trackingId);
+      console.log(
+        "   Données de suivi trouvées pour cet ID (docTrackingInfo) :",
+        docTrackingInfo,
+      );
+      console.log(
+        "   Groupes de l'utilisateur connecté (loggedInUserGroupIds) :",
+        loggedInUserGroupIds,
+      );
 
       // ON APPLIQUE LA LOGIQUE ORIGINALE, QUI FONCTIONNAIT
       for (const step of userInvolvedSteps) {
         // 1. L'utilisateur a-t-il déjà soumis son visa pour cette étape ?
+        console.log(
+          `      -> Évaluation de l'étape ${step.step} (requiert les groupes: ${step.groupIds.join(", ")})`,
+        );
+
         const hasUserActedForThisStep = docTrackingInfo.some(
           (entry) =>
             loggedInUserGroupIds.includes(entry.groupId) &&
             step.groupIds.includes(entry.groupId),
         );
-
+        console.log(
+          `      -> La condition "hasUserActedForThisStep" est : %c${hasUserActedForThisStep}`,
+          hasUserActedForThisStep ? "color: red;" : "color: green;",
+        );
         if (hasUserActedForThisStep) {
           continue; // Si oui, on passe à la prochaine étape où il pourrait être impliqué.
         }
 
         // 2. Si c'est la première étape du flux, la mission est active pour lui.
         if (step.step === 1) {
+          console.log("      -> VERDICT : Mission active (étape 1).");
           return true; // C'est une mission valide.
         }
 
@@ -126,13 +147,28 @@ async function fetchVisaDocuments(
         // L'étape précédente est complète si le nombre de visas correspond au nombre de groupes requis.
         const isPreviousStepComplete =
           previousStepVisaCount === previousStepGroupIds.length;
-
+        console.log(
+          `      -> Vérification de l'étape précédente (${previousStep.step}) :`,
+        );
+        console.log(
+          `         - Groupes requis : ${previousStepGroupIds.join(", ")}`,
+        );
+        console.log(
+          `         - Visas trouvés pour ces groupes : ${previousStepVisaCount}`,
+        );
+        console.log(
+          `         - L'étape précédente est-elle complète ? : %c${isPreviousStepComplete}`,
+          isPreviousStepComplete ? "color: green;" : "color: red;",
+        );
         if (isPreviousStepComplete) {
           return true; // L'étape précédente est terminée, donc cette mission est maintenant active.
         }
       }
 
       // Si la boucle se termine sans rien trouver, l'utilisateur n'a aucune mission active pour ce document.
+      console.log(
+        "   -> VERDICT FINAL : Aucune mission active pour cet utilisateur sur ce document.",
+      );
       return false;
     });
   }
