@@ -875,7 +875,7 @@ import {
       // Si vous voulez changer une couleur ou un espacement, c'est ici que ça se passe !
       // ===================================================================================
 
-      const EIFFAGE_RED = [255, 0, 0]; // Couleur Rouge
+      const Couleur_bleue = [19, 78, 95]; // Couleur Rouge
       const BORDER_COLOR = [100, 100, 100]; // Une couleur de bordure neutre
       const TEXT_COLOR = [0, 0, 0]; // Noir
       const LABEL_COLOR = [255, 255, 255]; // Blanc pour les titres dans les boîtes
@@ -906,7 +906,7 @@ import {
       const drawInfoBox = (label, value, x, y, width) => {
         // 1. Dessin du cadre extérieur de la boîte
         doc.setDrawColor(...BORDER_COLOR);
-        doc.setFillColor(...EIFFAGE_RED);
+        doc.setFillColor(...Couleur_bleue);
         // Le 'FD' signifie : F = Fill (remplir), D = Draw (dessiner la bordure)
         doc.roundedRect(x, y, width, 18, 5, 5, "FD");
 
@@ -1053,7 +1053,7 @@ import {
       yPos = Math.max(leftColY, rightColY) + 10;
 
       doc.setDrawColor(...BORDER_COLOR);
-      doc.setFillColor(...EIFFAGE_RED);
+      doc.setFillColor(...Couleur_bleue);
       doc.roundedRect(margin, yPos, maxContentWidth, 60, 10, 10, "FD");
       doc
         .setFont("helvetica", "bold")
