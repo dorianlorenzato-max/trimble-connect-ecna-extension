@@ -273,23 +273,6 @@ import {
 
       // --- 2. Calcul des indicateurs (KPIs) ---
 
-      // Données pour le Donut Chart (Visuel 1)
-      const donutData = {
-        VSO: 0,
-        VAO: 0,
-        REF: 0,
-        SO: 0,
-        "En Cours": 0,
-        Annulés: 0,
-      };
-      allVisaDocuments.forEach((doc) => {
-        if (donutData.hasOwnProperty(doc.status)) {
-          donutData[doc.status]++;
-        } else {
-          donutData["En Cours"]++;
-        }
-      });
-
       // On ne garde que la dernière version de chaque document pour les calculs de missions.
       const maxVersionMap = new Map();
       allVisaDocuments.forEach((doc) => {
@@ -302,6 +285,23 @@ import {
       const latestVersionsOnly = allVisaDocuments.filter((doc) => {
         const version = parseInt(doc.version, 10) || 0;
         return version === maxVersionMap.get(doc.id);
+      });
+
+      // Données pour le Donut Chart (Visuel 1)
+      const donutData = {
+        VSO: 0,
+        VAO: 0,
+        REF: 0,
+        SO: 0,
+        "En Cours": 0,
+        Annulés: 0,
+      };
+      latestVersionsOnly.forEach((doc) => {
+        if (donutData.hasOwnProperty(doc.status)) {
+          donutData[doc.status]++;
+        } else {
+          donutData["En Cours"]++;
+        }
       });
 
       // Données pour les Cartes Utilisateur (Visuel 3)
