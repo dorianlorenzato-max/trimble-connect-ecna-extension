@@ -930,7 +930,7 @@ import {
         doc.text(textLines, x + 5, y + 13);
 
         // 4. On retourne la position Y pour le prochain élément, en ajoutant un espace
-        return y + 18 + 7; // 18 (hauteur de la boîte) + 7 (marge en dessous)
+        return y + 15 + 5; // 18 (hauteur de la boîte) + 7 (marge en dessous)
       };
 
       // ===================================================================================
@@ -980,7 +980,7 @@ import {
           { align: "center" },
         );
       }
-      leftColY += 60 + 15; // On descend le curseur de la colonne de gauche, que l'image ait été dessinée ou non
+      leftColY += 60 + 7; // On descend le curseur de la colonne de gauche, que l'image ait été dessinée ou non
 
       leftColY = drawInfoBox(
         "Nom du document",
@@ -1052,24 +1052,82 @@ import {
       // On prend la position la plus basse des deux colonnes comme point de départ
       yPos = Math.max(leftColY, rightColY) + 10;
 
+      // ===================================================================================
+      // ÉTAPE 1 : On mesure la taille du texte des observations AVANT de dessiner
+      // ===================================================================================
+      const observationsText = observations || "Aucune observation.";
+      const padding = 10; // Marge intérieure de la boîte
+      const headerHeight = 22; // Espace en haut pour le titre "Observations"
+      const footerHeight = 10; // Espace en bas après le texte
+
+      // On demande à jsPDF de couper le texte en lignes qui ne dépassent pas la largeur de la boîte
+      const observationLines = doc.splitTextToSize(
+        observationsText,
+        maxContentWidth - padding * 2,
+      );
+
+      // On calcule la hauteur réelle du texte en millimètres
+      const lineHeight = doc.getLineHeight() / doc.internal.scaleFactor;
+      const textHeight = observationLines.length * lineHeight;
+
+      // La hauteur totale de notre boîte sera donc :
+      const totalBoxHeight = headerHeight + textHeight + footerHeight;
+
+      // ===================================================================================
+      // ÉTAPE 2 : On vérifie s'il y a assez de place sur la page actuelle
+      // ===================================================================================
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const spaceLeftOnPage = pageHeight - yPos - margin; // Espace entre le curseur et la marge du bas
+
+      if (totalBoxHeight > spaceLeftOnPage) {
+        // S'il n'y a pas assez de place...
+        doc.addPage(); // ...on ajoute une nouvelle page !
+        yPos = margin; // Et on réinitialise notre curseur en haut de la nouvelle page.
+
+        // Pour le contexte, on peut ajouter un petit titre sur la nouvelle page
+        doc
+          .setFont("helvetica", "italic")
+          .setFontSize(8)
+          .setTextColor(150, 150, 150);
+        doc.text(
+          `Fiche Visa (suite) - ${visaData.doc.name}`,
+          pageWidth / 2,
+          yPos,
+          { align: "center" },
+        );
+        yPos += 10;
+      }
+
+      // ===================================================================================
+      // ÉTAPE 3 : On dessine la boîte avec la bonne hauteur, sur la bonne page
+      // ===================================================================================
+
+      // On dessine le fond et la bordure de la boîte avec notre hauteur calculée
       doc.setDrawColor(...BORDER_COLOR);
-      doc.setFillColor(...Couleur_bleue);
-      doc.roundedRect(margin, yPos, maxContentWidth, 60, 10, 10, "FD");
+      doc.setFillColor(...EIFFAGE_BLUE);
+      doc.roundedRect(
+        margin,
+        yPos,
+        maxContentWidth,
+        totalBoxHeight,
+        10,
+        10,
+        "FD",
+      );
+
+      // On dessine le titre "Observations"
       doc
         .setFont("helvetica", "bold")
         .setFontSize(14)
         .setTextColor(...LABEL_COLOR);
-      doc.text("Observations", pageWidth / 2, yPos + 10, { align: "center" });
+      doc.text("Observations", pageWidth / 2, yPos + 12, { align: "center" });
 
+      // Et enfin, on dessine le texte des observations
       doc
         .setFont("helvetica", "normal")
         .setFontSize(10)
         .setTextColor(...TEXT_COLOR);
-      const observationLines = doc.splitTextToSize(
-        observations || "Aucune observation.",
-        maxContentWidth - 20,
-      );
-      doc.text(observationLines, margin + 10, yPos + 20);
+      doc.text(observationLines, margin + padding, yPos + headerHeight);
 
       // --- Finalisation ---
       const pdfBlob = doc.output("blob");
