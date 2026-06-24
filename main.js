@@ -85,11 +85,28 @@ import {
     if (!globalAccessToken) throw new Error("L'Access Token est invalide.");
     console.warn("Access Token récupéré au démarrage :", globalAccessToken);
 
-    mainContentDiv.innerHTML = `<p>Recherche du dossier de configuration...</p>`;
-    configFolderId = await getConfigFolderId(triconnectAPI, globalAccessToken);
-    if (!configFolderId)
-      throw new Error("Le dossier 'Configuration_Visa' est introuvable.");
+    mainContentDiv.innerHTML = `<p>Recherche ou création du dossier de configuration...</p>`;
 
+    // 1. On récupère d'abord l'ID du dossier racine du projet
+    const projectRootId = await getProjectRootId(
+      triconnectAPI,
+      globalAccessToken,
+    );
+
+    // 2. On appelle la fonction qui cherche le dossier ou le crée s'il n'existe pas
+    //    Cette fonction est déjà dans votre api.js !
+    configFolderId = await findOrCreateFolder(
+      projectRootId,
+      "Configuration_Visa", // Le nom de votre dossier
+      globalAccessToken,
+    );
+
+    // 3. On vérifie que tout s'est bien passé (la création aurait pu échouer)
+    if (!configFolderId) {
+      throw new Error(
+        "Le dossier 'Configuration_Visa' est introuvable et n'a pas pu être créé.",
+      );
+    }
     // Configuration du menu dans l'UI de Trimble Connect
     triconnectAPI.ui.setMenu({
       title: "ECNA Gestion Visa",
