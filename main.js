@@ -748,14 +748,13 @@ import {
     renderSaving(mainContentDiv);
 
     try {
-      const [trackingData, allGroups, projectImageBase64] = await Promise.all([
+      const [trackingData, allGroups] = await Promise.all([
         fetchConfigurationFile(
           globalAccessToken,
           configFolderId,
           VISA_TRACKING_FILENAME,
         ),
         fetchProjectGroups(currentProjectId, globalAccessToken),
-        fetchProjectImageAsBase64(visaData.doc.projectId, globalAccessToken),
       ]);
 
       const projectRootId = await getProjectRootId(
