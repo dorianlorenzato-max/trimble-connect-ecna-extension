@@ -740,41 +740,6 @@ import {
     }
   }
 
-  //récupère l'image du projet
-
-  function fetchProjectImageAsBase64(projectId, accessToken) {
-    return new Promise(async (resolve) => {
-      try {
-        const imageUrl = `https://app21.connect.trimble.com/tc/api/2.0/projects/${projectId}/image`;
-        const response = await fetch(imageUrl, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-
-        if (!response.ok) {
-          console.warn("Impossible de récupérer l'image du projet.");
-          resolve(null); // On ne bloque pas tout, on retourne juste null.
-          return;
-        }
-
-        // On récupère l'image sous forme de "Blob" (un objet de données brutes)
-        const imageBlob = await response.blob();
-
-        // On utilise l'API FileReader pour convertir le Blob en une chaîne de caractères Base64
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          resolve(reader.result); // Le résultat est la chaîne Base64 complète (ex: "data:image/jpeg;base64,...")
-        };
-        reader.onerror = () => {
-          console.error("Erreur lors de la conversion de l'image en Base64.");
-          resolve(null);
-        };
-        reader.readAsDataURL(imageBlob);
-      } catch (error) {
-        console.error("Erreur dans fetchProjectImageAsBase64:", error);
-        resolve(null);
-      }
-    });
-  }
   // génération de l'interface et des données du PDF pour le visa
 
   async function handleSaveVisaClick(visaData) {
