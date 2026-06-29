@@ -395,7 +395,7 @@ async function saveConfigurationFile(
       `L'upload final du fichier a échoué. Statut: ${uploadResponse.status}, Réponse: ${errorText}`,
     );
   }
-
+  await new Promise((resolve) => setTimeout(resolve, 1500));
   const verifyUrl = `${apiBaseUrl}/files/fs/upload?uploadId=${uploadId}&wait=true`;
   const verifyResponse = await fetch(verifyUrl, {
     method: "GET",
