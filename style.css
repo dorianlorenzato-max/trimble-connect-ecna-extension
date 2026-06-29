@@ -1092,3 +1092,22 @@ select[multiple] {
   border-top: 1px dashed #ccc;
   margin: 10px 0;
 }
+/* Style pour la petite mention à côté d'un label (ex: "en jours calendaires") */
+.label-hint {
+  font-weight: normal;
+  font-style: italic;
+  font-size: 0.9em;
+  color: #666;
+}
+
+/* Style pour la boîte d'information sur la sélection multiple */
+.info-text {
+  font-size: 0.9em;
+  color: #555;
+  background-color: #f8f9fa; /* Un fond très léger pour la distinguer */
+  border: 1px solid #e9ecef;
+  padding: 8px;
+  border-radius: 4px;
+  margin-bottom: 8px; /* Espace avant le champ de sélection */
+  line-height: 1.4;
+}
