@@ -437,6 +437,11 @@ function renderCreateFluxPage(container, projectGroups, fluxToEdit = null) {
             <div class="step-content">
                 <div class="form-group">
                     <label>Groupe(s) de validation</label>
+                    <div class="info-text">
+                Astuce : Maintenez la touche Ctrl (ou Cmd sur Mac) pour sélectionner plusieurs groupes.
+                <br>
+                Si plusieurs groupes sont choisis, un membre de <strong>chaque</strong> groupe devra valider pour compléter l'étape.
+            </div>
                     <select class="group-select" multiple>
                         ${projectGroups
                           .map(
@@ -450,7 +455,7 @@ function renderCreateFluxPage(container, projectGroups, fluxToEdit = null) {
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Durée de validation</label>
+                    <label>Durée de validation <span class="label-hint">(en jours calendaires)</span></label>
                     <select class="duration-select">
                         ${Array.from({ length: 20 }, (_, i) => i + 1)
                           .map(
