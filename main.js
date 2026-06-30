@@ -743,8 +743,20 @@ import {
   // génération de l'interface et des données du PDF pour le visa
 
   async function handleSaveVisaClick(visaData) {
+    // 1. On récupère la valeur du champ d'observation et on supprime les espaces inutiles au début et à la fin.
+    const observations = document.getElementById("observations").value.trim();
+
+    // 2. On vérifie si la longueur du texte est inférieure à 2 caractères.
+    if (observations.length < 2) {
+      // 3. Si c'est le cas, on affiche une alerte claire à l'utilisateur.
+      alert(
+        "Veuillez saisir une observation d'au moins 2 caractères pour valider le visa.",
+      );
+
+      // 4. On arrête immédiatement l'exécution de la fonction pour ne pas sauvegarder.
+      return;
+    }
     const selectedStatus = document.getElementById("visa-status-select").value;
-    const observations = document.getElementById("observations").value;
     renderSaving(mainContentDiv);
 
     try {
