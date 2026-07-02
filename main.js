@@ -1348,13 +1348,21 @@ import {
 
     renderSaving(mainContentDiv); // Afficher un message de "suppression en cours"
     try {
-      const existingConfig = await fetchConfigurationFile(
-        globalAccessToken,
-        configFolderId,
-        CONFIG_FILENAME,
-      );
+      const [existingConfig, assignmentsConfig] = await Promise.all([
+        fetchConfigurationFile(
+          globalAccessToken,
+          configFolderId,
+          CONFIG_FILENAME,
+        ),
+        fetchConfigurationFile(
+          globalAccessToken,
+          configFolderId,
+          ASSIGNMENTS_FILENAME,
+        ),
+      ]);
+
       if (!existingConfig || !existingConfig.flux) {
-        throw new Error("Impossible de récupérer la configuration existante.");
+        throw new Error("Impossible de récupérer la configuration des flux.");
       }
 
       const updatedFluxes = existingConfig.flux.filter(
@@ -1362,13 +1370,41 @@ import {
       );
       const finalConfigurationData = { ...existingConfig, flux: updatedFluxes }; // Conserver les autres propriétés du fichier si elles existent
 
-      await saveConfigurationFile(
-        triconnectAPI,
-        globalAccessToken,
-        finalConfigurationData,
-        CONFIG_FILENAME,
-        configFolderId,
-      );
+      //  On nettoie le fichier d'affectations ---
+      const updatedAssignments = { ...assignmentsConfig };
+      let assignmentsCleaned = false;
+      for (const folderId in updatedAssignments) {
+        if (updatedAssignments[folderId] === fluxNameToDelete) {
+          delete updatedAssignments[folderId]; // On supprime l'affectation orpheline
+          assignmentsCleaned = true;
+        }
+      }
+
+      // On sauvegarde les deux fichiers ---
+      const saveTasks = [
+        saveConfigurationFile(
+          triconnectAPI,
+          globalAccessToken,
+          finalConfigurationData,
+          CONFIG_FILENAME,
+          configFolderId,
+        ),
+      ];
+
+      // On ne sauvegarde le fichier d'affectations que s'il a été modifié
+      if (assignmentsCleaned) {
+        saveTasks.push(
+          saveConfigurationFile(
+            triconnectAPI,
+            globalAccessToken,
+            updatedAssignments,
+            ASSIGNMENTS_FILENAME,
+            configFolderId,
+          ),
+        );
+      }
+
+      await Promise.all(saveTasks);
 
       renderSuccess(
         mainContentDiv,
@@ -1504,6 +1540,29 @@ import {
       // ÉTAPE 2: MODIFIER (fusionner/mettre à jour les données)
       if (currentEditedFluxName) {
         // Mode édition
+        const oldFluxName = currentEditedFluxName; // On garde l'ancien nom
+        const newFluxName = newFluxData.name; // Et le nouveau
+
+        //  Ajout de la vérification d'unicité pour le renommage ---
+        const isNameAlreadyTakenByAnotherFlux =
+          finalConfigurationData.flux.some(
+            (flux) => flux.name === newFluxName && flux.name !== oldFluxName,
+          );
+
+        if (isNameAlreadyTakenByAnotherFlux) {
+          alert(
+            `Un autre flux nommé "${newFluxName}" existe déjà. Veuillez choisir un nom différent.`,
+          );
+          // On ré-affiche le formulaire d'édition avec les données saisies pour correction
+          renderCreateFluxPage(
+            mainContentDiv,
+            currentProjectGroups,
+            newFluxData,
+          );
+          attachCreateEditFluxEvents();
+          return; // On arrête tout
+        }
+
         const index = finalConfigurationData.flux.findIndex(
           (flux) => flux.name === currentEditedFluxName,
         );
@@ -1519,9 +1578,44 @@ import {
           // Cas inattendu : le flux à éditer n'est plus là, on l'ajoute
           finalConfigurationData.flux.push(newFluxData);
         }
-        console.log(
-          `Flux "${currentEditedFluxName}" modifié en "${fluxName}".`,
-        );
+
+        //  On gère la mise à jour des affectations si le nom a changé ---
+        if (newFluxName !== oldFluxName) {
+          console.log(
+            `Le nom du flux a changé de "${oldFluxName}" à "${newFluxName}". Mise à jour des affectations.`,
+          );
+
+          // On lit le fichier d'affectations
+          const assignmentsConfig = await fetchConfigurationFile(
+            globalAccessToken,
+            configFolderId,
+            ASSIGNMENTS_FILENAME,
+          );
+
+          const updatedAssignments = { ...assignmentsConfig };
+          let assignmentsUpdated = false;
+          for (const folderId in updatedAssignments) {
+            if (updatedAssignments[folderId] === oldFluxName) {
+              updatedAssignments[folderId] = newFluxName; // On met à jour avec le nouveau nom
+              assignmentsUpdated = true;
+            }
+          }
+
+          // Si des mises à jour ont eu lieu, on sauvegarde le fichier
+          if (assignmentsUpdated) {
+            await saveConfigurationFile(
+              triconnectAPI,
+              globalAccessToken,
+              updatedAssignments,
+              ASSIGNMENTS_FILENAME,
+              configFolderId,
+            );
+            console.log(
+              "Le fichier des affectations a été mis à jour avec le nouveau nom de flux.",
+            );
+          }
+        }
+
         currentEditedFluxName = null; // Réinitialiser le mode édition
       } else {
         // Mode création
