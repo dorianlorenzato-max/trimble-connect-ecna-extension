@@ -1,135 +1,118 @@
 // On importe les fonctions depuis nos modules
 import {
-  fetchVisaDocuments,
-  fetchProjectGroups,
   saveConfigurationFile,
   fetchConfigurationFile,
   fetchFolderContents,
-  fetchUsersAndGroups,
   fetchLoggedInUserDetails,
-  fetchVisaPossibleStates,
-  updatePSetStatus,
-  getConfigFolderId,
   getRootFolders,
-  fetchFluxDefinitions,
   findOrCreateFolder,
   getProjectRootId,
-  recursivelyFetchAllSubfolders,
-  fetchAllProjectFolders,
   fetchUserProjectRole,
+  fetchAllProjectFolders,
+  recursivelyFetchAllSubfolders,
+  fetchAllControlledDocuments,
+  uploadFileWithNewName,
+  fetchAllProjectFoldersWithDetails,
+  checkFolderPermission,
+  fetchProjectGroups,
 } from "./api.js";
 import {
   renderLoading,
   renderError,
-  renderVisaTable,
-  renderConfigPage,
-  renderCreateFluxPage,
-  renderManageFluxPage,
   renderSaving,
   renderSuccess,
-  renderAffectationPage,
+  renderConfigPage,
+  renderNamingConfigSummaryTable,
+  renderHomePageWithButtons,
+  renderCreateNamingRulePage,
+  renderAddColumnModal,
+  renderManageNamingRulesPage,
+  renderAssignNamingPage,
   updateAssignmentPanel,
-  renderVisaInterfacePage,
-  attachResizableTableEvents,
-  renderFilterPopup,
-  renderConfigSummaryTable,
-  renderDashboardPage,
-  renderObservationPopup,
+  renderControlPage,
+  renderHelpCodificationPage,
+  renderNamingZone,
+  renderEditColumnModal,
 } from "./ui.js";
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
 (async function () {
   const mainContentDiv = document.getElementById("mainContent");
-  const CONFIG_FILENAME = "ecna-visa-config.json"; // Nom du fichier de configuration des flux
-  const ASSIGNMENTS_FILENAME = "flux-assignments.json"; // Nom pour fichier d'affectation des flux aux dossier
-  const VISA_TRACKING_FILENAME = "visa-tracking.json"; // Nom pour le fichier qui heberge le suivi de visa
-  const TRIMBLE_CLIENT_ID = "db958c40-8b49-4d72-b9cc-71333d3c9581"; // Votre ID Client
+  const CONFIG_FOLDER_NAME = "Configuration_Nommage";
+  const NAMING_CONFIG_FILENAME = "naming-rules-config.json";
+  const NAMING_ASSIGNMENTS_FILENAME = "naming-assignments.json";
 
   let triconnectAPI;
   let globalAccessToken = null;
   let configFolderId = null;
-  let currentViewMode = "missions"; // stock le mode pour afficher le bon tableau
-  let currentProjectId = null; // Stocke l'ID du projet actuel
-  let currentProjectGroups = []; // Pour stocker les groupes et éviter de les re-fetcher
-  let currentViseurGroups = []; // pour stocker les viseurs
-  let currentEditedFluxName = null; // Pour suivre si nous éditons un flux existant
-  let allOriginalVisaDocuments = []; //  Stocke les documents non filtrés
-  let processedVisaDocuments = []; //Pour export des tableaux
-  let allFluxDefinitions = []; // stike l'ensembles des flux et des groupes affectés aux flux
-  let activeFilters = {}; //Stocke les filtres actifs par colonne
-  let sortState = {
-    field: "depositDate", // Tri par défaut
-    direction: "desc", // Descendant pour que le plus récent soit en haut
+  let currentProjectId = null;
+  let isAdmin = false;
+  let currentRuleState = null;
+  let originalRuleNameToEdit = null;
+  let helpCodificationState = {
+    file: null,
+    selectedFolderId: null,
+    finalName: null,
+    convention: null,
   };
-  let currentPage = 1;
-  let itemsPerPage = 10; // Valeur par défaut
+  let folderPermissionCache = null;
 
-  // Variables pour la page d'affectation
-  let allProjectFlows = [];
-  let currentAssignments = {};
-  let selectedFolderInfo = null;
-  let pendingChanges = {};
-
-  // --- INITIALISATION DE L'EXTENSION ---
+  // ==================================================================
+  // == SÉQUENCE D'INITIALISATION (UNE SEULE FOIS AU DÉMARRAGE)      ==
+  // ==================================================================
   try {
-    mainContentDiv.innerHTML = `<p>Connexion à Trimble Connect...</p>`;
+    renderLoading(mainContentDiv);
     triconnectAPI = await TrimbleConnectWorkspace.connect(
       window.parent,
-      (event, data) => {},
+      () => {},
       30000,
     );
-
-    mainContentDiv.innerHTML = `<p>Récupération des permissions...</p>`;
     globalAccessToken =
       await triconnectAPI.extension.requestPermission("accesstoken");
     if (!globalAccessToken) throw new Error("L'Access Token est invalide.");
-    console.warn("Access Token récupéré au démarrage :", globalAccessToken);
 
-    mainContentDiv.innerHTML = `<p>Recherche ou création du dossier de configuration...</p>`;
+    const projectInfo = await triconnectAPI.project.getCurrentProject();
+    currentProjectId = projectInfo.id;
 
-    // 1. On récupère d'abord l'ID du dossier racine du projet
+    const userRole = await fetchUserProjectRole(
+      currentProjectId,
+      globalAccessToken,
+    );
+    isAdmin = userRole === "ADMIN";
+
     const projectRootId = await getProjectRootId(
       triconnectAPI,
       globalAccessToken,
     );
-
-    // 2. On appelle la fonction qui cherche le dossier ou le crée s'il n'existe pas
-    //    Cette fonction est déjà dans votre api.js !
     configFolderId = await findOrCreateFolder(
       projectRootId,
-      "Configuration_Visa", // Le nom de votre dossier
+      CONFIG_FOLDER_NAME,
       globalAccessToken,
     );
-
-    // 3. On vérifie que tout s'est bien passé (la création aurait pu échouer)
-    if (!configFolderId) {
+    if (!configFolderId)
       throw new Error(
-        "Le dossier 'Configuration_Visa' est introuvable et n'a pas pu être créé.",
+        "Dossier de configuration introuvable ou impossible à créer.",
       );
-    }
-    // Configuration du menu dans l'UI de Trimble Connect
+
     triconnectAPI.ui.setMenu({
-      title: "ECNA Gestion Visa",
+      title: "ECNA Nommage Docs",
       icon: "https://dorianlorenzato-max.github.io/trimble-connect-ecna-extension/logoEiffage.png",
-      command: "ecna_gestion_visa_clicked",
+      command: "ecna_nommage_docs_clicked",
     });
 
-    // Attacher les événements aux boutons principaux de la bannière
+    // Attacher les événements aux boutons du BANDEAU
     document
-      .getElementById("visasBtn")
-      .addEventListener("click", () => handleTableDisplay("missions"));
+      .getElementById("helpNamingBtn")
+      .addEventListener("click", handleHelpNamingClick);
     document
-      .getElementById("dashboardBtn")
-      .addEventListener("click", handleDashboardDisplay);
+      .getElementById("controlNamingBtn")
+      .addEventListener("click", handleControlNamingClick);
     document
-      .getElementById("configBtn")
-      .addEventListener("click", handleConfigClick);
-    document
-      .getElementById("documentBtn")
-      .addEventListener("click", () => handleTableDisplay("documents"));
+      .getElementById("configNamingBtn")
+      .addEventListener("click", handleConfigNamingRuleClick);
 
-    // Afficher l'accueil
-    handleDashboardDisplay();
+    // Affiche directement la page d'aide à la codification au démarrage
+    handleHelpNamingClick();
   } catch (error) {
     console.error(
       "Erreur critique lors de l'initialisation de l'extension :",
@@ -138,1084 +121,212 @@ import {
     renderError(mainContentDiv, error);
   }
 
-  // --- GESTIONNAIRE D'ÉVÉNEMENT POUR LE BOUTON VISA ---
+  // ==================================================================
+  // == DÉFINITION DE TOUTES LES FONCTIONS DE L'APPLICATION         ==
+  // ==================================================================
 
-  async function handleTableDisplay(mode) {
-    currentViewMode = mode;
+  // --- Handlers principaux (appelés par les boutons) ---
+
+  async function handleHelpNamingClick() {
     renderLoading(mainContentDiv);
     try {
-      const projectInfo = await triconnectAPI.project.getCurrentProject();
-      currentProjectId = projectInfo.id;
-
-      const [loggedInUser, fluxDefinitions, allGroupsInProject] =
-        await Promise.all([
-          fetchLoggedInUserDetails(globalAccessToken),
-          fetchFluxDefinitions(
-            globalAccessToken,
-            configFolderId,
-            CONFIG_FILENAME,
-          ),
-          fetchProjectGroups(projectInfo.id, globalAccessToken),
-        ]);
-      allFluxDefinitions = fluxDefinitions;
-      let loggedInUserGroupIds = [];
-      for (const group of allGroupsInProject) {
-        // Faire un appel pour chaque groupe pour savoir si l'utilisateur en fait partie
-        const usersInGroupResponse = await fetch(
-          `https://app21.connect.trimble.com/tc/api/2.0/groups/${group.id}/users`,
-          { headers: { Authorization: `Bearer ${globalAccessToken}` } },
-        );
-        if (usersInGroupResponse.ok) {
-          const groupUsers = await usersInGroupResponse.json();
-          if (groupUsers.some((user) => user.id === loggedInUser.id)) {
-            loggedInUserGroupIds.push(group.id);
-          }
-        } else {
-          console.warn(
-            `Impossible de récupérer les utilisateurs pour le groupe ${group.name}.`,
-            await usersInGroupResponse.text(),
-          );
-        }
-      }
-
-      let viseurGroups = [];
-      if (mode === "documents") {
-        const allViseurGroupIds = new Set(
-          allFluxDefinitions.flatMap((flux) =>
-            flux.steps.flatMap((step) => step.groupIds),
-          ),
-        );
-
-        currentViseurGroups = allGroupsInProject
-          .filter((group) => allViseurGroupIds.has(group.id))
-          .sort((a, b) => a.name.localeCompare(b.name));
-      } else {
-        currentViseurGroups = []; // On s'assure qu'elle est vide pour le mode "Missions"
-      }
-
-      const fetchOptions = {
-        mode,
-        loggedInUserGroupIds,
-        allFluxDefinitions,
-        // On passe la liste des groupes au fetch pour une future utilisation
+      helpCodificationState = {
+        file: null,
+        selectedFolderId: null,
+        finalName: null,
+        convention: null,
       };
+      renderHelpCodificationPage(mainContentDiv);
+      attachHelpPageListeners();
 
-      const documents = await fetchVisaDocuments(
-        globalAccessToken,
+      let necessaryFoldersData;
+
+      if (folderPermissionCache) {
+        necessaryFoldersData = folderPermissionCache;
+      } else {
+        const loadingText = document
+          .getElementById("folder-tree-root")
+          .querySelector("li");
+        if (loadingText)
+          loadingText.textContent = "Analyse des permissions en cours...";
+
+        const [allFolders, allProjectGroups, currentUser] = await Promise.all([
+          fetchAllProjectFoldersWithDetails(triconnectAPI, globalAccessToken),
+          fetchProjectGroups(currentProjectId, globalAccessToken),
+          fetchLoggedInUserDetails(globalAccessToken),
+        ]);
+        console.log(
+          `1. Nombre total de dossiers à analyser : ${allFolders.length}`,
+        );
+        const foldersById = new Map(allFolders.map((f) => [f.id, f]));
+        const currentUserId = currentUser.id; // C'est l'ID que nous allons comparer
+
+        // Trouver les groupes de l'utilisateur
+        const userGroupIds = [];
+        for (const group of allProjectGroups) {
+          const usersInGroup = await fetch(
+            `https://app21.connect.trimble.com/tc/api/2.0/groups/${group.id}/users`,
+            { headers: { Authorization: `Bearer ${globalAccessToken}` } },
+          ).then((res) => res.json());
+
+          if (usersInGroup.some((u) => u.id === currentUserId)) {
+            userGroupIds.push(group.id);
+          }
+        }
+        console.log(
+          `2. IDs des groupes de l'utilisateur trouvés :`,
+          userGroupIds,
+        );
+        // --- ÉTAPE 2 : IDENTIFIER LES CIBLES ET CHEMINS---
+        const permissionChecks = allFolders.map((f) =>
+          checkFolderPermission(
+            f.id,
+            globalAccessToken,
+            currentUserId,
+            userGroupIds,
+          ),
+        );
+        const results = await Promise.all(permissionChecks);
+
+        const allowedTargetIds = new Set();
+        const readablePathIds = new Set();
+        results.forEach((role, index) => {
+          const folderId = allFolders[index].id;
+          if (role === "full_access") {
+            allowedTargetIds.add(folderId);
+            readablePathIds.add(folderId);
+          } else if (role === "read") {
+            readablePathIds.add(folderId);
+          }
+        });
+        console.log(
+          `3. Nombre de dossiers "full_access" identifiés : ${allowedTargetIds.size}`,
+        );
+        console.log(
+          `4. Nombre total de dossiers "lisibles" (chemins + cibles) : ${readablePathIds.size}`,
+        );
+        // --- ÉTAPE 3 : RECONSTRUIRE L'ARBRE ---
+        const necessaryFolderIds = new Set();
+        for (const targetId of allowedTargetIds) {
+          let currentId = targetId;
+          while (currentId && foldersById.has(currentId)) {
+            if (
+              readablePathIds.has(currentId) &&
+              !necessaryFolderIds.has(currentId)
+            ) {
+              necessaryFolderIds.add(currentId);
+              const folder = foldersById.get(currentId);
+              currentId = folder ? folder.parentId : null;
+            } else {
+              break;
+            }
+          }
+        }
+        console.log(
+          `5. Nombre final de dossiers "nécessaires" à afficher : ${necessaryFolderIds.size}`,
+        );
+        necessaryFoldersData = { necessaryFolderIds, allowedTargetIds };
+        folderPermissionCache = necessaryFoldersData;
+      }
+      // --- ÉTAPE 4 : AFFICHER ---
+      const rootFolders = await getRootFolders(
         triconnectAPI,
-        configFolderId,
-        ASSIGNMENTS_FILENAME,
-        fetchOptions,
+        globalAccessToken,
       );
-
-      allOriginalVisaDocuments = documents;
-      activeFilters = {};
-      currentPage = 1;
-      applyFiltersAndSortAndRenderTable();
+      console.log(
+        "6. Dossiers racines du projet (avant filtre) :",
+        rootFolders.map((f) => f.name),
+      );
+      const treeRootElement = document.getElementById("folder-tree-root");
+      treeRootElement.innerHTML = "";
+      const filteredRootFolders = rootFolders.filter((f) =>
+        necessaryFoldersData.necessaryFolderIds.has(f.id),
+      );
+      console.log(
+        "7. Dossiers racines affichés (après filtre) :",
+        filteredRootFolders.map((f) => f.name),
+      );
+      renderPermissionAwareFolderTree(
+        treeRootElement,
+        filteredRootFolders,
+        necessaryFoldersData,
+      );
     } catch (error) {
-      console.error(
-        `Erreur lors de la récupération des données pour le mode "${mode}" :`,
-        error,
-      );
+      console.error("Erreur lors de l'affichage de la page d'aide :", error);
       renderError(mainContentDiv, error);
     }
   }
 
-  // fonction pour l'interface du tableau de bord
-
-  async function handleDashboardDisplay() {
+  async function handleControlNamingClick() {
     renderLoading(mainContentDiv);
     try {
-      // --- 1. Récupération de toutes les données en parallèle ---
-      const projectInfo = await triconnectAPI.project.getCurrentProject();
-      currentProjectId = projectInfo.id;
-
-      const [
-        loggedInUser,
-        fluxDefinitions,
-        allGroupsInProject,
-        assignments,
-        trackingData,
-        allVisaDocuments,
-      ] = await Promise.all([
-        fetchLoggedInUserDetails(globalAccessToken),
-        fetchFluxDefinitions(
-          globalAccessToken,
-          configFolderId,
-          CONFIG_FILENAME,
-        ),
-        fetchProjectGroups(projectInfo.id, globalAccessToken),
+      const [namingConfig, assignmentsConfig] = await Promise.all([
         fetchConfigurationFile(
           globalAccessToken,
           configFolderId,
-          ASSIGNMENTS_FILENAME,
+          NAMING_CONFIG_FILENAME,
         ),
         fetchConfigurationFile(
           globalAccessToken,
           configFolderId,
-          VISA_TRACKING_FILENAME,
-        ).then((data) => data || {}),
-        fetchVisaDocuments(
-          globalAccessToken,
-          triconnectAPI,
-          configFolderId,
-          ASSIGNMENTS_FILENAME,
-          { mode: "documents" },
+          NAMING_ASSIGNMENTS_FILENAME,
         ),
       ]);
-      allFluxDefinitions = fluxDefinitions;
-
-      //  Récupérer les ID des groupes de l'utilisateur connecté ---
-      // Cette boucle est nécessaire car l'objet `loggedInUser` de l'API /users/me ne contient pas directement les groupes.
-      // Nous devons interroger chaque groupe du projet pour voir si l'utilisateur en fait partie.
-      const loggedInUserGroupIds = [];
-      for (const group of allGroupsInProject) {
-        const usersInGroupResponse = await fetch(
-          `https://app21.connect.trimble.com/tc/api/2.0/groups/${group.id}/users`,
-          {
-            headers: { Authorization: `Bearer ${globalAccessToken}` },
-          },
-        );
-        if (usersInGroupResponse.ok) {
-          const groupUsers = await usersInGroupResponse.json();
-          if (groupUsers.some((user) => user.id === loggedInUser.id)) {
-            loggedInUserGroupIds.push(group.id);
-          }
-        } else {
-          console.warn(
-            `Impossible de récupérer les utilisateurs pour le groupe ${group.name}.`,
-          );
-        }
-      }
-
-      // --- 2. Calcul des indicateurs (KPIs) ---
-
-      // On ne garde que la dernière version de chaque document pour les calculs de missions.
-      const maxVersionMap = new Map();
-      allVisaDocuments.forEach((doc) => {
-        const fileId = doc.id;
-        const version = parseInt(doc.version, 10) || 0;
-        if (!maxVersionMap.has(fileId) || version > maxVersionMap.get(fileId)) {
-          maxVersionMap.set(fileId, version);
-        }
-      });
-      const latestVersionsOnly = allVisaDocuments.filter((doc) => {
-        const version = parseInt(doc.version, 10) || 0;
-        return version === maxVersionMap.get(doc.id);
-      });
-
-      // Données pour le Donut Chart (Visuel 1)
-      const donutData = {
-        VSO: 0,
-        VAO: 0,
-        REF: 0,
-        SO: 0,
-        "En Cours": 0,
-        Annulés: 0,
-      };
-      latestVersionsOnly.forEach((doc) => {
-        if (donutData.hasOwnProperty(doc.status)) {
-          donutData[doc.status]++;
-        } else {
-          donutData["En Cours"]++;
-        }
-      });
-
-      // Données pour les Cartes Utilisateur (Visuel 3)
-      const userKpiData = { enAttente: 0, enRetard: 0 };
-
-      // Données pour le Bar Chart (Visuel 2)
-      const barChartData = {};
-      allGroupsInProject.forEach((g) => {
-        barChartData[g.id] = {
-          name: g.name,
-          emis: 0,
-          aEmettre: 0,
-          enRetard: 0,
-          total: 0,
-        };
-      });
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      for (const doc of latestVersionsOnly) {
-        const fluxDef = allFluxDefinitions.find((f) => f.name === doc.fluxName);
-        if (!fluxDef) continue;
-        const docTrackingInfo = trackingData[doc.trackingId] || [];
-
-        for (const step of fluxDef.steps) {
-          let isStepActive = false;
-          if (step.step === 1) {
-            isStepActive = true;
-          } else {
-            const previousStep = fluxDef.steps.find(
-              (s) => s.step === step.step - 1,
-            );
-            if (previousStep) {
-              const previousStepGroupIds = previousStep.groupIds;
-              const previousStepVisaCount = docTrackingInfo.filter((entry) =>
-                previousStepGroupIds.includes(entry.groupId),
-              ).length;
-              if (previousStepVisaCount === previousStepGroupIds.length) {
-                isStepActive = true;
-              }
-            }
-          }
-          for (const groupId of step.groupIds) {
-            if (!barChartData[groupId]) continue;
-
-            barChartData[groupId].total++;
-
-            const hasVoted = docTrackingInfo.some(
-              (entry) => entry.groupId === groupId,
-            );
-
-            if (hasVoted) {
-              // Le décompte des visas émis est toujours correct
-              barChartData[groupId].emis++;
-            }
-            // --- CORRIGÉ : On ne calcule "en retard" et "à émettre" QUE si l'étape est active ---
-            else if (isStepActive) {
-              const deadline = new Date(doc.depositDateObject);
-              let baseDateForDeadline = new Date(doc.depositDateObject);
-
-              // Si ce n'est pas l'étape 1, la base du calcul est la date du visa précédent
-              if (step.step > 1) {
-                const previousStep = fluxDef.steps.find(
-                  (s) => s.step === step.step - 1,
-                );
-                const previousStepVisas = docTrackingInfo.filter((entry) =>
-                  previousStep.groupIds.includes(entry.groupId),
-                );
-                const latestPreviousVisaDate = new Date(
-                  Math.max.apply(
-                    null,
-                    previousStepVisas.map((entry) => new Date(entry.date)),
-                  ),
-                );
-                baseDateForDeadline = latestPreviousVisaDate;
-              }
-
-              deadline.setDate(
-                baseDateForDeadline.getDate() + step.durationDays,
-              );
-
-              // Incrémentation des compteurs "par groupe" et "pour l'utilisateur"
-              if (deadline < today) {
-                barChartData[groupId].enRetard++;
-                if (loggedInUserGroupIds.includes(groupId)) {
-                  userKpiData.enRetard++;
-                }
-              } else {
-                barChartData[groupId].aEmettre++;
-                if (loggedInUserGroupIds.includes(groupId)) {
-                  userKpiData.enAttente++;
-                }
-              }
-            }
-            // Si l'étape n'est pas active et que le groupe n'a pas voté, on ne fait rien.
-          }
-        }
-      }
-
-      // Données pour la liste des documents déposés (Visuel 4)
-      const depositedDocs = allVisaDocuments.filter(
-        (doc) =>
-          doc.depositorName ===
-          `${loggedInUser.firstName} ${loggedInUser.lastName}`,
+      const allRules = namingConfig ? namingConfig.rules : [];
+      const allAssignments = assignmentsConfig || {};
+      const documents = await fetchAllControlledDocuments(
+        triconnectAPI,
+        globalAccessToken,
+        allAssignments,
+        isAdmin,
       );
-
-      // --- 3. Appel de la fonction de rendu ---
-      renderDashboardPage(mainContentDiv, {
-        donutData,
-        userKpiData,
-        barChartData: Object.values(barChartData).filter((d) => d.total > 0),
-        depositedDocs,
+      const documentsByConvention = {};
+      documents.forEach((doc) => {
+        if (!documentsByConvention[doc.conventionName]) {
+          documentsByConvention[doc.conventionName] = [];
+        }
+        documentsByConvention[doc.conventionName].push(doc);
       });
+      renderControlPage(mainContentDiv, documentsByConvention, allRules);
+      document
+        .getElementById("export-pdf-btn")
+        .addEventListener("click", () =>
+          handleExportControlPDF(documentsByConvention, allRules),
+        );
+      document
+        .getElementById("export-excel-btn")
+        .addEventListener("click", () =>
+          handleExportControlExcel(documentsByConvention, allRules),
+        );
     } catch (error) {
       console.error(
-        "Erreur lors de la construction du tableau de bord :",
+        "Erreur lors du chargement de la page de contrôle :",
         error,
       );
       renderError(mainContentDiv, error);
     }
   }
 
-  //Applique les filtres actifs et rafraîchit l'affichage du tableau.
-
-  function applyFiltersAndSortAndRenderTable(viseurGroups = []) {
-    processedVisaDocuments = [...allOriginalVisaDocuments];
-
-    // 1. Appliquer les filtres (logique existante)
-    for (const field in activeFilters) {
-      const selectedValues = activeFilters[field];
-      if (selectedValues && selectedValues.length > 0) {
-        processedVisaDocuments = processedVisaDocuments.filter((doc) =>
-          selectedValues.includes(String(doc[field])),
-        );
-      }
-    }
-
-    // 2. Appliquer le tri (nouvelle logique)
-    const { field, direction } = sortState;
-    if (field) {
-      processedVisaDocuments.sort((a, b) => {
-        const valA = a[field];
-        const valB = b[field];
-        let comparison = 0;
-
-        if (field === "depositDate") {
-          // Pour les dates, il faut les parser pour un tri correct
-          const dateA = new Date(valA.split("/").reverse().join("-"));
-          const dateB = new Date(valB.split("/").reverse().join("-"));
-          comparison = dateA - dateB;
-        } else if (field === "version") {
-          // Pour les versions numériques
-          comparison = Number(valA) - Number(valB);
-        } else {
-          // Pour tout le reste (texte)
-          comparison = String(valA).localeCompare(String(valB));
-        }
-
-        return direction === "asc" ? comparison : -comparison;
-      });
-    }
-    // On cherche d'abord la version maximale pour chaque document (par son ID de base)
-    const maxVersions = {};
-    processedVisaDocuments.forEach((doc) => {
-      const docVersionInt = parseInt(doc.version, 10) || 0;
-      const currentMax = maxVersions[doc.id] || 0;
-      if (docVersionInt > currentMax) {
-        maxVersions[doc.id] = docVersionInt;
-      }
-    });
-
-    // Ensuite, on marque chaque document qui n'est pas la version maximale comme "obsolète"
-    processedVisaDocuments.forEach((doc) => {
-      const docVersionInt = parseInt(doc.version, 10) || 0;
-      if (docVersionInt < maxVersions[doc.id]) {
-        doc.isOutdated = true;
-      } else {
-        doc.isOutdated = false;
-      }
-    });
-    // 3. Appliquer la pagination
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const documentsForCurrentPage = processedVisaDocuments.slice(
-      startIndex,
-      endIndex,
-    );
-
-    // 4. Rendre la table avec les nouvelles informations
-    let emptyMessage = null;
-    if (currentViewMode === "missions" && processedVisaDocuments.length === 0) {
-      emptyMessage = "Vous n'avez pas de missions de Visas à réaliser.";
-    }
-    renderVisaTable(
-      mainContentDiv,
-      documentsForCurrentPage,
-      processedVisaDocuments.length,
-      { currentPage, itemsPerPage },
-      currentViewMode,
-      emptyMessage,
-      currentViseurGroups,
-      allFluxDefinitions,
-    );
-    attachVisaTableEvents(
-      documentsForCurrentPage,
-      currentProjectId,
-      currentViewMode,
-    );
-
-    // 5. Mettre à jour les visuels (inchangé)
-    updateVisuals();
-  }
-
-  // FONCTION POUR METTRE À JOUR LES VISUELS
-
-  function updateVisuals() {
-    // Mettre à jour les icônes de filtre (code existant)
-    document.querySelectorAll(".filter-icon").forEach((icon) => {
-      const field = icon.dataset.field;
-      if (activeFilters[field] && activeFilters[field].length > 0) {
-        icon.classList.add("active");
-      } else {
-        icon.classList.remove("active");
-      }
-    });
-
-    // Mettre à jour les icônes de tri (nouveau code)
-    document
-      .querySelectorAll(".sort-icon")
-      .forEach((icon) => (icon.innerHTML = "")); // Vide toutes les flèches
-    const activeSortIcon = document.querySelector(
-      `.th-content[data-field="${sortState.field}"] .sort-icon`,
-    );
-    if (activeSortIcon) {
-      activeSortIcon.innerHTML = sortState.direction === "asc" ? "▲" : "▼";
-    }
-  }
-
-  // attache la table de visa et tri par ordre alphabétique
-
-  function attachVisaTableEvents(documents, projectId, mode) {
-    document.querySelectorAll(".visa-table tbody tr").forEach((row, index) => {
-      const doc = documents[index];
-      if (doc) {
-        row.addEventListener("click", () => {
-          if (mode === "documents") {
-            const viewerUrl = `https://web.connect.trimble.com/projects/${projectId}/viewer/2D?id=${doc.id}&version=${doc.id}`;
-            window.open(viewerUrl, "_blank");
-          } else {
-            handleDocumentRowClick(doc);
-          }
-        });
-      }
-    });
-
-    document.querySelectorAll(".filter-icon").forEach((icon) => {
-      icon.addEventListener("click", (event) => {
-        event.stopPropagation();
-        handleFilterIconClick(icon, icon.dataset.field);
-      });
-    });
-
-    document.querySelectorAll(".th-content.sortable").forEach((header) => {
-      header.addEventListener("click", () => {
-        const field = header.parentElement.dataset.field;
-        if (sortState.field === field) {
-          // Si on clique sur la même colonne, on inverse la direction
-          sortState.direction = sortState.direction === "asc" ? "desc" : "asc";
-        } else {
-          // Si on clique sur une nouvelle colonne, on trie par défaut en ascendant
-          sortState.field = field;
-          sortState.direction = "asc";
-        }
-        applyFiltersAndSortAndRenderTable();
-      });
-    });
-
-    // bouton cliquable pour oeil de visualisation de document
-    document.querySelectorAll(".view-doc-icon").forEach((icon) => {
-      icon.addEventListener("click", (event) => {
-        event.stopPropagation();
-        const docId = icon.dataset.docId;
-        if (docId && projectId) {
-          const viewerUrl = `https://web.connect.trimble.com/projects/${projectId}/viewer/2D?id=${docId}&version=${docId}`;
-          window.open(viewerUrl, "_blank");
-        }
-      });
-    });
-
-    // Boutons de taille de page (10, 20, 50)
-    document.querySelectorAll(".page-size-btn").forEach((button) => {
-      button.addEventListener("click", () => {
-        itemsPerPage = parseInt(button.dataset.size);
-        currentPage = 1; // Toujours revenir à la première page
-        applyFiltersAndSortAndRenderTable();
-      });
-    });
-
-    // Boutons de numéro de page (1, 2, ...)
-    document.querySelectorAll(".pagination-btn").forEach((button) => {
-      button.addEventListener("click", () => {
-        currentPage = parseInt(button.dataset.page);
-        applyFiltersAndSortAndRenderTable();
-      });
-    });
-
-    document.querySelectorAll(".observation-icon").forEach((icon) => {
-      icon.addEventListener("click", (event) => {
-        event.stopPropagation(); // TRÈS IMPORTANT : Empêche la navigation
-        const observations = JSON.parse(icon.dataset.observations);
-        renderObservationPopup(icon, observations);
-      });
-    });
-
-    const visaTableElement = document.querySelector(".visa-table");
-    if (visaTableElement) {
-      attachResizableTableEvents(visaTableElement);
-    }
-    if (mode === "documents") {
-      const exportBtn = document.getElementById("export-main-btn");
-      const exportOptions = document.getElementById("export-options-div");
-
-      if (exportBtn && exportOptions) {
-        exportBtn.addEventListener("click", () => {
-          exportOptions.classList.toggle("visible");
-        });
-
-        document
-          .getElementById("export-pdf-btn")
-          .addEventListener("click", handleExportPDF);
-        document
-          .getElementById("export-excel-btn")
-          .addEventListener("click", handleExportExcel);
-
-        // Pour fermer le menu si on clique ailleurs
-        window.addEventListener("click", (e) => {
-          if (!exportBtn.contains(e.target)) {
-            exportOptions.classList.remove("visible");
-          }
-        });
-      }
-    }
-  }
-
-  // fonction pour les pop up et filtres dans le tableau des visas
-  async function handleFilterIconClick(iconElement, columnField) {
-    const uniqueValues = [
-      ...new Set(
-        allOriginalVisaDocuments.map((doc) => String(doc[columnField])),
-      ),
-    ].sort();
-
-    renderFilterPopup(
-      iconElement,
-      columnField,
-      uniqueValues,
-      activeFilters[columnField] || [], // Valeurs déjà sélectionnées
-      (field, values) => {
-        // Callback onApply
-        activeFilters[field] = values;
-        applyFiltersAndSortAndRenderTable();
-      },
-      (field) => {
-        // Callback onClear
-        delete activeFilters[field];
-        applyFiltersAndSortAndRenderTable();
-      },
-    );
-  }
-
-  // permet la selection de la lignepour visa
-
-  async function handleDocumentRowClick(doc) {
-    renderLoading(mainContentDiv);
-    try {
-      const projectInfo = await triconnectAPI.project.getCurrentProject();
-      const [loggedInUser, assignments, userToGroupMap, visaStates] =
-        await Promise.all([
-          fetchLoggedInUserDetails(globalAccessToken),
-          fetchConfigurationFile(
-            globalAccessToken,
-            configFolderId,
-            ASSIGNMENTS_FILENAME,
-          ),
-          fetchUsersAndGroups(projectInfo.id, globalAccessToken),
-          fetchVisaPossibleStates(projectInfo.id, globalAccessToken),
-        ]);
-
-      const visaData = {
-        doc: doc,
-        projectName: projectInfo.name,
-        loggedInUser: loggedInUser,
-        userName: `${loggedInUser.firstName} ${loggedInUser.lastName}`,
-        userGroup: userToGroupMap.get(loggedInUser.id) || "Groupe non trouvé",
-        fluxName: assignments
-          ? assignments[doc.parentId] || "Aucun flux affecté"
-          : "Aucun flux affecté",
-        visaStates: visaStates || [],
-      };
-
-      renderVisaInterfacePage(mainContentDiv, visaData);
-
-      document
-        .getElementById("cancel-visa-btn")
-        .addEventListener("click", () => handleTableDisplay(currentViewMode));
-      document
-        .getElementById("save-visa-btn")
-        .addEventListener("click", () => handleSaveVisaClick(visaData));
-      document.getElementById("view-doc-btn").addEventListener("click", () => {
-        const viewerUrl = `https://web.connect.trimble.com/projects/${projectInfo.id}/viewer/2D?id=${doc.id}&version=${doc.id}`;
-        window.open(viewerUrl, "_blank");
-      });
-    } catch (error) {
-      console.error(
-        "Erreur lors de l'affichage de l'interface de visa :",
-        error,
-      );
-      renderError(mainContentDiv, error);
-    }
-  }
-
-  // génération de l'interface et des données du PDF pour le visa
-
-  async function handleSaveVisaClick(visaData) {
-    // 1. On récupère la valeur du champ d'observation et on supprime les espaces inutiles au début et à la fin.
-    const observations = document.getElementById("observations").value.trim();
-
-    // 2. On vérifie si la longueur du texte est inférieure à 2 caractères.
-    if (observations.length < 2) {
-      // 3. Si c'est le cas, on affiche une alerte claire à l'utilisateur.
+  async function handleConfigNamingRuleClick() {
+    if (!isAdmin) {
       alert(
-        "Veuillez saisir une observation d'au moins 2 caractères pour valider le visa.",
+        "Accès refusé : Seuls les administrateurs peuvent configurer le nommage.",
       );
-
-      // 4. On arrête immédiatement l'exécution de la fonction pour ne pas sauvegarder.
       return;
     }
-    const selectedStatus = document.getElementById("visa-status-select").value;
-    renderSaving(mainContentDiv);
-
-    try {
-      const [trackingData, allGroups] = await Promise.all([
-        fetchConfigurationFile(
-          globalAccessToken,
-          configFolderId,
-          VISA_TRACKING_FILENAME,
-        ),
-        fetchProjectGroups(currentProjectId, globalAccessToken),
-      ]);
-
-      const projectRootId = await getProjectRootId(
-        triconnectAPI,
-        globalAccessToken,
-      );
-
-      const visasRootFolderId = await findOrCreateFolder(
-        projectRootId,
-        "00_VISAS",
-        globalAccessToken,
-      );
-
-      const lotName = visaData.doc.lot || "Lot non défini";
-      const finalTargetFolderId = await findOrCreateFolder(
-        visasRootFolderId,
-        lotName,
-        globalAccessToken,
-      );
-
-      const userGroupObject = allGroups.find(
-        (g) => g.name === visaData.userGroup,
-      );
-      if (!userGroupObject) {
-        throw new Error(
-          `Le groupe "${visaData.userGroup}" de l'utilisateur n'a pas été trouvé dans le projet.`,
-        );
-      }
-      const userGroupId = userGroupObject.id;
-
-      const newTrackingData = trackingData || {};
-      const trackingId = visaData.doc.trackingId;
-
-      if (!newTrackingData[trackingId]) {
-        newTrackingData[trackingId] = [];
-      }
-
-      const groupEntryIndex = newTrackingData[trackingId].findIndex(
-        (entry) => entry.groupId === userGroupId,
-      );
-
-      const today = new Date().toISOString().split("T")[0]; // Format YYYY-MM-DD
-
-      const visaEntry = {
-        groupId: userGroupId,
-        status: selectedStatus,
-        date: today,
-        user: visaData.userName,
-      };
-
-      // On ajoute la propriété 'observation' uniquement si elle n'est pas vide
-      if (observations.trim() !== "") {
-        visaEntry.observation = observations;
-      }
-
-      if (groupEntryIndex > -1) {
-        // On met à jour une entrée existante en la remplaçant par la nouvelle
-        newTrackingData[trackingId][groupEntryIndex] = visaEntry;
-      } else {
-        // On ajoute la nouvelle entrée
-        newTrackingData[trackingId].push(visaEntry);
-      }
-
-      const statusPriority = ["REF", "VAO", "VSO", "SO", "En Cours"];
-      const docStatuses = newTrackingData[trackingId].map(
-        (entry) => entry.status,
-      );
-
-      let generalStatus = "En Cours"; // Statut par défaut
-      for (const priorityStatus of statusPriority) {
-        if (docStatuses.includes(priorityStatus)) {
-          generalStatus = priorityStatus;
-          break;
-        }
-      }
-
-      const updatePSetTask = updatePSetStatus(
-        visaData.doc.projectId,
-        visaData.doc.id,
-        generalStatus,
-        globalAccessToken,
-      );
-
-      const saveTrackingTask = saveConfigurationFile(
-        triconnectAPI,
-        globalAccessToken,
-        newTrackingData,
-        VISA_TRACKING_FILENAME,
-        configFolderId,
-      );
-
-      // création du PDF de visa
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
-
-      // ===================================================================================
-      // PARTIE 1 : Constantes de mise en page et de style
-      // ===================================================================================
-
-      const BUBBLE_BACKGROUND = [217, 231, 252];
-      const BORDER_COLOR = [201, 214, 224];
-      const TEXT_COLOR_NORMAL = [0, 0, 0];
-
-      const statusColorMap = {
-        VSO: [40, 167, 69],
-        VAO: [255, 193, 7],
-        REF: [220, 53, 69],
-        SO: [108, 117, 125],
-        "En Cours": [253, 126, 20],
-      };
-      const statusDescriptionMap = {
-        VSO: "Validé Sans Observation",
-        VAO: "Validé Avec Observation",
-        REF: "Refusé",
-        SO: "Sans Objet",
-        "En Cours": "En cours de Visa",
-      };
-      const textColorForStatus = (status) =>
-        status === "VAO" ? [0, 0, 0] : [255, 255, 255];
-
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const margin = 15;
-      const maxContentWidth = pageWidth - margin * 2;
-      const col1X = margin;
-      const col2X = margin + maxContentWidth / 2 + 4;
-      const smallBubbleWidth = maxContentWidth / 2 - 4;
-
-      let yPos = 20;
-
-      // ===================================================================================
-      // PARTIE 2 : Fonctions "outils" pour dessiner les bulles
-      // ===================================================================================
-
-      const drawSimpleBubble = (text, x, y, width, height, fontSize) => {
-        doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
-        doc.roundedRect(x, y, width, height, 5, 5, "FD");
-        doc
-          .setFont("helvetica", "bold")
-          .setFontSize(fontSize)
-          .setTextColor(...TEXT_COLOR_NORMAL);
-        doc.text(text, x + width / 2, y + height / 2, {
-          align: "center",
-          baseline: "middle",
-        });
-      };
-
-      const drawTitledBubble = (title, value, x, y, width, height) => {
-        doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
-        doc.roundedRect(x, y, width, height, 5, 5, "FD");
-        // --- MODIFIÉ : Espacement vertical ajusté pour une meilleure lisibilité ---
-        doc
-          .setFont("helvetica", "bold")
-          .setFontSize(9)
-          .setTextColor(...TEXT_COLOR_NORMAL);
-        doc.text(title, x + width / 2, y + 6, { align: "center" });
-        doc
-          .setFont("helvetica", "bold")
-          .setFontSize(11)
-          .setTextColor(...TEXT_COLOR_NORMAL);
-        doc.text(String(value), x + width / 2, y + 14, { align: "center" });
-      };
-
-      // ===================================================================================
-      // PARTIE 3 : La construction du PDF
-      // ===================================================================================
-
-      doc
-        .setFont("helvetica", "bold")
-        .setFontSize(22)
-        .setTextColor(...TEXT_COLOR_NORMAL);
-      doc.text("Fiche Visa", pageWidth / 2, yPos, { align: "center" });
-      yPos += 15;
-
-      drawSimpleBubble(
-        visaData.projectName,
-        margin,
-        yPos,
-        maxContentWidth,
-        16,
-        16,
-      );
-      yPos += 16 + 6;
-
-      drawSimpleBubble(
-        visaData.doc.name,
-        margin,
-        yPos,
-        maxContentWidth,
-        14,
-        13,
-      );
-      yPos += 14 + 10;
-
-      const smallBubbleHeight = 12;
-      drawSimpleBubble(
-        `Indice: ${visaData.doc.version}`,
-        col1X,
-        yPos,
-        smallBubbleWidth,
-        smallBubbleHeight,
-        11,
-      );
-      drawSimpleBubble(
-        `Date: ${visaData.doc.depositDate}`,
-        col2X,
-        yPos,
-        smallBubbleWidth,
-        smallBubbleHeight,
-        11,
-      );
-      yPos += smallBubbleHeight + 4;
-      drawSimpleBubble(
-        `Déposé par : ${visaData.doc.depositorName}`,
-        col1X,
-        yPos,
-        maxContentWidth,
-        smallBubbleHeight,
-        11,
-      );
-      yPos += smallBubbleHeight + 10;
-
-      const titledBubbleHeight = 18;
-      let leftColY = yPos;
-      let rightColY = yPos;
-
-      // Colonne de gauche
-      drawTitledBubble(
-        "Groupe de l'émetteur de visa",
-        visaData.userGroup,
-        col1X,
-        leftColY,
-        smallBubbleWidth,
-        titledBubbleHeight,
-      );
-      leftColY += titledBubbleHeight + 4;
-      drawTitledBubble(
-        "Émetteur du visa",
-        visaData.userName,
-        col1X,
-        leftColY,
-        smallBubbleWidth,
-        titledBubbleHeight,
-      );
-
-      // Colonne de droite
-      const statusBubbleHeight = titledBubbleHeight;
-      const statusBubbleColor =
-        statusColorMap[selectedStatus] || BUBBLE_BACKGROUND;
-      const statusBubbleTextColor = textColorForStatus(selectedStatus);
-      const statusDescription = statusDescriptionMap[selectedStatus] || "";
-
-      doc.setFillColor(...statusBubbleColor).setDrawColor(...BORDER_COLOR);
-      doc.roundedRect(
-        col2X,
-        rightColY,
-        smallBubbleWidth,
-        statusBubbleHeight,
-        5,
-        5,
-        "FD",
-      );
-      doc
-        .setFont("helvetica", "bold")
-        .setFontSize(14)
-        .setTextColor(...statusBubbleTextColor);
-      doc.text(selectedStatus, col2X + smallBubbleWidth / 2, rightColY + 8, {
-        align: "center",
-      }); // Statut (ex: REF)
-      doc
-        .setFont("helvetica", "normal")
-        .setFontSize(8)
-        .setTextColor(...statusBubbleTextColor);
-      doc.text(
-        statusDescription,
-        col2X + smallBubbleWidth / 2,
-        rightColY + 14,
-        { align: "center" },
-      ); // Description (ex: Refusé)
-      rightColY += statusBubbleHeight + 4;
-
-      // -- Ajout de la bulle "Date de visa" qui manquait ---
-      drawTitledBubble(
-        "Date de visa",
-        new Date().toLocaleDateString(),
-        col2X,
-        rightColY,
-        smallBubbleWidth,
-        titledBubbleHeight,
-      );
-      rightColY += titledBubbleHeight; // On incrémente bien le curseur de la colonne de droite
-
-      yPos = Math.max(leftColY, rightColY) + 15;
-
-      // --- Section Observations (le code est déjà correct et dynamique) ---
-      const observationsText = observations || "Aucune observation.";
-      const padding = 10;
-      const headerHeight = 18;
-      const footerHeight = 5;
-      const observationLines = doc.splitTextToSize(
-        observationsText,
-        maxContentWidth - padding * 2,
-      );
-      const lineHeight = doc.getLineHeight() / doc.internal.scaleFactor;
-      const textHeight = observationLines.length * lineHeight;
-      const totalBoxHeight = headerHeight + textHeight + footerHeight;
-      const pageHeight = doc.internal.pageSize.getHeight();
-      if (totalBoxHeight > pageHeight - yPos - margin) {
-        doc.addPage();
-        yPos = margin;
-        doc
-          .setFont("helvetica", "italic")
-          .setFontSize(8)
-          .setTextColor(150, 150, 150);
-        doc.text(
-          `Fiche Visa (suite) - ${visaData.doc.name}`,
-          pageWidth / 2,
-          yPos,
-          { align: "center" },
-        );
-        yPos += 10;
-      }
-      doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
-      doc.roundedRect(
-        margin,
-        yPos,
-        maxContentWidth,
-        totalBoxHeight,
-        10,
-        10,
-        "FD",
-      );
-      doc
-        .setFont("helvetica", "bold")
-        .setFontSize(12)
-        .setTextColor(...TEXT_COLOR_NORMAL);
-      doc.text("Observations", margin + padding, yPos + 10);
-      doc
-        .setFont("helvetica", "normal")
-        .setFontSize(10)
-        .setTextColor(...TEXT_COLOR_NORMAL);
-      doc.text(observationLines, margin + padding, yPos + headerHeight);
-
-      // --- Finalisation ---
-      const pdfBlob = doc.output("blob");
-
-      // fin de la génaration du PDF
-
-      const newFilename = `VISA_${visaData.userGroup}_${visaData.doc.name}`;
-
-      const savePdfTask = saveConfigurationFile(
-        triconnectAPI,
-        globalAccessToken,
-        pdfBlob,
-        newFilename,
-        finalTargetFolderId,
-      );
-      await Promise.all([updatePSetTask, saveTrackingTask]);
-
-      renderSuccess(
-        mainContentDiv,
-        `Informations enregistrées. Le statut général du document est maintenant : ${generalStatus}.`,
-      );
-      setTimeout(() => handleTableDisplay(currentViewMode), 3500);
-    } catch (error) {
-      console.error(
-        "Échec de la génération, sauvegarde ou mise à jour :",
-        error,
-      );
-      renderError(mainContentDiv, error);
-    }
-  }
-
-  // --- GESTIONNAIRE POUR AFFICHER LA PAGE DE CONFIGURATION ---
-  async function handleConfigClick() {
     renderLoading(mainContentDiv);
-
     try {
-      // 1. On vérifie d'abord le rôle de l'utilisateur
-      const userRole = await fetchUserProjectRole(
-        currentProjectId,
-        globalAccessToken,
-      );
-      const isAdmin = userRole === "ADMIN";
-
-      // 2. On affiche la page, en passant le statut admin pour afficher ou non les boutons
       renderConfigPage(mainContentDiv, isAdmin);
-
-      // 3. On attache les événements aux boutons UNIQUEMENT si l'utilisateur est admin
-      if (isAdmin) {
-        document
-          .getElementById("create-flux-btn")
-          .addEventListener("click", handleCreateFluxClick);
-        document
-          .getElementById("manage-flux-btn")
-          .addEventListener("click", handleManageFluxClick);
-        document
-          .getElementById("assign-flux-btn")
-          .addEventListener("click", handleAssignFluxClick);
-      }
-
-      // 4. Le chargement du tableau récapitulatif est fait pour TOUT LE MONDE
-      const summaryContainer = document.getElementById(
-        "config-summary-container",
-      );
-      summaryContainer.innerHTML = `<p style="text-align:center; margin-top:20px;">Chargement du récapitulatif...</p>`;
-
-      const [fluxConfig, assignmentsConfig, allProjectFolders] =
-        await Promise.all([
-          fetchConfigurationFile(
-            globalAccessToken,
-            configFolderId,
-            CONFIG_FILENAME,
-          ),
-          fetchConfigurationFile(
-            globalAccessToken,
-            configFolderId,
-            ASSIGNMENTS_FILENAME,
-          ),
-          fetchAllProjectFolders(triconnectAPI, globalAccessToken),
-        ]);
-
-      const folderIdToNameMap = new Map(
-        allProjectFolders.map((f) => [f.id, f.name]),
-      );
-      const allFlows = fluxConfig?.flux || [];
-      const allAssignments = assignmentsConfig || {};
-      const assignmentsByFlux = {};
-
-      for (const folderId in allAssignments) {
-        const fluxName = allAssignments[folderId];
-        if (fluxName) {
-          if (!assignmentsByFlux[fluxName]) {
-            assignmentsByFlux[fluxName] = [];
-          }
-          const folderName = folderIdToNameMap.get(folderId);
-          if (folderName) {
-            assignmentsByFlux[fluxName].push(folderName);
-          }
-        }
-      }
-
-      const summaryData = allFlows.map((flow) => ({
-        fluxName: flow.name,
-        affectedFolders: assignmentsByFlux[flow.name] || [],
-        date: flow.modifiedAt || flow.createdAt || "N/A",
-        creator: flow.modifiedBy || flow.createdBy || "N/A",
-      }));
-
-      renderConfigSummaryTable(summaryContainer, summaryData);
+      document
+        .getElementById("create-naming-btn")
+        .addEventListener("click", handleCreateNamingRuleClick);
+      document
+        .getElementById("manage-naming-btn")
+        .addEventListener("click", handleManageNamingRulesClick);
+      document
+        .getElementById("assign-naming-btn")
+        .addEventListener("click", handleAssignNamingRulesClick);
+      await loadAndRenderNamingSummary();
     } catch (error) {
       console.error(
         "Erreur lors de l'affichage de la page de configuration:",
@@ -1225,508 +336,720 @@ import {
     }
   }
 
-  // Fonction utilitaire pour rafraîchir la page de gestion des flux
+  // --- Fonctions de la section "Aide Codification" ---
 
-  async function refreshManageFluxPage() {
-    renderLoading(mainContentDiv);
-    try {
-      // Récupérer la configuration la plus récente
-      const config = await fetchConfigurationFile(
-        globalAccessToken,
-        configFolderId,
-        CONFIG_FILENAME,
-      );
-      const flows = config ? config.flux : [];
-      // Rendre la page de gestion des flux
-      renderManageFluxPage(mainContentDiv, flows, currentProjectGroups);
-      attachManageFluxEvents(flows); // Ré-attacher les événements
-    } catch (error) {
-      console.error(
-        "Erreur lors du rafraîchissement de la page de gestion des flux :",
-        error,
-      );
-      renderError(mainContentDiv, error);
-    }
+  function attachHelpPageListeners() {
+    const dropZone = document.getElementById("file-drop-zone");
+    const fileInput = document.getElementById("file-upload-input");
+    dropZone.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (e) => {
+      if (e.target.files.length > 0) handleFileSelected(e.target.files[0]);
+    });
+    dropZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropZone.classList.add("drag-over");
+    });
+    dropZone.addEventListener("dragleave", () =>
+      dropZone.classList.remove("drag-over"),
+    );
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("drag-over");
+      if (e.dataTransfer.files.length > 0)
+        handleFileSelected(e.dataTransfer.files[0]);
+    });
+    const uploadBtn = document.getElementById("upload-document-btn");
+    uploadBtn.addEventListener("click", handleFinalUpload);
   }
 
-  // Fonction pour attacher les événements sur les boutons Modifier/Supprimer
-  function attachManageFluxEvents(flows) {
-    document.querySelectorAll(".edit-flux-btn").forEach((button) => {
-      button.addEventListener("click", (event) => {
-        const fluxName = event.target.dataset.fluxName;
-        handleEditFlux(fluxName);
-      });
-    });
-
-    document.querySelectorAll(".delete-flux-btn").forEach((button) => {
-      button.addEventListener("click", (event) => {
-        const fluxName = event.target.dataset.fluxName;
-        handleDeleteFlux(fluxName);
-      });
-    });
-
-    document
-      .getElementById("back-to-config-btn")
-      .addEventListener("click", handleConfigClick);
+  function handleFileSelected(file) {
+    helpCodificationState.file = file;
+    document.getElementById("drop-zone-text").textContent =
+      `Fichier sélectionné : ${file.name}`;
+    checkStateAndRenderNamingZone();
   }
 
-  // --- GESTIONNAIRE POUR LE BOUTON DE CREATION DE FLUX ---
-  async function handleCreateFluxClick() {
-    if (!globalAccessToken || !triconnectAPI) {
-      renderError(
-        mainContentDiv,
-        new Error("L'extension n'est pas correctement initialisée."),
-      );
+  function renderPermissionAwareFolderTree(
+    parentElement,
+    folders,
+    permissionData,
+  ) {
+    const { necessaryFolderIds, allowedTargetIds } = permissionData;
+
+    if (!folders || folders.length === 0) {
+      const noSubfolderItem = document.createElement("li");
+      noSubfolderItem.className = "folder-item-empty";
+      noSubfolderItem.textContent = "Aucun sous-dossier";
+      parentElement.appendChild(noSubfolderItem);
       return;
     }
 
-    currentEditedFluxName = null; // S'assurer qu'on est en mode création
-    renderLoading(mainContentDiv);
-    try {
-      const projectInfo = await triconnectAPI.project.getCurrentProject();
-      currentProjectGroups = await fetchProjectGroups(
-        projectInfo.id,
-        globalAccessToken,
-      );
+    folders.forEach((folder) => {
+      const isAllowedTarget = allowedTargetIds.has(folder.id);
 
-      renderCreateFluxPage(mainContentDiv, currentProjectGroups); // Pas de flux à éditer
-      attachCreateEditFluxEvents();
-    } catch (error) {
-      console.error(
-        "Erreur lors de la préparation de la création de flux :",
-        error,
-      );
-      renderError(mainContentDiv, error);
-    }
-  }
+      const listItem = document.createElement("li");
+      listItem.className = `folder-item ${isAllowedTarget ? "allowed-folder" : "path-folder"}`;
+      listItem.dataset.folderId = folder.id;
+      listItem.dataset.loaded = "false";
 
-  // --- NOUVEAU GESTIONNAIRE POUR LE BOUTON 'GÉRER LES FLUX' ---
-  async function handleManageFluxClick() {
-    if (!globalAccessToken || !triconnectAPI) {
-      renderError(
-        mainContentDiv,
-        new Error("L'extension n'est pas correctement initialisée."),
-      );
-      return;
-    }
+      const expander = document.createElement("span");
+      expander.className = "expander";
+      expander.textContent = "▶ ";
 
-    renderLoading(mainContentDiv);
-    try {
-      const projectInfo = await triconnectAPI.project.getCurrentProject();
-      currentProjectGroups = await fetchProjectGroups(
-        projectInfo.id,
-        globalAccessToken,
-      ); // Récupérer les groupes
+      const folderNameSpan = document.createElement("span");
+      folderNameSpan.className = "folder-name";
+      folderNameSpan.textContent = folder.name;
 
-      const config = await fetchConfigurationFile(
-        globalAccessToken,
-        configFolderId,
-        CONFIG_FILENAME,
-      );
-      const flows = config ? config.flux : []; // Récupérer tous les flux
+      listItem.appendChild(expander);
+      listItem.appendChild(folderNameSpan);
+      parentElement.appendChild(listItem);
 
-      renderManageFluxPage(mainContentDiv, flows, currentProjectGroups);
-      attachManageFluxEvents(flows);
-    } catch (error) {
-      console.error(
-        "Erreur lors de la récupération des flux existants :",
-        error,
-      );
-      renderError(mainContentDiv, error);
-    }
-  }
+      // --- Logique de Sélection (uniquement pour les dossiers autorisés) ---
+      if (isAllowedTarget) {
+        folderNameSpan.style.cursor = "pointer";
+        folderNameSpan.addEventListener("click", () => {
+          // Gère la mise en surbrillance visuelle
+          document
+            .querySelectorAll(".folder-item.selected")
+            .forEach((el) => el.classList.remove("selected"));
+          listItem.classList.add("selected");
 
-  // --- GESTIONNAIRE POUR SUPPRIMER UN FLUX ---
-  async function handleDeleteFlux(fluxNameToDelete) {
-    if (
-      !confirm(
-        `Êtes-vous sûr de vouloir supprimer le flux "${fluxNameToDelete}" ? Cette action est irréversible.`,
-      )
-    ) {
-      return; // Annuler la suppression si l'utilisateur refuse
-    }
-
-    renderSaving(mainContentDiv); // Afficher un message de "suppression en cours"
-    try {
-      const [existingConfig, assignmentsConfig] = await Promise.all([
-        fetchConfigurationFile(
-          globalAccessToken,
-          configFolderId,
-          CONFIG_FILENAME,
-        ),
-        fetchConfigurationFile(
-          globalAccessToken,
-          configFolderId,
-          ASSIGNMENTS_FILENAME,
-        ),
-      ]);
-
-      if (!existingConfig || !existingConfig.flux) {
-        throw new Error("Impossible de récupérer la configuration des flux.");
+          // Met à jour l'état de l'application
+          helpCodificationState.selectedFolderId = folder.id;
+          checkStateAndRenderNamingZone();
+        });
+      } else {
+        folderNameSpan.style.cursor = "default";
       }
 
-      const updatedFluxes = existingConfig.flux.filter(
-        (flux) => flux.name !== fluxNameToDelete,
-      );
-      const finalConfigurationData = { ...existingConfig, flux: updatedFluxes }; // Conserver les autres propriétés du fichier si elles existent
+      // --- Logique de Dépliement (pour tous les dossiers affichés) ---
+      expander.addEventListener("click", async () => {
+        const subList = listItem.querySelector("ul");
 
-      //  On nettoie le fichier d'affectations ---
-      const updatedAssignments = { ...assignmentsConfig };
-      let assignmentsCleaned = false;
-      for (const folderId in updatedAssignments) {
-        if (updatedAssignments[folderId] === fluxNameToDelete) {
-          delete updatedAssignments[folderId]; // On supprime l'affectation orpheline
-          assignmentsCleaned = true;
+        // Si les sous-dossiers sont déjà chargés, on les affiche/masque simplement
+        if (listItem.dataset.loaded === "true") {
+          if (subList) {
+            subList.style.display =
+              subList.style.display === "none" ? "block" : "none";
+            expander.textContent =
+              subList.style.display === "none" ? "▶ " : "▼ ";
+          }
+          return;
         }
-      }
 
-      // On sauvegarde les deux fichiers ---
-      const saveTasks = [
-        saveConfigurationFile(
-          triconnectAPI,
-          globalAccessToken,
-          finalConfigurationData,
-          CONFIG_FILENAME,
-          configFolderId,
-        ),
-      ];
+        // Affiche un message de chargement
+        const loadingSpan = document.createElement("span");
+        loadingSpan.textContent = " (chargement...)";
+        expander.style.display = "none"; // Masque l'expandeur pendant le chargement
+        listItem.insertBefore(loadingSpan, folderNameSpan);
 
-      // On ne sauvegarde le fichier d'affectations que s'il a été modifié
-      if (assignmentsCleaned) {
-        saveTasks.push(
-          saveConfigurationFile(
-            triconnectAPI,
+        try {
+          // On récupère et on filtre les sous-dossiers
+          const subFolders = await fetchFolderContents(
+            folder.id,
             globalAccessToken,
-            updatedAssignments,
-            ASSIGNMENTS_FILENAME,
-            configFolderId,
-          ),
-        );
-      }
+          );
+          const filteredSubFolders = subFolders.filter((f) =>
+            necessaryFolderIds.has(f.id),
+          );
 
-      await Promise.all(saveTasks);
+          const newSubList = document.createElement("ul");
+          newSubList.className = "folder-tree";
+          listItem.appendChild(newSubList);
 
-      renderSuccess(
-        mainContentDiv,
-        `Le flux "${fluxNameToDelete}" a été supprimé avec succès.`,
-      );
-      setTimeout(refreshManageFluxPage, 1500); // Rafraîchir après un court délai
-    } catch (error) {
-      console.error(
-        `Échec de la suppression du flux "${fluxNameToDelete}" :`,
-        error,
-      );
-      renderError(mainContentDiv, error);
-    }
-  }
+          // Appel récursif pour construire le niveau suivant
+          renderPermissionAwareFolderTree(
+            newSubList,
+            filteredSubFolders,
+            permissionData,
+          );
 
-  // --- GESTIONNAIRE POUR ÉDITER UN FLUX ---
-  async function handleEditFlux(fluxName) {
-    if (!globalAccessToken || !triconnectAPI) {
-      renderError(
-        mainContentDiv,
-        new Error("L'extension n'est pas correctement initialisée."),
-      );
-      return;
-    }
-
-    renderLoading(mainContentDiv);
-    try {
-      const existingConfig = await fetchConfigurationFile(
-        globalAccessToken,
-        configFolderId,
-        CONFIG_FILENAME,
-      );
-      if (!existingConfig || !existingConfig.flux) {
-        throw new Error(
-          "Impossible de récupérer la configuration existante pour l'édition.",
-        );
-      }
-
-      const fluxToEdit = existingConfig.flux.find(
-        (flux) => flux.name === fluxName,
-      );
-      if (!fluxToEdit) {
-        throw new Error(`Flux "${fluxName}" introuvable pour édition.`);
-      }
-
-      currentEditedFluxName = fluxName; // Marquer le flux en cours d'édition
-      const projectInfo = await triconnectAPI.project.getCurrentProject();
-      currentProjectGroups = await fetchProjectGroups(
-        projectInfo.id,
-        globalAccessToken,
-      );
-
-      renderCreateFluxPage(mainContentDiv, currentProjectGroups, fluxToEdit); // Passer le flux à éditer
-      attachCreateEditFluxEvents();
-    } catch (error) {
-      console.error(
-        `Erreur lors de la préparation de l'édition du flux "${fluxName}" :`,
-        error,
-      );
-      renderError(mainContentDiv, error);
-    }
-  }
-
-  // --- GESTIONNAIRE POUR LE BOUTON D'ENREGISTREMENT/MODIFICATION DU FLUX ---
-  async function handleSaveFluxClick() {
-    // --- Section 1: Lecture des données du formulaire ---
-    const fluxNameInput = document.getElementById("flux-name");
-    const fluxName = fluxNameInput.value;
-    const originalFluxName = document.getElementById("original-flux-name")
-      ? document.getElementById("original-flux-name").value
-      : null;
-
-    if (!fluxName.trim()) {
-      alert("Veuillez donner un nom au flux.");
-      return;
-    }
-
-    const fluxSteps = [];
-    const stepElements = document.querySelectorAll(".flux-step");
-    let validationOk = true;
-
-    if (stepElements.length === 0) {
-      // S'assurer qu'il y a au moins une étape
-      alert("Veuillez ajouter au moins une étape au flux.");
-      return;
-    }
-
-    stepElements.forEach((stepEl, index) => {
-      const groupSelect = stepEl.querySelector(".group-select");
-      const selectedGroupIds = Array.from(groupSelect.selectedOptions).map(
-        (opt) => opt.value,
-      );
-      const duration = stepEl.querySelector(".duration-select").value;
-
-      if (selectedGroupIds.length === 0) {
-        alert(
-          `Veuillez sélectionner au moins un groupe pour l'étape ${index + 1}.`,
-        );
-        validationOk = false;
-      }
-      fluxSteps.push({
-        step: index + 1,
-        groupIds: selectedGroupIds,
-        durationDays: parseInt(duration, 10),
+          listItem.dataset.loaded = "true";
+          expander.textContent = "▼ "; // Change l'icône en "déplié"
+        } catch (error) {
+          console.error(`Erreur au chargement du dossier ${folder.id}`, error);
+          listItem.removeChild(loadingSpan); // S'assure que le chargement est retiré en cas d'erreur
+        } finally {
+          // Retire le message de chargement et réaffiche l'expandeur
+          if (listItem.contains(loadingSpan)) {
+            listItem.removeChild(loadingSpan);
+          }
+          expander.style.display = "inline";
+        }
       });
     });
+  }
 
-    if (!validationOk) return;
+  async function checkStateAndRenderNamingZone() {
+    const { file, selectedFolderId } = helpCodificationState;
+    const namingZoneContainer = document.getElementById(
+      "naming-zone-container",
+    );
+    const uploadBtn = document.getElementById("upload-document-btn");
+    if (!file || !selectedFolderId) return;
 
-    // Créer l'objet pour le nouveau ou le flux modifié
-    const newFluxData = {
-      name: fluxName,
-      steps: fluxSteps,
-    };
+    try {
+      namingZoneContainer.innerHTML = "<p>Recherche de la convention...</p>";
+      const assignmentsConfig = await fetchConfigurationFile(
+        globalAccessToken,
+        configFolderId,
+        NAMING_ASSIGNMENTS_FILENAME,
+      );
+      const conventionName = assignmentsConfig
+        ? assignmentsConfig[selectedFolderId]
+        : null;
+
+      //uploadBtn.onclick = null; // Important: réinitialiser l'événement précédent
+
+      if (!conventionName) {
+        namingZoneContainer.innerHTML =
+          '<p style="font-style: italic;">Pas de nommage spécifique attendu pour ce dossier.</p>';
+        uploadBtn.disabled = false;
+        //uploadBtn.addEventListener("click", () => handleFinalUpload(null));
+        return;
+      }
+
+      const namingConfig = await fetchConfigurationFile(
+        globalAccessToken,
+        configFolderId,
+        NAMING_CONFIG_FILENAME,
+      );
+      const convention = namingConfig.rules.find(
+        (r) => r.name === conventionName,
+      );
+      if (!convention)
+        throw new Error(`Convention "${conventionName}" introuvable.`);
+      helpCodificationState.convention = convention;
+
+      renderNamingZone(namingZoneContainer, convention);
+      setTimeout(() => {
+        // Ce code ne s'exécutera qu'après que le navigateur ait "dessiné" les champs
+        const namingZone = document.getElementById("naming-zone-container");
+        // Sécurité : on vérifie que l'utilisateur n'a pas changé de page entre-temps
+        if (namingZone && namingZone.querySelector(".naming-zone")) {
+          attachNamingZoneListeners();
+          uploadBtn.disabled = false; // On active le bouton seulement quand tout est prêt
+        }
+      }, 0); // Un délai de 0ms suffit à décaler l'exécution
+    } catch (error) {
+      console.error(
+        "Erreur lors de l'affichage de la zone de nommage :",
+        error,
+      );
+      namingZoneContainer.innerHTML = `<p style="color: red;">${error.message}</p>`;
+      uploadBtn.disabled = true;
+    }
+  }
+
+  function attachNamingZoneListeners(convention) {
+    document.querySelectorAll(".naming-input").forEach((input) => {
+      input.addEventListener(
+        "input",
+        () => updateNamingPreviewAndValidate(), // Appel sans argument
+      );
+    });
+    updateNamingPreviewAndValidate(); // Appel sans argument
+  }
+
+  function updateNamingPreviewAndValidate() {
+    // 1. Récupérer la convention depuis l'état global de la page
+    const { convention, file } = helpCodificationState;
+
+    // Sécurité : si la convention n'est pas chargée, on ne fait rien
+    if (!convention || !file) {
+      return;
+    }
+
+    const previewSpan = document.getElementById("final-name-preview");
+    const uploadBtn = document.getElementById("upload-document-btn");
+    let finalNameParts = [];
+    let isFormValid = true;
+
+    convention.columns.forEach((colRule, index) => {
+      const input = document.querySelector(
+        `.naming-input[data-index="${index}"]`,
+      );
+      let value = input.value;
+      if (colRule.type === "trigram") value = value.toUpperCase();
+      const validationResult = validatePart(value, colRule);
+      input.classList.toggle("invalid-input", !validationResult.isValid);
+      if (!validationResult.isValid) isFormValid = false;
+      finalNameParts.push(value);
+    });
+
+    // 2. Utiliser le séparateur de la convention, avec '-' comme valeur par défaut
+    const separator = convention.separator || "-";
+    const finalName = finalNameParts
+      .filter((part) => part !== "")
+      .join(separator);
+
+    const finalNameCharCount = finalName.length;
+    const charCountSpan = document.getElementById("final-name-char-count");
+    if (charCountSpan) {
+      charCountSpan.textContent = finalNameCharCount;
+    }
+
+    const fileExtension = file.name.split(".").pop();
+    const finalNameWithExt = `${finalName}.${fileExtension}`;
+
+    previewSpan.textContent = finalNameWithExt;
+    helpCodificationState.finalName = finalNameWithExt; // Le nom final est maintenant correct
+    uploadBtn.disabled = !isFormValid;
+  }
+
+  async function handleFinalUpload() {
+    // On récupère TOUT depuis l'état au moment du clic
+    const { file, selectedFolderId, finalName, convention } =
+      helpCodificationState;
+
+    if (!file || !selectedFolderId) {
+      alert("Veuillez sélectionner un fichier et un dossier de destination.");
+      return;
+    }
+
+    let finalFileNameToUpload = file.name;
+
+    if (convention) {
+      if (!finalName || document.querySelector(".invalid-input")) {
+        alert("Le nom du fichier n'est pas valide ou complet.");
+        return;
+      }
+      finalFileNameToUpload = finalName;
+    }
 
     renderSaving(mainContentDiv);
 
     try {
-      // ÉTAPE 1: LIRE la configuration existante
-      const loggedInUser = await fetchLoggedInUserDetails(globalAccessToken);
-      const userName =
-        `${loggedInUser.firstName} ${loggedInUser.lastName}`.trim();
-      const today = new Date().toISOString().split("T")[0]; // Format YYYY-MM-DD
-
-      const existingConfig = await fetchConfigurationFile(
-        globalAccessToken,
-        configFolderId,
-        CONFIG_FILENAME,
-      );
-
-      let finalConfigurationData = existingConfig || { flux: [] }; // Initialiser si le fichier est vide ou n'existe pas
-
-      // ÉTAPE 2: MODIFIER (fusionner/mettre à jour les données)
-      if (currentEditedFluxName) {
-        // Mode édition
-        const oldFluxName = currentEditedFluxName; // On garde l'ancien nom
-        const newFluxName = newFluxData.name; // Et le nouveau
-
-        //  Ajout de la vérification d'unicité pour le renommage ---
-        const isNameAlreadyTakenByAnotherFlux =
-          finalConfigurationData.flux.some(
-            (flux) => flux.name === newFluxName && flux.name !== oldFluxName,
-          );
-
-        if (isNameAlreadyTakenByAnotherFlux) {
-          alert(
-            `Un autre flux nommé "${newFluxName}" existe déjà. Veuillez choisir un nom différent.`,
-          );
-          // On ré-affiche le formulaire d'édition avec les données saisies pour correction
-          renderCreateFluxPage(
-            mainContentDiv,
-            currentProjectGroups,
-            newFluxData,
-          );
-          attachCreateEditFluxEvents();
-          return; // On arrête tout
-        }
-
-        const index = finalConfigurationData.flux.findIndex(
-          (flux) => flux.name === currentEditedFluxName,
-        );
-        if (index !== -1) {
-          const originalFlux = finalConfigurationData.flux[index];
-          finalConfigurationData.flux[index] = {
-            ...originalFlux, // On garde les données originales (comme 'createdAt')
-            ...newFluxData, // On écrase le nom et les étapes
-            modifiedBy: userName, // On met à jour le modificateur
-            modifiedAt: today, // On met à jour la date de modification
-          };
-        } else {
-          // Cas inattendu : le flux à éditer n'est plus là, on l'ajoute
-          finalConfigurationData.flux.push(newFluxData);
-        }
-
-        //  On gère la mise à jour des affectations si le nom a changé ---
-        if (newFluxName !== oldFluxName) {
-          console.log(
-            `Le nom du flux a changé de "${oldFluxName}" à "${newFluxName}". Mise à jour des affectations.`,
-          );
-
-          // On lit le fichier d'affectations
-          const assignmentsConfig = await fetchConfigurationFile(
-            globalAccessToken,
-            configFolderId,
-            ASSIGNMENTS_FILENAME,
-          );
-
-          const updatedAssignments = { ...assignmentsConfig };
-          let assignmentsUpdated = false;
-          for (const folderId in updatedAssignments) {
-            if (updatedAssignments[folderId] === oldFluxName) {
-              updatedAssignments[folderId] = newFluxName; // On met à jour avec le nouveau nom
-              assignmentsUpdated = true;
-            }
-          }
-
-          // Si des mises à jour ont eu lieu, on sauvegarde le fichier
-          if (assignmentsUpdated) {
-            await saveConfigurationFile(
-              triconnectAPI,
-              globalAccessToken,
-              updatedAssignments,
-              ASSIGNMENTS_FILENAME,
-              configFolderId,
-            );
-            console.log(
-              "Le fichier des affectations a été mis à jour avec le nouveau nom de flux.",
-            );
-          }
-        }
-
-        currentEditedFluxName = null; // Réinitialiser le mode édition
-      } else {
-        // Mode création
-        // Vérifier si un flux avec ce nom existe déjà en mode création
-        if (
-          finalConfigurationData.flux.some((flux) => flux.name === fluxName)
-        ) {
-          alert(
-            `Un flux nommé "${fluxName}" existe déjà. Veuillez choisir un nom différent.`,
-          );
-          renderCreateFluxPage(
-            mainContentDiv,
-            currentProjectGroups,
-            newFluxData,
-          ); // Re-afficher le formulaire avec les données actuelles
-          attachCreateEditFluxEvents();
-          return;
-        }
-        const fluxToCreate = {
-          ...newFluxData,
-          createdBy: userName,
-          createdAt: today,
-          modifiedBy: userName, // Au moment de la création, le créateur et le modificateur sont les mêmes
-          modifiedAt: today,
-        };
-        finalConfigurationData.flux.push(fluxToCreate); // Ajouter un nouveau flux
-        console.log(`Nouveau flux "${fluxName}" ajouté.`);
-      }
-
-      // ÉTAPE 3: ÉCRIRE la configuration complète
-      await saveConfigurationFile(
+      await uploadFileWithNewName(
         triconnectAPI,
         globalAccessToken,
-        finalConfigurationData,
-        CONFIG_FILENAME,
-        configFolderId,
+        selectedFolderId,
+        file,
+        finalFileNameToUpload,
+        file.type,
       );
 
       renderSuccess(
         mainContentDiv,
-        `Le flux "${fluxName}" a été ${originalFluxName ? "modifié" : "enregistré"} avec succès.`,
+        `Le fichier "${finalFileNameToUpload}" a été déposé avec succès !`,
       );
-
-      setTimeout(handleManageFluxClick, 2000); // Retour à la gestion des flux après sauvegarde
+      setTimeout(handleHelpNamingClick, 2000);
     } catch (error) {
-      console.error("Échec de la sauvegarde/modification du flux :", error);
+      console.error("Erreur lors du dépôt du fichier :", error);
       renderError(mainContentDiv, error);
     }
   }
 
-  // Fonction pour attacher les événements des boutons Annuler/Enregistrer
-  function attachCreateEditFluxEvents() {
-    document
-      .getElementById("cancel-flux-creation-btn")
-      .addEventListener("click", handleManageFluxClick);
-    document
-      .getElementById("save-flux-btn")
-      .addEventListener("click", handleSaveFluxClick);
-  }
+  // --- Fonctions de la section "Configuration" ---
+  // Fonction pour charger et rendre le tableau récapitulatif des codifications
+  async function loadAndRenderNamingSummary() {
+    const summaryContainer = document.getElementById(
+      "naming-config-summary-container",
+    );
+    if (!summaryContainer) return; // S'assurer que le conteneur existe
 
-  // --- GESTIONNAIRE D'ÉVÉNEMENT POUR LE BOUTON D'AFFECTATION DES FLUX---
-  async function handleAssignFluxClick() {
-    if (!globalAccessToken || !triconnectAPI) {
-      renderError(
-        mainContentDiv,
-        new Error("L'extension n'est pas correctement initialisée."),
+    summaryContainer.innerHTML = `<p style="text-align:center; margin-top:20px;">Chargement du récapitulatif des codifications...</p>`;
+
+    try {
+      // Pour l'instant, on va simuler des données car la logique de sauvegarde n'est pas encore implémentée
+      const namingConfig = await fetchConfigurationFile(
+        globalAccessToken,
+        configFolderId,
+        NAMING_CONFIG_FILENAME,
       );
+      const assignmentsConfig = await fetchConfigurationFile(
+        globalAccessToken,
+        configFolderId,
+        NAMING_ASSIGNMENTS_FILENAME,
+      );
+      const allProjectFolders = await fetchAllProjectFolders(
+        triconnectAPI,
+        globalAccessToken,
+      );
+
+      const folderIdToNameMap = new Map(
+        allProjectFolders.map((f) => [f.id, f.name]),
+      );
+
+      const allNamingRules = namingConfig?.rules || [];
+      const allAssignments = assignmentsConfig || {};
+      const assignmentsByRule = {};
+
+      for (const folderId in allAssignments) {
+        const ruleName = allAssignments[folderId];
+        if (ruleName) {
+          if (!assignmentsByRule[ruleName]) {
+            assignmentsByRule[ruleName] = [];
+          }
+          const folderName = folderIdToNameMap.get(folderId);
+          if (folderName) {
+            assignmentsByRule[ruleName].push(folderName);
+          }
+        }
+      }
+
+      const summaryData = allNamingRules.map((rule) => ({
+        ruleName: rule.name,
+        affectedFolders: assignmentsByRule[rule.name] || [],
+        date: rule.modifiedAt || rule.createdAt || "N/A",
+        creator: rule.modifiedBy || rule.createdBy || "N/A",
+      }));
+
+      renderNamingConfigSummaryTable(summaryContainer, summaryData);
+    } catch (error) {
+      console.error(
+        "Erreur lors du chargement du résumé des codifications :",
+        error,
+      );
+      summaryContainer.innerHTML = `<p style="color: red; text-align:center; margin-top:20px;">Erreur lors du chargement des données : ${error.message}</p>`;
+      renderError(mainContentDiv, error); // Affiche aussi l'erreur principale
+    }
+  }
+  // FONCTION pour gerer les boutons de création de convention de nommage
+  async function handleCreateNamingRuleClick() {
+    originalRuleNameToEdit = null; // Assure qu'on est bien en mode création
+    // Initialise l'état pour une nouvelle règle
+    currentRuleState = {
+      name: "",
+      columns: [],
+      separator: "-",
+      editMode: "normal",
+      selectedColumnIndex: null,
+    };
+
+    // Premier affichage de la page
+    renderCreateNamingRulePage(mainContentDiv, currentRuleState);
+    attachCreatePageListeners();
+  }
+  // fonction pour enregistrer la convention de nommage
+  async function handleSaveNamingRuleClick() {
+    // 1. Mettre à jour l'état avec la dernière valeur de l'input
+    currentRuleState.name = document
+      .getElementById("naming-rule-name")
+      .value.trim();
+
+    if (!currentRuleState.name) {
+      alert("Veuillez donner un nom à la codification.");
+      return;
+    }
+    currentRuleState.separator =
+      document.getElementById("separator-select").value;
+    renderSaving(mainContentDiv);
+
+    try {
+      const loggedInUser = await fetchLoggedInUserDetails(globalAccessToken);
+      const userName =
+        `${loggedInUser.firstName} ${loggedInUser.lastName}`.trim();
+      const today = new Date().toISOString().split("T")[0];
+
+      const existingConfig = await fetchConfigurationFile(
+        globalAccessToken,
+        configFolderId,
+        NAMING_CONFIG_FILENAME,
+      );
+      const finalConfigurationData = existingConfig || { rules: [] };
+
+      if (originalRuleNameToEdit) {
+        // --- MODE ÉDITION ---
+        const ruleIndex = finalConfigurationData.rules.findIndex(
+          (rule) => rule.name === originalRuleNameToEdit,
+        );
+        if (ruleIndex === -1) throw new Error("Règle originale introuvable.");
+
+        finalConfigurationData.rules[ruleIndex] = {
+          ...finalConfigurationData.rules[ruleIndex],
+          ...currentRuleState,
+          modifiedBy: userName,
+          modifiedAt: today,
+        };
+      } else {
+        // --- MODE CRÉATION ---
+        if (
+          finalConfigurationData.rules.some(
+            (rule) => rule.name === currentRuleState.name,
+          )
+        ) {
+          alert(
+            `Une codification nommée "${currentRuleState.name}" existe déjà.`,
+          );
+          renderCreateNamingRulePage(mainContentDiv, currentRuleState); // Ré-affiche avec les données actuelles
+          attachCreatePageListeners();
+          return;
+        }
+        finalConfigurationData.rules.push({
+          ...currentRuleState,
+          createdBy: userName,
+          createdAt: today,
+          modifiedBy: userName,
+          modifiedAt: today,
+        });
+      }
+
+      await saveConfigurationFile(
+        triconnectAPI,
+        globalAccessToken,
+        finalConfigurationData,
+        NAMING_CONFIG_FILENAME,
+        configFolderId,
+      );
+
+      originalRuleNameToEdit = null; // Nettoyer l'état d'édition
+      renderSuccess(
+        mainContentDiv,
+        `La codification "${currentRuleState.name}" a été enregistrée avec succès.`,
+      );
+      setTimeout(handleManageNamingRulesClick, 2000);
+    } catch (error) {
+      console.error(
+        "Échec de la sauvegarde/modification de la codification:",
+        error,
+      );
+      originalRuleNameToEdit = null;
+      renderError(mainContentDiv, error);
+    }
+  }
+  // ----------------------------------
+  function validatePart(value, rule) {
+    // 1. Gérer le cas "non obligatoire"
+    if (
+      rule.type === "text" &&
+      rule.maxLength &&
+      value.length > rule.maxLength
+    ) {
+      return {
+        isValid: false,
+        reason: `Doit contenir au maximum ${rule.maxLength} caractères.`,
+      };
+    }
+    if (!rule.required && !value) {
+      return { isValid: true }; // Si la valeur est vide et non requise, c'est valide.
+    }
+
+    // 2. Gérer le cas "obligatoire" mais vide
+    if (rule.required && !value) {
+      return { isValid: false, reason: "Valeur obligatoire manquante" };
+    }
+
+    // 3. Validation par type
+    switch (rule.type) {
+      case "text":
+        return { isValid: true }; // Le texte libre est toujours valide s'il n'est pas vide
+      case "list":
+        const isValid = rule.values.some((v) => v.value === value);
+        return {
+          isValid,
+          reason: isValid
+            ? ""
+            : `La valeur "${value}" n'est pas dans la liste autorisée.`,
+        };
+      case "number1":
+        const isNumber1 = /^\d{1}$/.test(value);
+        return {
+          isValid: isNumber1,
+          reason: isNumber1 ? "" : "Doit être un chiffre unique.",
+        };
+      case "number2":
+        const isNumber2 = /^\d{2}$/.test(value);
+        return {
+          isValid: isNumber2,
+          reason: isNumber2 ? "" : "Doit être composé de 2 chiffres.",
+        };
+      case "number3":
+        const isNumber3 = /^\d{3}$/.test(value);
+        return {
+          isValid: isNumber3,
+          reason: isNumber3 ? "" : "Doit être composé de 3 chiffres.",
+        };
+      case "trigram":
+        const isTrigram = /^[A-Z]{3}$/.test(value);
+        return {
+          isValid: isTrigram,
+          reason: isTrigram
+            ? ""
+            : "Doit être un trigramme en majuscules (3 lettres).",
+        };
+      default:
+        return { isValid: true }; // Type inconnu, on ne bloque pas
+    }
+  }
+  async function handleManageNamingRulesClick() {
+    renderLoading(mainContentDiv);
+    try {
+      const config = await fetchConfigurationFile(
+        globalAccessToken,
+        configFolderId,
+        NAMING_CONFIG_FILENAME,
+      );
+      const rules = config ? config.rules : [];
+      renderManageNamingRulesPage(mainContentDiv, rules);
+      attachManageRulesEvents(rules); // On attache les événements pour les boutons
+    } catch (error) {
+      console.error("Erreur lors du chargement des règles de nommage :", error);
+      renderError(mainContentDiv, error);
+    }
+  }
+  // fonction d'export pdf
+  async function handleExportControlPDF(documentsByConvention, allRules) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "l", unit: "mm", format: "a4" });
+    const today = new Date().toLocaleDateString();
+
+    doc.setFontSize(18).text("Rapport de Contrôle de Nommage", 14, 22);
+    doc.setFontSize(11).text(`Date de l'export : ${today}`, 14, 30);
+
+    let startY = 40;
+
+    for (const conventionName in documentsByConvention) {
+      const conventionRules = allRules.find((r) => r.name === conventionName);
+      if (!conventionRules) continue;
+
+      doc.setFontSize(14).text(`Convention : ${conventionName}`, 14, startY);
+      startY += 7;
+
+      const head = [
+        ["Dépositaire", ...conventionRules.columns.map((c) => c.name)],
+      ];
+      const body = documentsByConvention[conventionName].map((doc) => {
+        const parts = doc.name.replace(/\.[^/.]+$/, "").split("-");
+        const row = [doc.depositor];
+
+        conventionRules.columns.forEach((colRule, index) => {
+          let value = parts[index] || "";
+          if (colRule.type === "trigram") value = value.toUpperCase();
+
+          const validationResult = validatePart(value, colRule);
+          if (validationResult.isValid) {
+            row.push(value);
+          } else {
+            row.push({
+              content: value,
+              styles: { fillColor: [253, 222, 222] }, // Rouge pâle
+            });
+          }
+        });
+        return row;
+      });
+
+      doc.autoTable({
+        head: head,
+        body: body,
+        startY: startY,
+        theme: "grid",
+        headStyles: { fillColor: [0, 58, 114] },
+      });
+
+      startY = doc.autoTable.previous.finalY + 15; // Espace pour la prochaine table
+    }
+
+    doc.save(`Controle_Nommage_${new Date().toISOString().split("T")[0]}.pdf`);
+  }
+  //  FONCTION pour l'export Excel (CSV)
+  async function handleExportControlExcel(documentsByConvention, allRules) {
+    let csvRows = [];
+
+    for (const conventionName in documentsByConvention) {
+      const conventionRules = allRules.find((r) => r.name === conventionName);
+      if (!conventionRules) continue;
+
+      // Ajoute un titre pour la section
+      csvRows.push(`Convention: ${conventionName}`);
+
+      const headers = [
+        "Dépositaire",
+        ...conventionRules.columns.map((c) => c.name),
+      ];
+      csvRows.push(headers.join(";"));
+
+      documentsByConvention[conventionName].forEach((doc) => {
+        const parts = doc.name.replace(/\.[^/.]+$/, "").split("-");
+        const row = [doc.depositor];
+
+        conventionRules.columns.forEach((colRule, index) => {
+          let value = parts[index] || "";
+          if (colRule.type === "trigram") value = value.toUpperCase();
+
+          const validationResult = validatePart(value, colRule);
+          if (validationResult.isValid) {
+            row.push(`"${value}"`); // Mettre entre guillemets pour éviter les problèmes avec les virgules
+          } else {
+            row.push(`"[ERREUR] ${value}"`);
+          }
+        });
+        csvRows.push(row.join(";"));
+      });
+
+      csvRows.push(""); // Ligne vide pour séparer les conventions
+    }
+
+    const csvString = csvRows.join("\n");
+    const blob = new Blob([`\uFEFF${csvString}`], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `Controle_Nommage_${new Date().toISOString().split("T")[0]}.csv`,
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+  // Fonction pour affecter une convention à des dossiers
+  async function handleAssignNamingRulesClick() {
+    if (!triconnectAPI || !globalAccessToken) {
+      renderError(mainContentDiv, new Error("Extension non initialisée."));
       return;
     }
 
     renderLoading(mainContentDiv);
-    pendingChanges = {};
     try {
       const projectInfo = await triconnectAPI.project.getCurrentProject();
 
-      // On lance tous les chargements de données en parallèle pour la performance
-      const [fluxConfig, assignmentsConfig, rootSubfolders] = await Promise.all(
-        [
+      const [namingConfig, assignmentsConfig, rootSubfolders] =
+        await Promise.all([
           fetchConfigurationFile(
             globalAccessToken,
             configFolderId,
-            CONFIG_FILENAME,
+            NAMING_CONFIG_FILENAME,
           ),
           fetchConfigurationFile(
             globalAccessToken,
             configFolderId,
-            ASSIGNMENTS_FILENAME,
+            NAMING_ASSIGNMENTS_FILENAME,
           ),
           getRootFolders(triconnectAPI, globalAccessToken),
-        ],
-      );
+        ]);
 
-      // On stocke les données pour les réutiliser
-      allProjectFlows = fluxConfig ? fluxConfig.flux : [];
-      currentAssignments = assignmentsConfig || {};
+      // Stockage des données pour réutilisation
+      const allNamingRules = namingConfig ? namingConfig.rules : [];
+      const currentAssignments = assignmentsConfig || {};
+      let pendingChanges = {}; // Pour suivre les modifs non sauvegardées
 
-      // On affiche l'interface
-      renderAffectationPage(mainContentDiv, projectInfo.name);
+      renderAssignNamingPage(mainContentDiv, projectInfo.name);
 
       const treeRootElement = document.getElementById("folder-tree-root");
-      treeRootElement.innerHTML = "";
+      treeRootElement.innerHTML = ""; // Vider l'arbre
 
-      renderAndAttachFolderListeners(rootSubfolders, treeRootElement);
+      renderAndAttachFolderListeners(
+        treeRootElement,
+        rootSubfolders,
+        allNamingRules,
+        currentAssignments,
+        pendingChanges,
+      );
 
       document
         .getElementById("back-to-config-btn")
-        .addEventListener("click", handleConfigClick);
-
+        .addEventListener("click", handleConfigNamingRuleClick);
       document
         .getElementById("save-all-assignments-btn")
-        .addEventListener("click", handleSaveAllAssignments);
+        .addEventListener("click", () =>
+          handleSaveAllAssignments(currentAssignments, pendingChanges),
+        );
     } catch (error) {
       console.error(
         "Erreur lors du chargement de la page d'affectation :",
@@ -1735,70 +1058,13 @@ import {
       renderError(mainContentDiv, error);
     }
   }
-
-  // Affiche le panneau de droite quand on clique sur un dossier
-
-  function displayFolderAssignmentDetails(folder) {
-    selectedFolderInfo = folder;
-    const displayedFlux =
-      pendingChanges[folder.id] ?? currentAssignments[folder.id] ?? null;
-    const allFluxNames = allProjectFlows.map((f) => f.name);
-
-    updateAssignmentPanel(folder, allFluxNames, displayedFlux);
-
-    const selectElement = document.getElementById("flux-assignment-select");
-    const heredityCheckbox = document.getElementById("heredity-checkbox");
-
-    // Fonction interne pour appliquer les changements en mémoire
-    const applyChanges = async () => {
-      const selectedFlux = selectElement.value;
-      const applyHeredity = heredityCheckbox.checked;
-
-      // On met toujours à jour le dossier parent
-      console.log(
-        `Mémorisation pour ${folder.name}: '${selectedFlux || "Aucun"}'`,
-      );
-      pendingChanges[folder.id] = selectedFlux;
-
-      // Si la case est cochée, on applique à toute la descendance
-      if (applyHeredity && selectedFlux) {
-        console.log(
-          `Application de l'hérédité en cours pour le dossier ${folder.name}...`,
-        );
-        try {
-          const allSubIds = await recursivelyFetchAllSubfolders(
-            folder.id,
-            globalAccessToken,
-          );
-          allSubIds.forEach((subId) => {
-            pendingChanges[subId] = selectedFlux;
-          });
-          console.log(
-            `Hérédité appliquée à ${allSubIds.length} sous-dossier(s).`,
-          );
-        } catch (error) {
-          console.error("Erreur lors de l'application de l'hérédité:", error);
-        }
-      }
-      // Si la case n'est pas cochée, la logique s'arrête ici, seul le parent est affecté.
-    };
-
-    // On attache la logique aux deux éléments
-    if (selectElement) {
-      selectElement.addEventListener("change", applyChanges);
-    }
-    if (heredityCheckbox) {
-      heredityCheckbox.addEventListener("change", applyChanges);
-    }
-  }
-
-  // Sauvegarde l'affectation choisie
-
-  async function handleSaveAllAssignments() {
+  // Fonction de sauvagarde des conventions affectées
+  async function handleSaveAllAssignments(currentAssignments, pendingChanges) {
     if (Object.keys(pendingChanges).length === 0) {
       alert("Aucune modification à sauvegarder.");
       return;
     }
+
     renderSaving(mainContentDiv);
     const finalAssignments = { ...currentAssignments, ...pendingChanges };
 
@@ -1807,26 +1073,75 @@ import {
         triconnectAPI,
         globalAccessToken,
         finalAssignments,
-        ASSIGNMENTS_FILENAME,
+        NAMING_ASSIGNMENTS_FILENAME,
         configFolderId,
       );
+
       renderSuccess(
         mainContentDiv,
-        "Toutes les affectations ont été sauvegardées avec succès.",
+        "Les affectations ont été sauvegardées avec succès.",
       );
-      // On recharge la page pour que les "pendingChanges" deviennent la nouvelle norme
-      setTimeout(handleAssignFluxClick, 1500);
+      // On recharge la page pour que les modifications soient prises en compte comme état de base
+      setTimeout(handleAssignNamingRulesClick, 1500);
     } catch (error) {
-      console.error(
-        "Erreur lors de la sauvegarde globale des affectations:",
-        error,
-      );
+      console.error("Erreur lors de la sauvegarde des affectations:", error);
       renderError(mainContentDiv, error);
     }
   }
+  //FONCTION pour la gestion d'affectation des conventions
+  function displayFolderAssignmentDetails(
+    folder,
+    allNamingRules,
+    currentAssignments,
+    pendingChanges,
+  ) {
+    const assignedRuleName =
+      pendingChanges[folder.id] ?? currentAssignments[folder.id] ?? null;
+    const allRuleNames = allNamingRules.map((r) => r.name);
 
-  // FONCTION RÉCURSIVE POUR AFFICHER ET GÉRER L'ARBORESCENCE ---
-  function renderAndAttachFolderListeners(folders, parentElement) {
+    updateAssignmentPanel(folder, allRuleNames, assignedRuleName);
+
+    const selectElement = document.getElementById("rule-assignment-select");
+    const heredityCheckbox = document.getElementById("heredity-checkbox");
+
+    const applyChanges = async () => {
+      const selectedRule = selectElement.value;
+      // Mettre à jour la modification pour le dossier parent
+      pendingChanges[folder.id] = selectedRule;
+
+      // Appliquer l'hérédité si la case est cochée
+      if (heredityCheckbox.checked && selectedRule) {
+        console.log(
+          `Application de l'hérédité pour le dossier ${folder.name}...`,
+        );
+        try {
+          const allSubIds = await recursivelyFetchAllSubfolders(
+            folder.id,
+            globalAccessToken,
+          );
+          allSubIds.forEach((subId) => {
+            pendingChanges[subId] = selectedRule;
+          });
+          console.log(
+            `Hérédité appliquée à ${allSubIds.length} sous-dossier(s).`,
+          );
+        } catch (error) {
+          console.error("Erreur lors de l'application de l'hérédité:", error);
+        }
+      }
+    };
+
+    selectElement.addEventListener("change", applyChanges);
+    heredityCheckbox.addEventListener("change", applyChanges);
+  }
+
+  function renderAndAttachFolderListeners(
+    parentElement,
+    folders,
+    allNamingRules,
+    currentAssignments,
+    pendingChanges,
+  ) {
     if (!folders || folders.length === 0) {
       const noSubfolderItem = document.createElement("li");
       noSubfolderItem.className = "folder-item-empty";
@@ -1840,7 +1155,7 @@ import {
       listItem.className = "folder-item";
       listItem.dataset.folderId = folder.id;
       listItem.dataset.folderName = folder.name;
-      listItem.dataset.loaded = "false";
+      listItem.dataset.loaded = "false"; // Pour savoir si on a déjà chargé les sous-dossiers
 
       const folderNameSpan = document.createElement("span");
       folderNameSpan.className = "folder-name";
@@ -1849,35 +1164,37 @@ import {
       listItem.appendChild(folderNameSpan);
       parentElement.appendChild(listItem);
 
-      // Le clic sur le nom du dossier fait deux choses :
-      // 1. Déplie l'arborescence (si pas déjà fait)
-      // 2. Affiche le panneau d'affectation
       folderNameSpan.addEventListener("click", async (event) => {
         event.stopPropagation();
 
-        // Mettre en surbrillance le dossier sélectionné
+        // Gère la surbrillance
         document
           .querySelectorAll(".folder-item.selected")
           .forEach((el) => el.classList.remove("selected"));
         listItem.classList.add("selected");
 
-        // AFFICHER LE PANNEAU D'AFFECTATION
-        displayFolderAssignmentDetails({ id: folder.id, name: folder.name });
+        // Affiche le panneau de droite
+        displayFolderAssignmentDetails(
+          { id: folder.id, name: folder.name },
+          allNamingRules,
+          currentAssignments,
+          pendingChanges,
+        );
 
-        // DÉPLIER L'ARBORESCENCE (logique existante)
+        // Logique pour déplier/replier ou charger les sous-dossiers
         if (listItem.dataset.loaded === "true") {
           const subList = listItem.querySelector("ul");
           if (subList) {
             subList.style.display =
               subList.style.display === "none" ? "block" : "none";
-            listItem.classList.toggle("collapsed");
           }
           return;
         }
 
+        // Affiche un message de chargement
         const loadingSpan = document.createElement("span");
         loadingSpan.textContent = " (chargement...)";
-        loadingSpan.className = "loading-text";
+        loadingSpan.style.fontStyle = "italic";
         folderNameSpan.appendChild(loadingSpan);
 
         try {
@@ -1888,293 +1205,336 @@ import {
           const subList = document.createElement("ul");
           subList.className = "folder-tree";
           listItem.appendChild(subList);
-          renderAndAttachFolderListeners(subFolders, subList);
+
+          // Appel récursif pour les sous-dossiers
+          renderAndAttachFolderListeners(
+            subList,
+            subFolders,
+            allNamingRules,
+            currentAssignments,
+            pendingChanges,
+          );
+
           listItem.dataset.loaded = "true";
         } catch (error) {
           console.error(`Erreur au chargement du dossier ${folder.id}`, error);
           folderNameSpan.textContent += " (erreur)";
         } finally {
+          // Retire le message de chargement
           folderNameSpan.removeChild(loadingSpan);
         }
       });
     });
   }
-  // FONCTION POUR L'EXPORT PDF
-  async function handleExportPDF() {
-    console.log("Export PDF demandé...");
-    const { jsPDF } = window.jspdf;
-    const projectInfo = await triconnectAPI.project.getCurrentProject();
-    const projectName = projectInfo.name;
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, "-");
-    const filename = `${projectName}_Export_Suivi_Visa_${today}.pdf`;
 
-    const doc = new jsPDF({ orientation: "landscape" });
-    const statusColors = {
-      VSO: {
-        background: [40, 167, 69], // Vert
-        text: [255, 255, 255],
-      },
-      VAO: {
-        background: [255, 193, 7], // Jaune
-        text: [0, 0, 0], // Texte noir pour une meilleure lisibilité
-      },
-      "En Cours": {
-        background: [253, 126, 20], // Orange
-        text: [255, 255, 255],
-      },
-      REF: {
-        background: [220, 53, 69], // Rouge
-        text: [255, 255, 255],
-      },
-      SO: {
-        background: [108, 117, 125], // Gris
-        text: [255, 255, 255],
-      },
-    };
-    // Titre et date dans le PDF
-    doc.setFontSize(18);
-    doc.text(`Export du Suivi des Visas - Projet: ${projectName}`, 14, 22);
-    doc.setFontSize(11);
-    doc.setTextColor(100);
-    doc.text(`Date de l'export: ${new Date().toLocaleDateString()}`, 14, 30);
-
-    // Préparation des en-têtes (y compris dynamiques)
-    const head = [[]]; // Pour les en-têtes groupés
-    const subhead = [];
-    const staticHeaders = [
-      "Nom Document",
-      "Version",
-      "Lot",
-      "Dépositaire",
-      "Date Dépôt",
-      "Statut Global",
-      "Observations",
-    ];
-    staticHeaders.forEach((h) => {
-      head[0].push({ content: h, rowSpan: 2 });
-    });
-
-    currentViseurGroups.forEach((group) => {
-      head[0].push({
-        content: group.name,
-        colSpan: 3,
-        styles: { halign: "center" },
-      });
-      subhead.push("Pour le", "Visé le", "Visa");
-    });
-    head.push(subhead);
-
-    // Préparation du corps du tableau (avec les données FILTRÉES)
-    const body = processedVisaDocuments.map((d) => {
-      const globalStatus = d.status || "";
-      const globalStatusStyle = statusColors[globalStatus];
-
-      const row = [
-        d.name,
-        d.version,
-        d.lot,
-        d.depositorName,
-        d.depositDate,
-        // On transforme la cellule de statut en objet pour lui appliquer un style
-        {
-          content: globalStatus,
-          styles: {
-            fillColor: globalStatusStyle ? globalStatusStyle.background : null,
-            textColor: globalStatusStyle ? globalStatusStyle.text : null,
-            halign: "center",
-          },
-        },
-        (d.allObservations || []).join("\n"),
-      ];
-      currentViseurGroups.forEach((group) => {
-        let pourLeDateHtml = "N/A";
-        let deadlineObject = null;
-        const fluxDef = allFluxDefinitions.find((f) => f.name === d.fluxName);
-        if (fluxDef && d.depositDateObject) {
-          const stepInfo = fluxDef.steps.find((s) =>
-            s.groupIds.includes(group.id),
-          );
-
-          if (stepInfo) {
-            if (stepInfo.step === 1) {
-              deadlineObject = new Date(d.depositDateObject);
-              deadlineObject.setDate(
-                deadlineObject.getDate() + stepInfo.durationDays,
-              );
-              pourLeDateHtml = deadlineObject.toLocaleDateString();
-            } else {
-              const previousStep = fluxDef.steps.find(
-                (s) => s.step === stepInfo.step - 1,
-              );
-              if (previousStep) {
-                const previousStepVisas = d.trackingInfo.filter((entry) =>
-                  previousStep.groupIds.includes(entry.groupId),
-                );
-                if (previousStepVisas.length === previousStep.groupIds.length) {
-                  const latestPreviousVisaDate = new Date(
-                    Math.max.apply(
-                      null,
-                      previousStepVisas.map((entry) => new Date(entry.date)),
-                    ),
-                  );
-                  deadlineObject = new Date(latestPreviousVisaDate);
-                  deadlineObject.setDate(
-                    deadlineObject.getDate() + stepInfo.durationDays,
-                  );
-                  pourLeDateHtml = deadlineObject.toLocaleDateString();
-                } else {
-                  pourLeDateHtml = "En attente";
-                }
-              }
-            }
-          }
+  // FONCTION pour attacher les événements de la page de gestion
+  function attachManageRulesEvents(rules) {
+    document.querySelectorAll(".delete-rule-btn").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        const ruleNameToDelete = event.target.dataset.ruleName;
+        // La logique de suppression sera ajoutée ici
+        if (
+          confirm(
+            `Êtes-vous sûr de vouloir supprimer la codification "${ruleNameToDelete}" ? Cette action est irréversible.`,
+          )
+        ) {
+          handleDeleteNamingRule(ruleNameToDelete);
         }
-        const viseLeDate =
-          d.trackingInfo.find((entry) => entry.groupId === group.id)?.date ||
-          "";
-        const visaStatus =
-          d.trackingInfo.find((entry) => entry.groupId === group.id)?.status ||
-          "";
-        const visaStatusStyle = statusColors[visaStatus];
-
-        row.push(
-          pourLeDateHtml,
-          viseLeDate ? new Date(viseLeDate).toLocaleDateString() : "",
-          // On fait de même pour la cellule de visa dynamique
-          {
-            content: visaStatus,
-            styles: {
-              fillColor: visaStatusStyle ? visaStatusStyle.background : null,
-              textColor: visaStatusStyle ? visaStatusStyle.text : null,
-              halign: "center",
-            },
-          },
-        );
       });
-      return row;
     });
 
-    doc.autoTable({
-      head: head,
-      body: body,
-      startY: 35,
-      theme: "striped",
-      headStyles: { fillColor: [0, 58, 114] }, // Bleu Eiffage
+    document.querySelectorAll(".edit-rule-btn").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        const ruleNameToEdit = event.target.dataset.ruleName;
+        handleEditNamingRule(ruleNameToEdit);
+      });
     });
 
-    doc.save(filename);
+    document
+      .getElementById("back-to-config-btn")
+      .addEventListener("click", handleConfigNamingRuleClick);
   }
 
-  // FONCTION POUR L'EXPORT EXCEL (CSV)
-  async function handleExportExcel() {
-    console.log("Export Excel demandé...");
-    const projectInfo = await triconnectAPI.project.getCurrentProject();
-    const projectName = projectInfo.name;
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, "-");
-    const filename = `${projectName}_Export_Suivi_Visa_${today}.xls`;
-
-    let headers = [
-      "Nom Document",
-      "Version",
-      "Lot",
-      "Dépositaire",
-      "Date Dépôt",
-      "Statut Global",
-      "Observations",
-    ];
-    currentViseurGroups.forEach((group) => {
-      headers.push(
-        `${group.name} - Pour le`,
-        `${group.name} - Visé le`,
-        `${group.name} - Visa`,
+  async function handleEditNamingRule(ruleNameToEdit) {
+    renderLoading(mainContentDiv);
+    try {
+      const config = await fetchConfigurationFile(
+        globalAccessToken,
+        configFolderId,
+        NAMING_CONFIG_FILENAME,
       );
-    });
+      const ruleToEdit = config.rules.find(
+        (rule) => rule.name === ruleNameToEdit,
+      );
 
-    const csvRows = [headers.join(";")]; // Entête du CSV
+      if (!ruleToEdit) {
+        throw new Error(`La codification "${ruleNameToEdit}" est introuvable.`);
+      }
 
-    allOriginalVisaDocuments.forEach((d) => {
-      const observationsText = (d.allObservations || []).join(" | "); // On joint avec un séparateur lisible
-      const escapedObservations = observationsText.replace(/"/g, '""'); // On échappe les guillemets internes
-      const row = [
-        `"${d.name}"`,
-        d.version,
-        d.lot,
-        d.depositorName,
-        d.depositDate,
-        d.status,
-        `"${escapedObservations}"`,
-      ];
-      currentViseurGroups.forEach((group) => {
-        let pourLeDate = "N/A";
-        let deadlineObject = null;
+      // On passe en mode édition
+      originalRuleNameToEdit = ruleNameToEdit;
 
-        const fluxDef = allFluxDefinitions.find((f) => f.name === d.fluxName);
-        if (fluxDef && d.depositDateObject) {
-          const stepInfo = fluxDef.steps.find((s) =>
-            s.groupIds.includes(group.id),
-          );
+      // On initialise l'état avec les données de la règle à modifier
+      currentRuleState = {
+        name: ruleToEdit.name,
+        columns: ruleToEdit.columns,
+        separator: ruleToEdit.separator || "-",
+        editMode: "normal",
+        selectedColumnIndex: null,
+      };
 
-          if (stepInfo) {
-            if (stepInfo.step === 1) {
-              deadlineObject = new Date(d.depositDateObject);
-              deadlineObject.setDate(
-                deadlineObject.getDate() + stepInfo.durationDays,
-              );
-              pourLeDate = deadlineObject.toLocaleDateString();
-            } else {
-              const previousStep = fluxDef.steps.find(
-                (s) => s.step === stepInfo.step - 1,
-              );
-              if (previousStep) {
-                const previousStepVisas = d.trackingInfo.filter((entry) =>
-                  previousStep.groupIds.includes(entry.groupId),
-                );
-                if (previousStepVisas.length === previousStep.groupIds.length) {
-                  const latestPreviousVisaDate = new Date(
-                    Math.max.apply(
-                      null,
-                      previousStepVisas.map((entry) => new Date(entry.date)),
-                    ),
-                  );
-                  deadlineObject = new Date(latestPreviousVisaDate);
-                  deadlineObject.setDate(
-                    deadlineObject.getDate() + stepInfo.durationDays,
-                  );
-                  pourLeDate = deadlineObject.toLocaleDateString();
-                } else {
-                  pourLeDate = "En attente";
-                }
-              }
-            }
-          }
-        }
-        const viseLeDate =
-          d.trackingInfo.find((entry) => entry.groupId === group.id)?.date ||
-          "";
-        const visaStatus =
-          d.trackingInfo.find((entry) => entry.groupId === group.id)?.status ||
-          "";
-        row.push(
-          pourLeDate,
-          viseLeDate ? new Date(viseLeDate).toLocaleDateString() : "",
-          visaStatus,
-        );
-      });
-      csvRows.push(row.join(";"));
-    });
-
-    const csvString = csvRows.join("\n");
-    const blob = new Blob([`\uFEFF${csvString}`], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", filename);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      // On affiche la page de création/édition
+      renderCreateNamingRulePage(mainContentDiv, currentRuleState);
+      // On attache les écouteurs d'événements de cette page
+      attachCreatePageListeners();
+    } catch (error) {
+      console.error(
+        `Erreur lors de la préparation de l'édition pour "${ruleNameToEdit}":`,
+        error,
+      );
+      renderError(mainContentDiv, error);
+    }
   }
+
+  async function handleDeleteNamingRule(ruleNameToDelete) {
+    renderSaving(mainContentDiv);
+    try {
+      const existingConfig = await fetchConfigurationFile(
+        globalAccessToken,
+        configFolderId,
+        NAMING_CONFIG_FILENAME,
+      );
+
+      if (!existingConfig || !existingConfig.rules) {
+        throw new Error(
+          "Impossible de récupérer la configuration pour la suppression.",
+        );
+      }
+
+      // Appliquer le modèle Lire-Modifier-Écrire
+      const updatedRules = existingConfig.rules.filter(
+        (rule) => rule.name !== ruleNameToDelete,
+      );
+      const finalConfigurationData = { ...existingConfig, rules: updatedRules };
+
+      await saveConfigurationFile(
+        triconnectAPI,
+        globalAccessToken,
+        finalConfigurationData,
+        NAMING_CONFIG_FILENAME,
+        configFolderId,
+      );
+
+      renderSuccess(
+        mainContentDiv,
+        `La codification "${ruleNameToDelete}" a été supprimée.`,
+      );
+      setTimeout(handleManageNamingRulesClick, 1500); // Revenir à la page de gestion
+    } catch (error) {
+      console.error(
+        `Échec de la suppression de la règle "${ruleNameToDelete}":`,
+        error,
+      );
+      renderError(mainContentDiv, error);
+    }
+  }
+
+  const onColumnAdd = (newColumn) => {
+    currentRuleState.name = document.getElementById("naming-rule-name").value;
+    currentRuleState.columns.push(newColumn);
+    renderCreateNamingRulePage(mainContentDiv, currentRuleState);
+    attachCreatePageListeners();
+  };
+  const onColumnEdit = (updatedColumn) => {
+    if (currentRuleState.selectedColumnIndex === null) return;
+
+    // On remplace l'ancienne colonne par la nouvelle à l'index sélectionné
+    currentRuleState.columns.splice(
+      currentRuleState.selectedColumnIndex,
+      1,
+      updatedColumn,
+    );
+
+    currentRuleState.selectedColumnIndex = null; // On désélectionne après modification
+    rerenderPage();
+  };
+  function attachCreatePageListeners() {
+    document
+      .getElementById("cancel-naming-rule-btn")
+      .addEventListener("click", handleConfigNamingRuleClick);
+    document
+      .getElementById("save-naming-rule-btn")
+      .addEventListener("click", handleSaveNamingRuleClick);
+
+    document.getElementById("add-column-btn").addEventListener("click", () => {
+      currentRuleState.name = document.getElementById("naming-rule-name").value;
+      renderAddColumnModal(onColumnAdd);
+    });
+    // Logique pour le nouveau bouton "Modifier"
+    const editBtn = document.getElementById("edit-column-btn");
+    if (editBtn) {
+      editBtn.addEventListener("click", () => {
+        if (currentRuleState.columns.length === 0) {
+          alert("Veuillez d'abord ajouter une colonne.");
+          return;
+        }
+        // On entre ou on sort du mode de sélection
+        currentRuleState.editMode =
+          currentRuleState.editMode === "select_for_edit"
+            ? "normal"
+            : "select_for_edit";
+        rerenderPage();
+      });
+    }
+    // Logique pour rendre les en-têtes cliquables
+    if (currentRuleState.editMode === "select_for_edit") {
+      document
+        .querySelectorAll(".clickable-header")
+        .forEach((header, index) => {
+          header.addEventListener("click", () => {
+            currentRuleState.selectedColumnIndex = index;
+            currentRuleState.name =
+              document.getElementById("naming-rule-name").value;
+            const columnToEdit = currentRuleState.columns[index];
+
+            // On affiche la modale d'édition et on lui passe le callback
+            renderEditColumnModal(columnToEdit, onColumnEdit);
+          });
+        });
+    }
+    const reorderBtn = document.getElementById("reorder-columns-btn");
+    const deleteBtn = document.getElementById("delete-column-mode-btn");
+
+    reorderBtn.addEventListener("click", () => {
+      if (currentRuleState.columns.length === 0) {
+        alert("Veuillez d'abord ajouter une colonne avant de réorganiser.");
+        return;
+      }
+      currentRuleState.editMode =
+        currentRuleState.editMode === "reorder" ? "normal" : "reorder";
+      rerenderPage();
+    });
+
+    deleteBtn.addEventListener("click", () => {
+      if (currentRuleState.columns.length === 0) {
+        alert("Veuillez d'abord ajouter une colonne avant de supprimer.");
+        return;
+      }
+      if (currentRuleState.editMode === "delete") {
+        currentRuleState.columns = currentRuleState.columns.filter(
+          (col) => !col.markedForDeletion,
+        );
+      }
+      currentRuleState.editMode =
+        currentRuleState.editMode === "delete" ? "normal" : "delete";
+      rerenderPage();
+    });
+
+    if (currentRuleState.editMode === "delete") {
+      document.querySelectorAll(".delete-column-icon").forEach((icon) => {
+        icon.addEventListener("click", (event) => {
+          const indexToMark = parseInt(event.target.dataset.columnIndex, 10);
+          const column = currentRuleState.columns[indexToMark];
+          column.markedForDeletion = !column.markedForDeletion;
+          rerenderPage();
+        });
+      });
+    }
+
+    if (currentRuleState.editMode === "reorder") {
+      const tableHeaderRow = document.querySelector(
+        ".naming-rule-preview-table thead tr",
+      );
+      if (tableHeaderRow) {
+        Sortable.create(tableHeaderRow, {
+          animation: 150,
+          onEnd: function (evt) {
+            const [movedItem] = currentRuleState.columns.splice(
+              evt.oldIndex,
+              1,
+            );
+            currentRuleState.columns.splice(evt.newIndex, 0, movedItem);
+            rerenderPage();
+          },
+        });
+      }
+    }
+    updateCharacterCounts();
+  }
+  //  Fonction de calcul de la longueur de la convention ===
+  function calculateConventionLength(columns) {
+    if (!columns || columns.length === 0) {
+      return 0;
+    }
+
+    let totalLength = 0;
+    let isUnlimited = false;
+
+    columns.forEach((column) => {
+      switch (column.type) {
+        case "number1":
+          totalLength += 1;
+          break;
+        case "number2":
+          totalLength += 2;
+          break;
+        case "number3":
+        case "trigram":
+          totalLength += 3;
+          break;
+        case "list":
+          const maxLengthInList =
+            column.values.length > 0
+              ? Math.max(...column.values.map((v) => v.value.length))
+              : 0;
+          totalLength += maxLengthInList;
+          break;
+        case "text":
+          if (column.maxLength) {
+            totalLength += column.maxLength;
+          } else {
+            isUnlimited = true;
+          }
+          break;
+      }
+    });
+
+    if (isUnlimited) {
+      return "Pas de contraintes de caractères maximum";
+    }
+
+    // Ajout des séparateurs
+    totalLength += Math.max(0, columns.length - 1);
+
+    return totalLength;
+  }
+  function updateCharacterCounts() {
+    if (!currentRuleState || !document.getElementById("total-chars-required")) {
+      // Ne rien faire si l'état ou les éléments ne sont pas prêts
+      return;
+    }
+
+    console.log(
+      "Mise à jour des compteurs avec les colonnes :",
+      currentRuleState.columns,
+    ); // Ligne de débogage
+
+    const requiredColumns = currentRuleState.columns.filter((c) => c.required);
+    const requiredLength = calculateConventionLength(requiredColumns);
+    const allLength = calculateConventionLength(currentRuleState.columns);
+
+    document.getElementById("total-chars-required").textContent =
+      requiredLength;
+    document.getElementById("total-chars-all").textContent = allLength;
+  }
+  const rerenderPage = () => {
+    if (document.getElementById("separator-select")) {
+      currentRuleState.separator =
+        document.getElementById("separator-select").value;
+    }
+    currentRuleState.name = document.getElementById("naming-rule-name").value;
+    renderCreateNamingRulePage(mainContentDiv, currentRuleState);
+    updateCharacterCounts();
+    attachCreatePageListeners();
+  };
 })();
