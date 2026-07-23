@@ -784,38 +784,44 @@ async function fetchFileAllVersions(fileId, accessToken) {
 async function setFolderFullAccessForAllUsers(folderId, accessToken) {
   const permissionsApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/folders/fs/${folderId}/permissions`;
 
-  // Le payload est exactement celui que votre documentation suggère.
+  // Le payload CORRECT, respectant la structure complète de l'objet "acl".
   const payload = {
     acl: {
-      FULL_ACCESS: ["tc-groups-*"],
+      READ: [], // Clé requise, même si vide
+      FULL_ACCESS: ["tc-groups-*"], // La permission que nous voulons définir
+      NO_ACCESS: [], // Clé requise, même si vide
     },
   };
 
-  const response = await fetch(permissionsApiUrl, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const response = await fetch(permissionsApiUrl, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
-  if (!response.ok) {
-    // Une réponse 409 (Conflict) signifie souvent que la permission existe déjà, ce qui n'est pas une erreur pour nous.
-    if (response.status !== 409) {
+    if (!response.ok && response.status !== 409) {
+      // 409 Conflict est acceptable
       const errorText = await response.text();
-      console.warn(
-        `Avertissement lors de la mise à jour des permissions pour le dossier ${folderId}: ${errorText}`,
+      // On lance une erreur pour mieux la voir dans la console, car c'est un point critique
+      throw new Error(
+        `La mise à jour des permissions a échoué (statut: ${response.status}): ${errorText}`,
       );
     } else {
       console.log(
-        `Les permissions pour le dossier ${folderId} étaient déjà correctement configurées.`,
+        `Permissions pour le dossier ${folderId} traitées avec succès.`,
       );
     }
-  } else {
-    console.log(
-      `Permissions "Accès complet" appliquées au dossier ${folderId} pour tous les utilisateurs.`,
+  } catch (error) {
+    console.error(
+      `Erreur critique lors de la mise à jour des permissions pour ${folderId}:`,
+      error,
     );
+    // On propage l'erreur pour que l'initialisation s'arrête si les permissions échouent
+    throw error;
   }
 }
 
