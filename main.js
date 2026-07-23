@@ -843,12 +843,24 @@ import {
         }
       }
 
-      const updatePSetTask = updatePSetStatus(
-        visaData.doc.projectId,
-        visaData.doc.id,
-        generalStatus,
-        globalAccessToken,
-      );
+      try {
+        const updatePSetTask = updatePSetStatus(
+          visaData.doc.projectId,
+          visaData.doc.id,
+          generalStatus,
+          globalAccessToken,
+        );
+        await updatePSetTask;
+        console.log(
+          `PSet du document mis à jour avec le statut : ${generalStatus}`,
+        );
+      } catch (psetError) {
+        console.warn(
+          "Avertissement : La mise à jour du statut dans le PSet Trimble Connect a échoué, mais le visa a bien été enregistré dans l'extension.",
+          psetError,
+        );
+        // On n'interrompt pas le processus, on affiche juste un avertissement en console.
+      }
 
       const saveTrackingTask = saveConfigurationFile(
         triconnectAPI,
