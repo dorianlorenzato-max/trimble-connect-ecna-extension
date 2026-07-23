@@ -843,14 +843,6 @@ import {
         }
       }
 
-    
-        const updatePSetTask = updatePSetStatus(
-          visaData.doc.projectId,
-          visaData.doc.id,
-          generalStatus,
-          globalAccessToken,
-        );
-      
       const saveTrackingTask = saveConfigurationFile(
         triconnectAPI,
         globalAccessToken,
@@ -858,6 +850,23 @@ import {
         VISA_TRACKING_FILENAME,
         configFolderId,
       );
+
+      (async () => {
+        try {
+          await updatePSetStatus(
+            visaData.doc.projectId,
+            visaData.doc.id,
+            generalStatus,
+            globalAccessToken,
+          );
+          console.log("Statut PSet mis à jour avec succès.");
+        } catch (psetError) {
+          console.warn(
+            "Avertissement : La mise à jour du statut PSet a échoué, mais le visa est bien enregistré.",
+            psetError,
+          );
+        }
+      })();
 
       // création du PDF de visa
       const { jsPDF } = window.jspdf;
@@ -1124,7 +1133,7 @@ import {
         newFilename,
         finalTargetFolderId,
       );
-      await Promise.all([updatePSetTask, saveTrackingTask]);
+      await Promise.all([saveTrackingTask, savePdfTask]);
 
       renderSuccess(
         mainContentDiv,
