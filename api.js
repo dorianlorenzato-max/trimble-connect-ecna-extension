@@ -447,8 +447,8 @@ async function fetchLoggedInUserDetails(accessToken) {
   return await response.json();
 }
 
-// récupère les différentes valeurs de la methadonnée "Visa"
-async function fetchVisaPossibleStates(projectId, accessToken) {
+// récupère les différentes valeurs de la methadonnée "Visa" ancienne version pour ne plus dépendre des PSET
+/*async function fetchVisaPossibleStates(projectId, accessToken) {
   const defsApiUrl = `https://pset-api.eu-west-1.connect.trimble.com/v1/libs/tcproject:prod:${projectId}/defs`;
   const response = await fetch(defsApiUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -468,8 +468,14 @@ async function fetchVisaPossibleStates(projectId, accessToken) {
     return visaProperty.enum;
   }
   return [];
-}
+}*/
+async function fetchVisaPossibleStates(projectId, accessToken) {
+  // Plus besoin des arguments, mais on les garde pour ne pas casser l'appel
+  console.log("Récupération des statuts de visa depuis la liste statique.");
 
+  // On retourne une promesse résolue avec la liste fixe des statuts
+  return Promise.resolve(["VSO", "VAO", "REF", "SO"]);
+}
 //SAUVEGARDE DU STATUT APRES VISA D'UN DOCUMENT
 
 async function updatePSetStatus(projectId, fileId, newStatus, accessToken) {
