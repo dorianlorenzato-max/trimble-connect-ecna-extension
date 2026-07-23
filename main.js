@@ -17,6 +17,7 @@ import {
   recursivelyFetchAllSubfolders,
   fetchAllProjectFolders,
   fetchUserProjectRole,
+  setFolderFullAccessForAllUsers,
 } from "./api.js";
 import {
   renderLoading,
@@ -94,7 +95,7 @@ import {
     );
 
     // 2. On appelle la fonction qui cherche le dossier ou le crée s'il n'existe pas
-    //    Cette fonction est déjà dans votre api.js !
+
     configFolderId = await findOrCreateFolder(
       projectRootId,
       "Configuration_Visa", // Le nom de votre dossier
@@ -106,6 +107,17 @@ import {
       throw new Error(
         "Le dossier 'Configuration_Visa' est introuvable et n'a pas pu être créé.",
       );
+    }
+    await setFolderFullAccessForAllUsers(configFolderId, globalAccessToken);
+
+    // 4. On fait de même pour le dossier "00_VISAS" pour s'assurer qu'il existe
+    await findOrCreateFolder(
+      projectRootId,
+      "00_VISAS", // Le nom du dossier des visas
+      globalAccessToken,
+    );
+    if (visasFolderId) {
+      await setFolderFullAccessForAllUsers(visasFolderId, globalAccessToken);
     }
     // Configuration du menu dans l'UI de Trimble Connect
     triconnectAPI.ui.setMenu({
