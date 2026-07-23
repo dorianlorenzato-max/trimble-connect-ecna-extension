@@ -111,12 +111,13 @@ import {
     await setFolderFullAccessForAllUsers(configFolderId, globalAccessToken);
 
     // 4. On fait de même pour le dossier "00_VISAS" pour s'assurer qu'il existe
-    await findOrCreateFolder(
+    const visasFolderId = await findOrCreateFolder(
       projectRootId,
-      "00_VISAS", // Le nom du dossier des visas
+      "00_VISAS",
       globalAccessToken,
     );
     if (visasFolderId) {
+      // On applique également les permissions à ce dossier
       await setFolderFullAccessForAllUsers(visasFolderId, globalAccessToken);
     }
     // Configuration du menu dans l'UI de Trimble Connect
