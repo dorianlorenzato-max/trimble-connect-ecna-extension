@@ -780,6 +780,45 @@ async function fetchFileAllVersions(fileId, accessToken) {
   }));
 }
 
+//Définit les permissions d'accès complet à un dossier pour tous les utilisateurs du projet
+async function setFolderFullAccessForAllUsers(folderId, accessToken) {
+  const permissionsApiUrl = `https://app21.connect.trimble.com/tc/api/2.0/folders/fs/${folderId}/permissions`;
+
+  // Le payload est exactement celui que votre documentation suggère.
+  const payload = {
+    acl: {
+      FULL_ACCESS: ["tc-groups-*"],
+    },
+  };
+
+  const response = await fetch(permissionsApiUrl, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    // Une réponse 409 (Conflict) signifie souvent que la permission existe déjà, ce qui n'est pas une erreur pour nous.
+    if (response.status !== 409) {
+      const errorText = await response.text();
+      console.warn(
+        `Avertissement lors de la mise à jour des permissions pour le dossier ${folderId}: ${errorText}`,
+      );
+    } else {
+      console.log(
+        `Les permissions pour le dossier ${folderId} étaient déjà correctement configurées.`,
+      );
+    }
+  } else {
+    console.log(
+      `Permissions "Accès complet" appliquées au dossier ${folderId} pour tous les utilisateurs.`,
+    );
+  }
+}
+
 // On exporte les fonctions pour qu'elles soientt utilisables dans main.js
 export {
   fetchVisaDocuments,
@@ -800,4 +839,5 @@ export {
   fetchAllProjectFolders,
   fetchUserProjectRole,
   calculateGeneralStatus,
+  setFolderFullAccessForAllUsers,
 };
