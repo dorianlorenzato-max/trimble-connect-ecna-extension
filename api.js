@@ -613,7 +613,7 @@ async function findOrCreateFolder(parentFolderId, folderName, accessToken) {
     console.log(
       `Dossier trouvé: "${sanitizedName}" (ID: ${existingFolder.id})`,
     );
-    return existingFolder.id; // Il existe, on retourne son ID
+    return { id: existingFolder.id, created: false }; // Il existe, on retourne son ID
   } else {
     // 2. Il n'existe pas, on le crée
     console.log(`Dossier "${sanitizedName}" non trouvé. Création en cours...`);
@@ -623,7 +623,7 @@ async function findOrCreateFolder(parentFolderId, folderName, accessToken) {
       accessToken,
     );
     console.log(`Dossier créé: "${sanitizedName}" (ID: ${newFolder.id})`);
-    return newFolder.id; // On retourne l'ID du dossier nouvellement créé
+    return { id: newFolder.id, created: true }; // On retourne l'ID du dossier nouvellement créé
   }
 }
 
@@ -787,9 +787,7 @@ async function setFolderFullAccessForAllUsers(folderId, accessToken) {
   // Le payload CORRECT, respectant la structure complète de l'objet "acl".
   const payload = {
     acl: {
-      READ: [], // Clé requise, même si vide
-      FULL_ACCESS: ["tc-groups-*"], // La permission que nous voulons définir
-      NO_ACCESS: [], // Clé requise, même si vide
+      FULL_ACCESS: ["tc-groups-*"],
     },
   };
 
