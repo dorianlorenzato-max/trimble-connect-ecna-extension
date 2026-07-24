@@ -94,31 +94,44 @@ import {
       globalAccessToken,
     );
 
-    // 2. On appelle la fonction qui cherche le dossier ou le crée s'il n'existe pas
-
-    configFolderId = await findOrCreateFolder(
+    // --- Traitement du dossier 'Configuration_Visa' ---
+    const configFolderResult = await findOrCreateFolder(
       projectRootId,
-      "Configuration_Visa", // Le nom de votre dossier
+      "Configuration_Visa",
       globalAccessToken,
     );
 
-    // 3. On vérifie que tout s'est bien passé (la création aurait pu échouer)
+    // On stocke l'ID pour le reste de l'application.
+    configFolderId = configFolderResult.id;
+
     if (!configFolderId) {
       throw new Error(
         "Le dossier 'Configuration_Visa' est introuvable et n'a pas pu être créé.",
       );
     }
-    await setFolderFullAccessForAllUsers(configFolderId, globalAccessToken);
 
-    // 4. On fait de même pour le dossier "00_VISAS" pour s'assurer qu'il existe
-    const visasFolderId = await findOrCreateFolder(
+    // On applique les permissions UNIQUEMENT si le dossier vient d'être créé.
+    if (configFolderResult.created) {
+      console.log(
+        "Application des permissions initiales sur 'Configuration_Visa'...",
+      );
+      await setFolderFullAccessForAllUsers(configFolderId, globalAccessToken);
+    }
+
+    // --- Traitement du dossier '00_VISAS' ---
+    const visasFolderResult = await findOrCreateFolder(
       projectRootId,
       "00_VISAS",
       globalAccessToken,
     );
-    if (visasFolderId) {
-      // On applique également les permissions à ce dossier
-      await setFolderFullAccessForAllUsers(visasFolderId, globalAccessToken);
+
+    // On applique les permissions UNIQUEMENT si le dossier vient d'être créé.
+    if (visasFolderResult.id && visasFolderResult.created) {
+      console.log("Application des permissions initiales sur '00_VISAS'...");
+      await setFolderFullAccessForAllUsers(
+        visasFolderResult.id,
+        globalAccessToken,
+      );
     }
     // Configuration du menu dans l'UI de Trimble Connect
     triconnectAPI.ui.setMenu({
