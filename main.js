@@ -800,18 +800,22 @@ import {
         globalAccessToken,
       );
 
-      const visasRootFolderId = await findOrCreateFolder(
+      const visasRootFolderResult = await findOrCreateFolder(
         projectRootId,
         "00_VISAS",
         globalAccessToken,
       );
+      // On extrait l'ID de l'objet retourné
+      const visasRootFolderId = visasRootFolderResult.id;
 
       const lotName = visaData.doc.lot || "Lot non défini";
-      const finalTargetFolderId = await findOrCreateFolder(
-        visasRootFolderId,
+      const finalTargetFolderResult = await findOrCreateFolder(
+        visasRootFolderId, // On utilise bien l'ID ici
         lotName,
         globalAccessToken,
       );
+      // On extrait l'ID de l'objet retourné
+      const finalTargetFolderId = finalTargetFolderResult.id;
 
       const userGroupObject = allGroups.find(
         (g) => g.name === visaData.userGroup,
@@ -1993,10 +1997,10 @@ import {
     currentViseurGroups.forEach((group) => {
       head[0].push({
         content: group.name,
-        colSpan: 3,
+        colSpan: 4, // On passe le colSpan à 4
         styles: { halign: "center" },
       });
-      subhead.push("Pour le", "Visé le", "Visa");
+      subhead.push("Pour le", "Visé le", "Visa", "Observation"); // On ajoute l'en-tête
     });
     head.push(subhead);
 
@@ -2068,9 +2072,10 @@ import {
         const viseLeDate =
           d.trackingInfo.find((entry) => entry.groupId === group.id)?.date ||
           "";
-        const visaStatus =
-          d.trackingInfo.find((entry) => entry.groupId === group.id)?.status ||
-          "";
+        const visaEntry =
+          d.trackingInfo.find((entry) => entry.groupId === group.id) || {};
+        const visaStatus = visaEntry.status || "";
+        const groupObservation = visaEntry.observation || "";
         const visaStatusStyle = statusColors[visaStatus];
 
         row.push(
@@ -2085,6 +2090,7 @@ import {
               halign: "center",
             },
           },
+          groupObservation,
         );
       });
       return row;
@@ -2123,6 +2129,7 @@ import {
         `${group.name} - Pour le`,
         `${group.name} - Visé le`,
         `${group.name} - Visa`,
+        `${group.name} - Observation`, // On ajoute l'en-tête pour la nouvelle colonne
       );
     });
 
@@ -2187,13 +2194,16 @@ import {
         const viseLeDate =
           d.trackingInfo.find((entry) => entry.groupId === group.id)?.date ||
           "";
-        const visaStatus =
-          d.trackingInfo.find((entry) => entry.groupId === group.id)?.status ||
-          "";
+        const visaEntry =
+          d.trackingInfo.find((entry) => entry.groupId === group.id) || {};
+        const visaStatus = visaEntry.status || "";
+        const groupObservation = visaEntry.observation || "";
+
         row.push(
           pourLeDate,
           viseLeDate ? new Date(viseLeDate).toLocaleDateString() : "",
           visaStatus,
+          `"${groupObservation.replace(/"/g, '""')}"`, // On ajoute l'observation formatée pour Excel
         );
       });
       csvRows.push(row.join(";"));
