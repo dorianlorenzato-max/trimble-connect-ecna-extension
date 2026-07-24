@@ -137,14 +137,17 @@ function renderVisaTable(
   // Génération des en-têtes dynamiques pour les viseurs (uniquement en mode "documents")
   if (mode === "documents") {
     viseurGroups.forEach((group) => {
-      headerRow1 += `<th colspan="3" class="group-header">${group.name}</th>`;
+      // On passe le colspan à 4 pour inclure la nouvelle colonne
+      headerRow1 += `<th colspan="4" class="group-header">${group.name}</th>`;
       headerRow2 += `
         <th class="sub-header">Pour le</th>
         <th class="sub-header">Visé le</th>
         <th class="sub-header">Visa</th>
+        <th class="sub-header">Observation</th>
       `;
     });
-    totalColumns += viseurGroups.length * 3;
+    // On incrémente de 4 colonnes par groupe
+    totalColumns += viseurGroups.length * 4;
   }
 
   // Génération des lignes et remplissage des cellules
@@ -246,7 +249,17 @@ function renderVisaTable(
             ? new Date(viseLeDate).toLocaleDateString()
             : "";
 
-          dynamicCells += `<td>${pourLeDateHtml}</td><td>${formattedViseLeDate}</td><td>${visaCellContent}</td>`;
+          // On récupère l'observation spécifique à ce groupe
+          const groupObservation =
+            doc.trackingInfo.find((entry) => entry.groupId === group.id)
+              ?.observation || "";
+
+          // On crée la cellule avec l'icône, uniquement si une observation existe
+          const observationCellContent = groupObservation
+            ? `<span class="observation-icon" data-observations='${JSON.stringify([groupObservation])}'>💬</span>`
+            : "";
+
+          dynamicCells += `<td>${pourLeDateHtml}</td><td>${formattedViseLeDate}</td><td>${visaCellContent}</td><td>${observationCellContent}</td>`;
         });
       }
 
