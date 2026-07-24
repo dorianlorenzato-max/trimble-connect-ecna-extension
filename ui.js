@@ -36,6 +36,7 @@ function renderVisaTable(
   emptyMessage = null,
   viseurGroups = [],
   allFluxDefinitions = [],
+  projectId,
 ) {
   // On extrait les variables de l'état de pagination
   const { currentPage, itemsPerPage } = paginationState;
@@ -160,6 +161,7 @@ function renderVisaTable(
   let tableRows = visaDocuments
     .map((doc) => {
       const statusClass = statusClassMap[doc.status] || defaultStatusClass;
+      const folderUrl = `https://web.connect.trimble.com/projects/${projectId}/data/folder/${doc.parentId}`;
       const rowClass = doc.isOutdated ? "outdated-version" : "";
       let dynamicCells = "";
 
@@ -268,7 +270,7 @@ function renderVisaTable(
           <td class="action-col" data-column-index="0"><span class="view-doc-icon" data-doc-id="${doc.id}" title="Visualiser le document">👁️</span></td>
           <td data-column-index="1" class="sticky-column-name">${doc.name || ""}</td>
           <td data-column-index="2">${doc.version || ""}</td>
-          <td data-column-index="3">${doc.lot || ""}</td>
+          <td data-column-index="3"><a href="${folderUrl}" target="_blank">${doc.lot || ""}</a></td>
           <td data-column-index="4">${doc.depositorName || ""}</td>
           <td data-column-index="5">${doc.depositDate || ""}</td>
           <td data-column-index="6"><span class="status-cell-tag ${statusClass}">${doc.status || "N/A"}</span></td>
