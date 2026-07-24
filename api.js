@@ -195,8 +195,12 @@ async function fetchVisaDocuments(
       : "Non assigné";
     const fluxName = assignmentsConfig[file.parentId] || null;
     const allObservations = docTrackingInfo
-      .map((entry) => entry.observation)
-      .filter((obs) => obs);
+      .filter((entry) => entry.observation) // On ne garde que les entrées qui ont une observation
+      .map(
+        (entry) =>
+          // On formate la chaîne pour inclure l'utilisateur et la date
+          `<b>${entry.user} (${new Date(entry.date).toLocaleDateString("fr-FR")}) :</b><br>${entry.observation}`,
+      );
 
     visaDocuments.push({
       id: file.id,
