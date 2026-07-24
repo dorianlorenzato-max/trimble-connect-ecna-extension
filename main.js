@@ -219,11 +219,19 @@ import {
         currentViseurGroups = []; // On s'assure qu'elle est vide pour le mode "Missions"
       }
 
+      const allProjectFolders = await fetchAllProjectFolders(
+        triconnectAPI,
+        globalAccessToken,
+      );
+      const folderIdToNameMap = new Map(
+        allProjectFolders.map((f) => [f.id, f.name]),
+      );
+
       const fetchOptions = {
         mode,
         loggedInUserGroupIds,
         allFluxDefinitions,
-        // On passe la liste des groupes au fetch pour une future utilisation
+        folderIdToNameMap, // On passe la carte à la fonction de récupération
       };
 
       const documents = await fetchVisaDocuments(
@@ -255,6 +263,13 @@ import {
       // --- 1. Récupération de toutes les données en parallèle ---
       const projectInfo = await triconnectAPI.project.getCurrentProject();
       currentProjectId = projectInfo.id;
+      const allProjectFolders = await fetchAllProjectFolders(
+        triconnectAPI,
+        globalAccessToken,
+      );
+      const folderIdToNameMap = new Map(
+        allProjectFolders.map((f) => [f.id, f.name]),
+      );
 
       const [
         loggedInUser,
@@ -286,7 +301,7 @@ import {
           triconnectAPI,
           configFolderId,
           ASSIGNMENTS_FILENAME,
-          { mode: "documents" },
+          { mode: "documents", folderIdToNameMap },
         ),
       ]);
       allFluxDefinitions = fluxDefinitions;
@@ -547,6 +562,7 @@ import {
       emptyMessage,
       currentViseurGroups,
       allFluxDefinitions,
+      currentProjectId, // On ajoute l'ID du projet
     );
     attachVisaTableEvents(
       documentsForCurrentPage,
@@ -658,6 +674,16 @@ import {
         renderObservationPopup(icon, observations);
       });
     });
+
+    // On cible spécifiquement les liens dans la colonne "Lot" (qui a l'index 3)
+    document
+      .querySelectorAll('.visa-table td[data-column-index="3"] a')
+      .forEach((link) => {
+        link.addEventListener("click", (event) => {
+          // Cette ligne est la clé : elle empêche le clic de se propager à la ligne <tr> parente.
+          event.stopPropagation();
+        });
+      });
 
     const visaTableElement = document.querySelector(".visa-table");
     if (visaTableElement) {
