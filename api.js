@@ -787,7 +787,7 @@ async function setFolderFullAccessForAllUsers(folderId, accessToken) {
   // Le payload CORRECT, respectant la structure complète de l'objet "acl".
   const payload = {
     acl: {
-      FULL_ACCESS: ["tc-groups-*"],
+      FULL_ACCESS: ["tc-groups:*"],
     },
   };
 
@@ -800,6 +800,7 @@ async function setFolderFullAccessForAllUsers(folderId, accessToken) {
       },
       body: JSON.stringify(payload),
     });
+    console.log(JSON.stringify(payload));
 
     if (!response.ok && response.status !== 409) {
       // 409 Conflict est acceptable
