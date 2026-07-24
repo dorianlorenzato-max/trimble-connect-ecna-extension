@@ -13,7 +13,8 @@ async function fetchVisaDocuments(
   const projectInfo = await triconnectAPI.project.getCurrentProject();
   const projectId = projectInfo.id;
 
-  const { mode, loggedInUserGroupIds, allFluxDefinitions } = options;
+  const { mode, loggedInUserGroupIds, allFluxDefinitions, folderIdToNameMap } =
+    options;
 
   const [userToGroupMap, assignmentsConfig, trackingData] = await Promise.all([
     fetchUsersAndGroups(projectId, accessToken),
@@ -190,9 +191,7 @@ async function fetchVisaDocuments(
     const depositDate = file.modifiedOn
       ? new Date(file.modifiedOn).toLocaleDateString()
       : "Date inconnue";
-    const lot = depositorId
-      ? userToGroupMap.get(depositorId) || "Non assigné"
-      : "Non assigné";
+    const lot = folderIdToNameMap.get(file.parentId) || "Dossier inconnu";
     const fluxName = assignmentsConfig[file.parentId] || null;
     const allObservations = docTrackingInfo
       .filter((entry) => entry.observation) // On ne garde que les entrées qui ont une observation
