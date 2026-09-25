@@ -94,7 +94,7 @@ function renderVisaTable(
       sticky: true,
     },
     { text: "Version", filterable: true, sortable: true, field: "version" },
-    { text: "Lot", filterable: true, sortable: true, field: "lot" },
+    { text: "Lot / Dossier", filterable: true, sortable: true, field: "lot" },
     {
       text: "Nom du dépositaire",
       filterable: true,
@@ -109,7 +109,7 @@ function renderVisaTable(
     },
     { text: "Statut", filterable: true, sortable: true, field: "status" },
     {
-      text: "Observations",
+      text: "Obs",
       filterable: false,
       sortable: false,
       field: "observations",
@@ -122,14 +122,26 @@ function renderVisaTable(
 
   // Génération des en-têtes standard
   standardHeaders.forEach((header, index) => {
-    headerRow1 += `
-      <th rowspan="${mode === "documents" ? "2" : "1"}" data-column-index="${index}" data-field="${header.field}" 
-          class="${header.field === "action" ? "action-col" : ""} ${header.field === "name" ? "sticky-column-name" : ""}">
+    let headerContent = `
         <div class="th-content ${header.sortable ? "sortable" : ""}">
             ${header.text}
             <span class="sort-icon"></span>
             ${header.filterable ? `<span class="filter-icon" data-field="${header.field}">&#x25BC;</span>` : ""}
         </div>
+    `;
+
+    // Si c'est la colonne du nom du document, on ajoute la barre de recherche
+    if (header.field === "name") {
+      headerContent += `
+            <div class="header-search-container" style="padding: 4px;">
+                <input type="text" id="document-name-search" placeholder="Rechercher..." style="width: 100%;">
+            </div>
+        `;
+    }
+    headerRow1 += `
+      <th rowspan="${mode === "documents" ? "2" : "1"}" data-column-index="${index}" data-field="${header.field}" 
+          class="${header.field === "action" ? "action-col" : ""} ${header.field === "name" ? "sticky-column-name" : ""}">
+        ${headerContent}
         ${header.field !== "action" ? '<div class="resizer"></div>' : ""}
       </th>
     `;
@@ -162,7 +174,6 @@ function renderVisaTable(
     .map((doc) => {
       const statusClass = statusClassMap[doc.status] || defaultStatusClass;
       const folderUrl = `https://web.connect.trimble.com/projects/${projectId}/data/folder/${doc.parentId}`;
-      const rowClass = doc.isOutdated ? "outdated-version" : "";
       let dynamicCells = "";
 
       if (mode === "documents") {
@@ -266,7 +277,7 @@ function renderVisaTable(
       }
 
       return `
-        <tr class="${rowClass}">
+        <tr>
           <td class="action-col" data-column-index="0"><span class="view-doc-icon" data-doc-id="${doc.id}" title="Visualiser le document">👁️</span></td>
           <td data-column-index="1" class="sticky-column-name">${doc.name || ""}</td>
           <td data-column-index="2">${doc.version || ""}</td>
@@ -318,9 +329,10 @@ function renderVisaTable(
     pageButtons += `<button class="pagination-btn ${i === currentPage ? "active" : ""}" data-page="${i}">${i}</button>`;
   }
 
-  let exportButtonHtml = "";
+  let exportSectionHtml = ""; // Renommé pour plus de clarté
   if (mode === "documents") {
-    exportButtonHtml = `
+    exportSectionHtml = `
+      <div class="export-actions-container">
         <div class="export-container">
             <button class="button-secondary" id="export-main-btn">Exporter ▾</button>
             <div class="export-options" id="export-options-div">
@@ -328,6 +340,11 @@ function renderVisaTable(
                 <button id="export-excel-btn">Exporter en Excel</button>
             </div>
         </div>
+        <div class="checkbox-container" style="display: flex; align-items: center; gap: 8px; margin-left: 20px;">
+          <input type="checkbox" id="show-old-revisions-checkbox">
+          <label for="show-old-revisions-checkbox">Anciens indices</label>
+        </div>
+      </div>
     `;
   }
 
@@ -335,7 +352,7 @@ function renderVisaTable(
     <div class="visa-page-header">
         <div class="visa-title-container">
             <h1>${pageTitle}</h1>
-            ${exportButtonHtml}
+            ${exportSectionHtml} 
         </div>                             
         ${legendHtml}
     </div>
