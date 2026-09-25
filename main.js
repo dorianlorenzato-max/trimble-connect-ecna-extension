@@ -1423,11 +1423,47 @@ function debounce(func, delay) {
           globalAccessToken,
         );
 
-        // On ajoute les informations des PJ à l'entrée de visa
-        visaEntry.attachments = {
-          folderId: attachmentsFolderResult.id,
-          fileCount: otherFiles.length,
-        };
+        // --- ajout des LIENS clicables DANS LE PDF ---
+        // On construit l'URL du dossier une seule fois
+        const attachmentsFolderUrl = `https://web.connect.trimble.com/projects/${visaData.doc.projectId}/data/folder/${attachmentsFolderResult.id}`;
+
+        const pjHeaderHeight = 12;
+        const lineHeight = doc.getLineHeight() / doc.internal.scaleFactor;
+        const pjTextHeight = otherFiles.length * lineHeight;
+        const pjBoxHeight = pjHeaderHeight + pjTextHeight + 5;
+
+        // On vérifie si on a la place d'écrire la bulle
+        if (yPos + pjBoxHeight > doc.internal.pageSize.getHeight() - margin) {
+          doc.addPage();
+          yPos = margin;
+        }
+
+        // On dessine la bulle qui contiendra les liens
+        doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
+        doc.roundedRect(margin, yPos, maxContentWidth, pjBoxHeight, 5, 5, "FD");
+        doc
+          .setFont("helvetica", "bold")
+          .setFontSize(11)
+          .setTextColor(...TEXT_COLOR_NORMAL);
+        doc.text("Pièces Jointes (cliquables)", margin + 10, yPos + 8);
+
+        // On se prépare à écrire les liens
+        doc
+          .setFont("helvetica", "normal")
+          .setFontSize(9)
+          .setTextColor(0, 0, 238); // Couleur bleue pour les liens
+
+        let currentY = yPos + pjHeaderHeight + 2; // Position Y de départ pour la première ligne
+
+        // On boucle sur chaque fichier pour créer une ligne de texte cliquable
+        otherFiles.forEach((file) => {
+          doc.textWithLink(`- ${file.name}`, margin + 10, currentY, {
+            url: attachmentsFolderUrl,
+          });
+          currentY += lineHeight; // On passe à la ligne suivante
+        });
+
+        yPos += pjBoxHeight + 10;
 
         otherFiles.forEach((file) => {
           savePromises.push(
