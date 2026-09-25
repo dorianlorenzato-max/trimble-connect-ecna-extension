@@ -18,7 +18,7 @@ body {
 }
 
 .main-content h1 {
-  color: #003a72; /* Bleu institutionnel Eiffage */
+  color: #00070e; /* Noir Eiffage */
   margin-bottom: 20px;
   text-align: center;
 }
@@ -46,6 +46,8 @@ body {
   transition:
     background-color 0.3s ease,
     color 0.3s ease;
+  min-width: 160px;
+  text-align: center;
 }
 
 .header-banner button:hover {
@@ -157,7 +159,7 @@ body {
 
 .button-primary,
 .config-button {
-  background-color: #005a70; /* Bleu-vert Eiffage */
+  background-color: #000405;
   color: white;
 }
 .button-primary:hover,
@@ -1110,4 +1112,17 @@ select[multiple] {
   border-radius: 4px;
   margin-bottom: 8px; /* Espace avant le champ de sélection */
   line-height: 1.4;
+}
+
+/* === SÉPARATEURS DE COLONNES POUR LE TABLEAU VISA === */
+.visa-table th:not(:last-child),
+.visa-table td:not(:last-child) {
+  border-right: 1px solid #e0e0e0; /* Gris clair, fin et consistant avec le style existant */
+}
+
+/* === CORRECTION AFFICHAGE LÉGENDE STATUTS === */
+.visa-legend .legend-color-box {
+  white-space: nowrap; /* La correction clé : empêche le retour à la ligne */
+  padding-left: 10px; /* Ajoute un peu d'espace à gauche */
+  padding-right: 10px; /* Ajoute un peu d'espace à droite */
 }
