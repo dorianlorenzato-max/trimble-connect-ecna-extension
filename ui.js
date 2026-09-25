@@ -156,7 +156,7 @@ function renderVisaTable(
         <th class="sub-header">Pour le</th>
         <th class="sub-header">Visé le</th>
         <th class="sub-header">Visa</th>
-        <th class="sub-header">Observation</th>
+        <th class="sub-header">Obs</th>
       `;
     });
     // On incrémente de 4 colonnes par groupe
@@ -758,7 +758,17 @@ function renderVisaInterfacePage(container, visaData) {
             <span>${doc.depositorName}</span>
           </div>
         </div>
-        
+        <!-- Pièces Jointes & Captures -->
+        <div class="attachment-area">
+          <label>Pièces Jointes & Captures</label>
+          <div id="drop-zone" class="drop-zone">
+            <p>Glissez-déposez des fichiers ici, collez une capture (Ctrl+V), ou cliquez pour sélectionner.</p>
+          </div>
+          <input type="file" id="file-input" multiple hidden>
+          <ul id="visa-attachment-list" class="file-list">
+            <!-- La liste des fichiers sera générée ici par JavaScript -->
+          </ul>
+        </div>
         <!-- Section Observations -->
         <div class="visa-data-bubble full-width">
             <label for="observations">Observations</label>
