@@ -150,13 +150,14 @@ function renderVisaTable(
   // Génération des en-têtes dynamiques pour les viseurs (uniquement en mode "documents")
   if (mode === "documents") {
     viseurGroups.forEach((group) => {
-      // On passe le colspan à 4 pour inclure la nouvelle colonne
-      headerRow1 += `<th colspan="4" class="group-header">${group.name}</th>`;
+      // On passe le colspan à 5 pour inclure la nouvelle colonne
+      headerRow1 += `<th colspan="5" class="group-header">${group.name}</th>`;
       headerRow2 += `
         <th class="sub-header">Pour le</th>
         <th class="sub-header">Visé le</th>
         <th class="sub-header">Visa</th>
         <th class="sub-header">Obs</th>
+        <th class="sub-header">PJ</th>
       `;
     });
     // On incrémente de 4 colonnes par groupe
@@ -242,6 +243,9 @@ function renderVisaTable(
             }
           }
 
+          const visaEntry =
+            doc.trackingInfo.find((entry) => entry.groupId === group.id) || {};
+
           const viseLeDate =
             doc.trackingInfo.find((entry) => entry.groupId === group.id)
               ?.date || "";
@@ -272,7 +276,13 @@ function renderVisaTable(
             ? `<span class="observation-icon" data-observations='${JSON.stringify([groupObservation])}'>💬</span>`
             : "";
 
-          dynamicCells += `<td>${pourLeDateHtml}</td><td>${formattedViseLeDate}</td><td>${visaCellContent}</td><td>${observationCellContent}</td>`;
+          let pjCellContent = "";
+          if (visaEntry.attachments && visaEntry.attachments.fileCount > 0) {
+            const folderUrl = `https://web.connect.trimble.com/projects/${projectId}/data/folder/${visaEntry.attachments.folderId}`;
+            pjCellContent = `<a href="${folderUrl}" target="_blank" class="pj-icon" title="Ouvrir le dossier des pièces jointes">📎</a>`;
+          }
+
+          dynamicCells += `<td>${pourLeDateHtml}</td><td>${formattedViseLeDate}</td><td>${visaCellContent}</td><td>${observationCellContent}</td><td>${pjCellContent}</td>`;
         });
       }
 
