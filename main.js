@@ -723,6 +723,14 @@ function debounce(func, delay) {
         });
       });
 
+    // --- Gérer le clic sur les icônes PJ ---
+    document.querySelectorAll(".pj-icon").forEach((icon) => {
+      icon.addEventListener("click", (event) => {
+        // Empêche le clic de se propager à la ligne <tr> et de déclencher la navigation
+        event.stopPropagation();
+      });
+    });
+
     const visaTableElement = document.querySelector(".visa-table");
     if (visaTableElement) {
       attachResizableTableEvents(visaTableElement);
@@ -1414,6 +1422,12 @@ function debounce(func, delay) {
           attachmentsFolderName,
           globalAccessToken,
         );
+
+        // On ajoute les informations des PJ à l'entrée de visa
+        visaEntry.attachments = {
+          folderId: attachmentsFolderResult.id,
+          fileCount: otherFiles.length,
+        };
 
         otherFiles.forEach((file) => {
           savePromises.push(
