@@ -38,6 +38,16 @@ import {
   renderObservationPopup,
 } from "./ui.js";
 
+// Fonction Debounce
+function debounce(func, delay) {
+  let timeout;
+  return function (...args) {
+    const context = this;
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(context, args), delay);
+  };
+}
+
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
 (async function () {
   const mainContentDiv = document.getElementById("mainContent");
@@ -64,6 +74,8 @@ import {
   };
   let currentPage = 1;
   let itemsPerPage = 10; // Valeur par défaut
+  let showOldRevisions = false;
+  let documentNameFilter = "";
 
   // Variables pour la page d'affectation
   let allProjectFlows = [];
@@ -485,9 +497,37 @@ import {
   //Applique les filtres actifs et rafraîchit l'affichage du tableau.
 
   function applyFiltersAndSortAndRenderTable(viseurGroups = []) {
-    processedVisaDocuments = [...allOriginalVisaDocuments];
+    let documentsToProcess = [...allOriginalVisaDocuments];
 
-    // 1. Appliquer les filtres (logique existante)
+    // 1: Filtrer les anciens indices si la case n'est pas cochée
+    if (!showOldRevisions && currentViewMode === "documents") {
+      const latestVersionsMap = new Map();
+      // On trouve la version maximale pour chaque document
+      documentsToProcess.forEach((doc) => {
+        const docId = doc.id;
+        const currentVersion = parseInt(doc.version, 10) || 0;
+        if (
+          !latestVersionsMap.has(docId) ||
+          currentVersion > latestVersionsMap.get(docId).version
+        ) {
+          latestVersionsMap.set(docId, { version: currentVersion, doc: doc });
+        }
+      });
+      // On ne garde que les documents correspondant à la dernière version
+      documentsToProcess = Array.from(latestVersionsMap.values()).map(
+        (item) => item.doc,
+      );
+    }
+    // 2 : Filtrer par nom de document (barre de recherche)
+    if (documentNameFilter.trim() !== "") {
+      const lowerCaseFilter = documentNameFilter.toLowerCase();
+      documentsToProcess = documentsToProcess.filter((doc) =>
+        doc.name.toLowerCase().includes(lowerCaseFilter),
+      );
+    }
+    processedVisaDocuments = documentsToProcess;
+
+    // 3. Appliquer les filtres (logique existante)
     for (const field in activeFilters) {
       const selectedValues = activeFilters[field];
       if (selectedValues && selectedValues.length > 0) {
@@ -497,24 +537,30 @@ import {
       }
     }
 
-    // 2. Appliquer le tri (nouvelle logique)
+    // ÉTAPE 4 : Appliquer le tri (logique MISE A JOUR)
     const { field, direction } = sortState;
     if (field) {
       processedVisaDocuments.sort((a, b) => {
+        // Logique de tri prioritaire pour la recherche par nom
+        const lowerCaseFilter = documentNameFilter.toLowerCase();
+        const aStartsWith = a.name.toLowerCase().startsWith(lowerCaseFilter);
+        const bStartsWith = b.name.toLowerCase().startsWith(lowerCaseFilter);
+
+        if (aStartsWith && !bStartsWith) return -1; // a passe avant b
+        if (!aStartsWith && bStartsWith) return 1; // b passe avant a
+
+        // Si les deux commencent par le terme ou aucun ne commence, on applique le tri de colonne
         const valA = a[field];
         const valB = b[field];
         let comparison = 0;
 
         if (field === "depositDate") {
-          // Pour les dates, il faut les parser pour un tri correct
           const dateA = new Date(valA.split("/").reverse().join("-"));
           const dateB = new Date(valB.split("/").reverse().join("-"));
           comparison = dateA - dateB;
         } else if (field === "version") {
-          // Pour les versions numériques
           comparison = Number(valA) - Number(valB);
         } else {
-          // Pour tout le reste (texte)
           comparison = String(valA).localeCompare(String(valB));
         }
 
@@ -531,16 +577,7 @@ import {
       }
     });
 
-    // Ensuite, on marque chaque document qui n'est pas la version maximale comme "obsolète"
-    processedVisaDocuments.forEach((doc) => {
-      const docVersionInt = parseInt(doc.version, 10) || 0;
-      if (docVersionInt < maxVersions[doc.id]) {
-        doc.isOutdated = true;
-      } else {
-        doc.isOutdated = false;
-      }
-    });
-    // 3. Appliquer la pagination
+    // 5. Appliquer la pagination
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     const documentsForCurrentPage = processedVisaDocuments.slice(
@@ -548,7 +585,7 @@ import {
       endIndex,
     );
 
-    // 4. Rendre la table avec les nouvelles informations
+    // 6. Rendre la table avec les nouvelles informations
     let emptyMessage = null;
     if (currentViewMode === "missions" && processedVisaDocuments.length === 0) {
       emptyMessage = "Vous n'avez pas de missions de Visas à réaliser.";
@@ -570,7 +607,7 @@ import {
       currentViewMode,
     );
 
-    // 5. Mettre à jour les visuels (inchangé)
+    // 7. Mettre à jour les visuels (inchangé)
     updateVisuals();
   }
 
@@ -712,6 +749,34 @@ import {
           }
         });
       }
+    }
+    const checkbox = document.getElementById("show-old-revisions-checkbox");
+    if (checkbox) {
+      checkbox.checked = showOldRevisions; // S'assurer que l'état visuel correspond à l'état logique
+      checkbox.addEventListener("change", (event) => {
+        showOldRevisions = event.target.checked;
+        currentPage = 1; // Revenir à la première page lors d'un changement de filtre majeur
+        applyFiltersAndSortAndRenderTable();
+      });
+    }
+    const searchInput = document.getElementById("document-name-search");
+    if (searchInput) {
+      searchInput.value = documentNameFilter; // Mettre à jour l'input avec l'état actuel
+
+      // Empêcher le tri de la colonne lorsqu'on clique sur la barre de recherche
+      searchInput.addEventListener("click", (event) => {
+        event.stopPropagation();
+      });
+
+      // Déclencher la recherche avec un debounce
+      searchInput.addEventListener(
+        "input",
+        debounce((event) => {
+          documentNameFilter = event.target.value;
+          currentPage = 1; // Toujours revenir à la première page pour une nouvelle recherche
+          applyFiltersAndSortAndRenderTable();
+        }, 300),
+      );
     }
   }
 
