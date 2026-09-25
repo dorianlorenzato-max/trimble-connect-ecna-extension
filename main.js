@@ -76,6 +76,7 @@ function debounce(func, delay) {
   let itemsPerPage = 10; // Valeur par défaut
   let showOldRevisions = false;
   let documentNameFilter = "";
+  let visaAttachments = [];
 
   // Variables pour la page d'affectation
   let allProjectFlows = [];
@@ -806,9 +807,10 @@ function debounce(func, delay) {
     );
   }
 
-  // permet la selection de la lignepour visa
+  // permet la selection de la ligne pour visa
 
   async function handleDocumentRowClick(doc) {
+    visaAttachments = []; // Réinitialiser les pièces jointes à chaque ouverture
     renderLoading(mainContentDiv);
     try {
       const projectInfo = await triconnectAPI.project.getCurrentProject();
@@ -837,6 +839,88 @@ function debounce(func, delay) {
       };
 
       renderVisaInterfacePage(mainContentDiv, visaData);
+
+      // --- Logique de gestion des pièces jointes ---
+      const dropZone = document.getElementById("drop-zone");
+      const fileInput = document.getElementById("file-input");
+      const attachmentList = document.getElementById("visa-attachment-list");
+      const allowedFormats = [
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".bmp",
+        ".pdf",
+        ".docx",
+        ".doc",
+        ".xlsx",
+        ".xls",
+        ".pptx",
+        ".ppt",
+        ".txt",
+      ];
+
+      function addFiles(files) {
+        for (const file of files) {
+          const extension = `.${file.name.split(".").pop().toLowerCase()}`;
+          if (allowedFormats.includes(extension)) {
+            visaAttachments.push(file);
+          } else {
+            alert(`Le format du fichier "${file.name}" n'est pas autorisé.`);
+          }
+        }
+        refreshAttachmentList();
+      }
+
+      function refreshAttachmentList() {
+        attachmentList.innerHTML = "";
+        visaAttachments.forEach((file, index) => {
+          const li = document.createElement("li");
+          li.className = "file-list-item";
+          li.innerHTML = `
+                    <span>${file.name}</span>
+                    <button class="remove-file-btn" data-index="${index}">×</button>
+                `;
+          attachmentList.appendChild(li);
+        });
+      }
+
+      dropZone.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", () => addFiles(fileInput.files));
+      dropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZone.classList.add("hover");
+      });
+      dropZone.addEventListener("dragleave", () =>
+        dropZone.classList.remove("hover"),
+      );
+      dropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZone.classList.remove("hover");
+        addFiles(e.dataTransfer.files);
+      });
+
+      document.addEventListener("paste", (e) => {
+        const items = e.clipboardData.items;
+        for (const item of items) {
+          if (item.type.indexOf("image") !== -1) {
+            const blob = item.getAsFile();
+            const now = new Date();
+            const timestamp = `${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
+            blob.name = `capture-${timestamp}.png`;
+            addFiles([blob]);
+          }
+        }
+      });
+
+      attachmentList.addEventListener("click", (e) => {
+        if (e.target.classList.contains("remove-file-btn")) {
+          const index = parseInt(e.target.dataset.index, 10);
+          visaAttachments.splice(index, 1);
+          refreshAttachmentList();
+        }
+      });
+      // --- Fin de la logique des pièces jointes ---
 
       document
         .getElementById("cancel-visa-btn")
@@ -877,6 +961,15 @@ function debounce(func, delay) {
     renderSaving(mainContentDiv);
 
     try {
+      // --- 1. Séparer les captures des autres fichiers ---
+      const captures = visaAttachments.filter((f) =>
+        f.type.startsWith("image/"),
+      );
+      const otherFiles = visaAttachments.filter(
+        (f) => !f.type.startsWith("image/"),
+      );
+
+      // --- 2. Préparer les données de suivi et de dossier (comme avant) ---
       const [trackingData, allGroups] = await Promise.all([
         fetchConfigurationFile(
           globalAccessToken,
@@ -885,78 +978,50 @@ function debounce(func, delay) {
         ),
         fetchProjectGroups(currentProjectId, globalAccessToken),
       ]);
-
       const projectRootId = await getProjectRootId(
         triconnectAPI,
         globalAccessToken,
       );
-
       const visasRootFolderResult = await findOrCreateFolder(
         projectRootId,
         "00_VISAS",
         globalAccessToken,
       );
-      // On extrait l'ID de l'objet retourné
-      const visasRootFolderId = visasRootFolderResult.id;
-
       const lotName = visaData.doc.lot || "Lot non défini";
       const finalTargetFolderResult = await findOrCreateFolder(
-        visasRootFolderId, // On utilise bien l'ID ici
+        visasRootFolderResult.id,
         lotName,
         globalAccessToken,
       );
-      // On extrait l'ID de l'objet retourné
-      const finalTargetFolderId = finalTargetFolderResult.id;
-
       const userGroupObject = allGroups.find(
         (g) => g.name === visaData.userGroup,
       );
-      if (!userGroupObject) {
-        throw new Error(
-          `Le groupe "${visaData.userGroup}" de l'utilisateur n'a pas été trouvé dans le projet.`,
-        );
-      }
       const userGroupId = userGroupObject.id;
 
       const newTrackingData = trackingData || {};
       const trackingId = visaData.doc.trackingId;
-
-      if (!newTrackingData[trackingId]) {
-        newTrackingData[trackingId] = [];
-      }
-
-      const groupEntryIndex = newTrackingData[trackingId].findIndex(
-        (entry) => entry.groupId === userGroupId,
-      );
-
-      const today = new Date().toISOString().split("T")[0]; // Format YYYY-MM-DD
+      if (!newTrackingData[trackingId]) newTrackingData[trackingId] = [];
 
       const visaEntry = {
         groupId: userGroupId,
         status: selectedStatus,
-        date: today,
+        date: new Date().toISOString().split("T")[0],
         user: visaData.userName,
+        observation: observations,
       };
-
-      // On ajoute la propriété 'observation' uniquement si elle n'est pas vide
-      if (observations.trim() !== "") {
-        visaEntry.observation = observations;
-      }
-
-      if (groupEntryIndex > -1) {
-        // On met à jour une entrée existante en la remplaçant par la nouvelle
+      const groupEntryIndex = newTrackingData[trackingId].findIndex(
+        (e) => e.groupId === userGroupId,
+      );
+      if (groupEntryIndex > -1)
         newTrackingData[trackingId][groupEntryIndex] = visaEntry;
-      } else {
-        // On ajoute la nouvelle entrée
-        newTrackingData[trackingId].push(visaEntry);
-      }
+      else newTrackingData[trackingId].push(visaEntry);
 
+      // Calcul du statut général
       const statusPriority = ["REF", "VAO", "VSO", "SO", "En Cours"];
       const docStatuses = newTrackingData[trackingId].map(
         (entry) => entry.status,
       );
-
-      let generalStatus = "En Cours"; // Statut par défaut
+      let generalStatus = "En Cours";
       for (const priorityStatus of statusPriority) {
         if (docStatuses.includes(priorityStatus)) {
           generalStatus = priorityStatus;
@@ -964,32 +1029,8 @@ function debounce(func, delay) {
         }
       }
 
-      const saveTrackingTask = saveConfigurationFile(
-        triconnectAPI,
-        globalAccessToken,
-        newTrackingData,
-        VISA_TRACKING_FILENAME,
-        configFolderId,
-      );
+      // --- 3. Génération du PDF avec annexes et liste des PJ ---
 
-      (async () => {
-        try {
-          await updatePSetStatus(
-            visaData.doc.projectId,
-            visaData.doc.id,
-            generalStatus,
-            globalAccessToken,
-          );
-          console.log("Statut PSet mis à jour avec succès.");
-        } catch (psetError) {
-          console.warn(
-            "Avertissement : La mise à jour du statut PSet a échoué, mais le visa est bien enregistré.",
-            psetError,
-          );
-        }
-      })();
-
-      // création du PDF de visa
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
 
@@ -1240,22 +1281,169 @@ function debounce(func, delay) {
         .setTextColor(...TEXT_COLOR_NORMAL);
       doc.text(observationLines, margin + padding, yPos + headerHeight);
 
-      // --- Finalisation ---
+      // --- Ajout de la bulle des pièces jointes ---
+      if (otherFiles.length > 0) {
+        const pjHeaderHeight = 12;
+        const pjFileNames = otherFiles.map((f) => `- ${f.name}`);
+        const pjLines = doc.splitTextToSize(
+          pjFileNames.join("\n"),
+          maxContentWidth - 20,
+        );
+        const pjTextHeight =
+          pjLines.length * (doc.getLineHeight() / doc.internal.scaleFactor);
+        const pjBoxHeight = pjHeaderHeight + pjTextHeight + 5;
+
+        if (yPos + pjBoxHeight > doc.internal.pageSize.getHeight() - margin) {
+          doc.addPage();
+          yPos = margin;
+        }
+
+        doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
+        doc.roundedRect(margin, yPos, maxContentWidth, pjBoxHeight, 5, 5, "FD");
+        doc
+          .setFont("helvetica", "bold")
+          .setFontSize(11)
+          .setTextColor(...TEXT_COLOR_NORMAL);
+        doc.text("Pièces Jointes", margin + 10, yPos + 8);
+        doc
+          .setFont("helvetica", "normal")
+          .setFontSize(9)
+          .setTextColor(...TEXT_COLOR_NORMAL);
+        doc.text(pjLines, margin + 10, yPos + pjHeaderHeight + 2);
+        yPos += pjBoxHeight + 10;
+      }
+
+      // --- NOUVEAU : Ajout des captures d'écran en annexe ---
+      if (captures.length > 0) {
+        doc.addPage();
+        let yPosAnnex = margin;
+        doc
+          .setFont("helvetica", "bold")
+          .setFontSize(16)
+          .text(
+            "Annexes - Captures d'écran",
+            doc.internal.pageSize.getWidth() / 2,
+            yPosAnnex,
+            { align: "center" },
+          );
+        yPosAnnex += 15;
+
+        for (const capture of captures) {
+          const reader = new FileReader();
+          const imageData = await new Promise((resolve) => {
+            reader.onload = (e) => resolve(e.target.result);
+            reader.readAsDataURL(capture);
+          });
+
+          const imgProps = doc.getImageProperties(imageData);
+          const imgWidth = imgProps.width;
+          const imgHeight = imgProps.height;
+          const ratio = imgWidth / imgHeight;
+
+          let renderWidth = maxContentWidth;
+          let renderHeight = renderWidth / ratio;
+
+          if (
+            renderHeight >
+            doc.internal.pageSize.getHeight() - yPosAnnex - margin - 15
+          ) {
+            renderHeight =
+              doc.internal.pageSize.getHeight() - yPosAnnex - margin - 15;
+            renderWidth = renderHeight * ratio;
+          }
+
+          if (
+            yPosAnnex + renderHeight + 15 >
+            doc.internal.pageSize.getHeight() - margin
+          ) {
+            doc.addPage();
+            yPosAnnex = margin;
+          }
+
+          doc
+            .setFont("helvetica", "bold")
+            .setFontSize(10)
+            .text(capture.name, margin, yPosAnnex);
+          yPosAnnex += 5;
+          const xOffset = (doc.internal.pageSize.getWidth() - renderWidth) / 2;
+          doc.addImage(
+            imageData,
+            "PNG",
+            xOffset,
+            yPosAnnex,
+            renderWidth,
+            renderHeight,
+          );
+          yPosAnnex += renderHeight + 10;
+        }
+      }
+
       const pdfBlob = doc.output("blob");
-
-      // fin de la génaration du PDF
-
       const newFilename = `VISA_${visaData.userGroup}_${visaData.doc.name}`;
 
-      const savePdfTask = saveConfigurationFile(
-        triconnectAPI,
-        globalAccessToken,
-        pdfBlob,
-        newFilename,
-        finalTargetFolderId,
-      );
-      await Promise.all([saveTrackingTask, savePdfTask]);
+      // --- 4. Exécuter toutes les sauvegardes en parallèle ---
+      const savePromises = [];
 
+      // Promesse pour la sauvegarde du fichier de suivi
+      savePromises.push(
+        saveConfigurationFile(
+          triconnectAPI,
+          globalAccessToken,
+          newTrackingData,
+          VISA_TRACKING_FILENAME,
+          configFolderId,
+        ),
+      );
+
+      // Promesse pour la sauvegarde du PDF de visa
+      savePromises.push(
+        saveConfigurationFile(
+          triconnectAPI,
+          globalAccessToken,
+          pdfBlob,
+          newFilename,
+          finalTargetFolderResult.id,
+        ),
+      );
+
+      // Promesses pour la sauvegarde des pièces jointes (si elles existent)
+      if (otherFiles.length > 0) {
+        const attachmentsFolderName = `${newFilename}_attachments`;
+        const attachmentsFolderResult = await findOrCreateFolder(
+          finalTargetFolderResult.id,
+          attachmentsFolderName,
+          globalAccessToken,
+        );
+
+        otherFiles.forEach((file) => {
+          savePromises.push(
+            saveConfigurationFile(
+              triconnectAPI,
+              globalAccessToken,
+              file,
+              file.name,
+              attachmentsFolderResult.id,
+            ),
+          );
+        });
+      }
+
+      // Lancer la mise à jour du PSet sans attendre
+      updatePSetStatus(
+        visaData.doc.projectId,
+        visaData.doc.id,
+        generalStatus,
+        globalAccessToken,
+      ).catch((psetError) =>
+        console.warn(
+          "Avertissement : La mise à jour du statut PSet a échoué.",
+          psetError,
+        ),
+      );
+
+      await Promise.all(savePromises);
+
+      // --- 5. Afficher le succès ---
       renderSuccess(
         mainContentDiv,
         `Informations enregistrées. Le statut général du document est maintenant : ${generalStatus}.`,
