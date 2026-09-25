@@ -1187,3 +1187,19 @@ select[multiple] {
   font-size: 1.2rem;
   cursor: pointer;
 }
+
+/* Style pour l'icône des pièces jointes */
+.pj-icon {
+  text-decoration: none;
+  font-size: 1.3em;
+  color: #005a70;
+  cursor: pointer;
+  display: inline-block;
+  text-align: center;
+  width: 100%;
+}
+
+.pj-icon:hover {
+  color: #007a93;
+  transform: scale(1.1);
+}
