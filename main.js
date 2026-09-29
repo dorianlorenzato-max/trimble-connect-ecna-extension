@@ -1151,7 +1151,7 @@ function debounce(func, delay) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
 
-    // --- Constantes de mise en page ---
+    // --- Constantes de style ---
     const BUBBLE_BACKGROUND = [217, 231, 252];
     const BORDER_COLOR = [201, 214, 224];
     const TEXT_COLOR_NORMAL = [0, 0, 0];
@@ -1176,7 +1176,7 @@ function debounce(func, delay) {
     const margin = 15;
     const maxContentWidth = pageWidth - margin * 2;
 
-    // --- Fonctions utilitaires de dessin (internes à la génération du PDF) ---
+    // --- Fonctions utilitaires de dessin ---
     const drawSimpleBubble = (text, x, y, width, height, fontSize) => {
       doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
       doc.roundedRect(x, y, width, height, 5, 5, "FD");
@@ -1228,11 +1228,14 @@ function debounce(func, delay) {
 
     drawSimpleBubble(visaData.doc.name, margin, yPos, maxContentWidth, 14, 13);
     yPos += 14 + 10;
-    // Variables de mise en page ---
+
+    // --- **CORRECTION** : Ajout des variables de mise en page qui manquaient ---
     const smallBubbleWidth = maxContentWidth / 2 - 4;
     const col1X = margin;
     const col2X = margin + smallBubbleWidth + 8;
     const smallBubbleHeight = 12;
+    // --- Fin de la correction ---
+
     drawSimpleBubble(
       `Indice: ${visaData.doc.version}`,
       col1X,
@@ -1250,6 +1253,7 @@ function debounce(func, delay) {
       11,
     );
     yPos += smallBubbleHeight + 4;
+
     drawSimpleBubble(
       `Déposé par : ${visaData.doc.depositorName}`,
       col1X,
@@ -1282,6 +1286,7 @@ function debounce(func, delay) {
       smallBubbleWidth,
       titledBubbleHeight,
     );
+    leftColY += titledBubbleHeight;
 
     // Colonne de droite
     const statusBubbleHeight = titledBubbleHeight;
@@ -1325,8 +1330,6 @@ function debounce(func, delay) {
       titledBubbleHeight,
     );
     rightColY += titledBubbleHeight;
-
-    yPos = Math.max(leftColY, rightColY) + 15;
 
     // ===================================================================================
     // PAGE 2 : Pièces jointes et Observations
@@ -1431,13 +1434,11 @@ function debounce(func, delay) {
         let renderWidth = maxContentWidth;
         let renderHeight = renderWidth / ratio;
 
-        // Si l'image est trop haute, on la redimensionne
         if (renderHeight > pageHeight - yPosAnnex - margin - 15) {
           renderHeight = pageHeight - yPosAnnex - margin - 15;
           renderWidth = renderHeight * ratio;
         }
 
-        // Si l'image ne rentre pas sur la page actuelle, on en crée une nouvelle
         if (yPosAnnex + renderHeight + 15 > pageHeight - margin) {
           doc.addPage();
           yPosAnnex = margin;
