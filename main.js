@@ -952,24 +952,21 @@ function debounce(func, delay) {
   // génération de l'interface et des données du PDF pour le visa
 
   async function handleSaveVisaClick(visaData) {
-    // 1. On récupère la valeur du champ d'observation et on supprime les espaces inutiles au début et à la fin.
+    // 1. Validation des champs de saisie
     const observations = document.getElementById("observations").value.trim();
 
-    // 2. On vérifie si la longueur du texte est inférieure à 2 caractères.
     if (observations.length < 2) {
-      // 3. Si c'est le cas, on affiche une alerte claire à l'utilisateur.
       alert(
         "Veuillez saisir une observation d'au moins 2 caractères pour valider le visa.",
       );
 
-      // 4. On arrête immédiatement l'exécution de la fonction pour ne pas sauvegarder.
       return;
     }
     const selectedStatus = document.getElementById("visa-status-select").value;
     renderSaving(mainContentDiv);
 
     try {
-      // --- 1. Séparer les captures des autres fichiers ---
+      // --- ETAPE A : Séparer les captures des autres fichiers ---
       const captures = visaAttachments.filter((f) =>
         f.type.startsWith("image/"),
       );
@@ -977,7 +974,7 @@ function debounce(func, delay) {
         (f) => !f.type.startsWith("image/"),
       );
 
-      // --- 2. Préparer les données de suivi et de dossier (comme avant) ---
+      // --- ETAPE B : Préparer les données de suivi et de dossier ---
       const [trackingData, allGroups] = await Promise.all([
         fetchConfigurationFile(
           globalAccessToken,
@@ -986,6 +983,8 @@ function debounce(func, delay) {
         ),
         fetchProjectGroups(currentProjectId, globalAccessToken),
       ]);
+
+      // Créer la nouvelle arborescence de dossiers
       const projectRootId = await getProjectRootId(
         triconnectAPI,
         globalAccessToken,
@@ -995,12 +994,18 @@ function debounce(func, delay) {
         "00_VISAS",
         globalAccessToken,
       );
-      const lotName = visaData.doc.lot || "Lot non défini";
-      const finalTargetFolderResult = await findOrCreateFolder(
+      const lotFolderResult = await findOrCreateFolder(
         visasRootFolderResult.id,
-        lotName,
+        `VISA_${visaData.doc.lot}`,
         globalAccessToken,
       );
+      const finalTargetFolderResult = await findOrCreateFolder(
+        lotFolderResult.id,
+        `VISA_${visaData.doc.name}`,
+        globalAccessToken,
+      );
+
+      // Mettre à jour le fichier de suivi (tracking)
       const userGroupObject = allGroups.find(
         (g) => g.name === visaData.userGroup,
       );
@@ -1008,7 +1013,9 @@ function debounce(func, delay) {
 
       const newTrackingData = trackingData || {};
       const trackingId = visaData.doc.trackingId;
-      if (!newTrackingData[trackingId]) newTrackingData[trackingId] = [];
+      if (!newTrackingData[trackingId]) {
+        newTrackingData[trackingId] = [];
+      }
 
       const visaEntry = {
         groupId: userGroupId,
@@ -1017,382 +1024,30 @@ function debounce(func, delay) {
         user: visaData.userName,
         observation: observations,
       };
+
       const groupEntryIndex = newTrackingData[trackingId].findIndex(
         (e) => e.groupId === userGroupId,
       );
-      if (groupEntryIndex > -1)
+      if (groupEntryIndex > -1) {
         newTrackingData[trackingId][groupEntryIndex] = visaEntry;
-      else newTrackingData[trackingId].push(visaEntry);
-
-      // Calcul du statut général
-      const statusPriority = ["REF", "VAO", "VSO", "SO", "En Cours"];
-      const docStatuses = newTrackingData[trackingId].map(
-        (entry) => entry.status,
-      );
-      let generalStatus = "En Cours";
-      for (const priorityStatus of statusPriority) {
-        if (docStatuses.includes(priorityStatus)) {
-          generalStatus = priorityStatus;
-          break;
-        }
+      } else {
+        newTrackingData[trackingId].push(visaEntry);
       }
 
-      // --- 3. Génération du PDF avec annexes et liste des PJ ---
-
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
-
-      // ===================================================================================
-      // PARTIE 1 : Constantes de mise en page et de style
-      // ===================================================================================
-
-      const BUBBLE_BACKGROUND = [217, 231, 252];
-      const BORDER_COLOR = [201, 214, 224];
-      const TEXT_COLOR_NORMAL = [0, 0, 0];
-
-      const statusColorMap = {
-        VSO: [40, 167, 69],
-        VAO: [255, 193, 7],
-        REF: [220, 53, 69],
-        SO: [108, 117, 125],
-        "En Cours": [253, 126, 20],
-      };
-      const statusDescriptionMap = {
-        VSO: "Validé Sans Observation",
-        VAO: "Validé Avec Observation",
-        REF: "Refusé",
-        SO: "Sans Objet",
-        "En Cours": "En cours de Visa",
-      };
-      const textColorForStatus = (status) =>
-        status === "VAO" ? [0, 0, 0] : [255, 255, 255];
-
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const margin = 15;
-      const maxContentWidth = pageWidth - margin * 2;
-      const col1X = margin;
-      const col2X = margin + maxContentWidth / 2 + 4;
-      const smallBubbleWidth = maxContentWidth / 2 - 4;
-
-      let yPos = 20;
-
-      // ===================================================================================
-      // PARTIE 2 : Fonctions "outils" pour dessiner les bulles
-      // ===================================================================================
-
-      const drawSimpleBubble = (text, x, y, width, height, fontSize) => {
-        doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
-        doc.roundedRect(x, y, width, height, 5, 5, "FD");
-        doc
-          .setFont("helvetica", "bold")
-          .setFontSize(fontSize)
-          .setTextColor(...TEXT_COLOR_NORMAL);
-        doc.text(text, x + width / 2, y + height / 2, {
-          align: "center",
-          baseline: "middle",
-        });
-      };
-
-      const drawTitledBubble = (title, value, x, y, width, height) => {
-        doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
-        doc.roundedRect(x, y, width, height, 5, 5, "FD");
-        // --- MODIFIÉ : Espacement vertical ajusté pour une meilleure lisibilité ---
-        doc
-          .setFont("helvetica", "bold")
-          .setFontSize(9)
-          .setTextColor(...TEXT_COLOR_NORMAL);
-        doc.text(title, x + width / 2, y + 6, { align: "center" });
-        doc
-          .setFont("helvetica", "bold")
-          .setFontSize(11)
-          .setTextColor(...TEXT_COLOR_NORMAL);
-        doc.text(String(value), x + width / 2, y + 14, { align: "center" });
-      };
-
-      // ===================================================================================
-      // PARTIE 3 : La construction du PDF
-      // ===================================================================================
-
-      doc
-        .setFont("helvetica", "bold")
-        .setFontSize(22)
-        .setTextColor(...TEXT_COLOR_NORMAL);
-      doc.text("Fiche Visa", pageWidth / 2, yPos, { align: "center" });
-      yPos += 15;
-
-      drawSimpleBubble(
-        visaData.projectName,
-        margin,
-        yPos,
-        maxContentWidth,
-        16,
-        16,
-      );
-      yPos += 16 + 6;
-
-      drawSimpleBubble(
-        visaData.doc.name,
-        margin,
-        yPos,
-        maxContentWidth,
-        14,
-        13,
-      );
-      yPos += 14 + 10;
-
-      const smallBubbleHeight = 12;
-      drawSimpleBubble(
-        `Indice: ${visaData.doc.version}`,
-        col1X,
-        yPos,
-        smallBubbleWidth,
-        smallBubbleHeight,
-        11,
-      );
-      drawSimpleBubble(
-        `Date: ${visaData.doc.depositDate}`,
-        col2X,
-        yPos,
-        smallBubbleWidth,
-        smallBubbleHeight,
-        11,
-      );
-      yPos += smallBubbleHeight + 4;
-      drawSimpleBubble(
-        `Déposé par : ${visaData.doc.depositorName}`,
-        col1X,
-        yPos,
-        maxContentWidth,
-        smallBubbleHeight,
-        11,
-      );
-      yPos += smallBubbleHeight + 10;
-
-      const titledBubbleHeight = 18;
-      let leftColY = yPos;
-      let rightColY = yPos;
-
-      // Colonne de gauche
-      drawTitledBubble(
-        "Groupe de l'émetteur de visa",
-        visaData.userGroup,
-        col1X,
-        leftColY,
-        smallBubbleWidth,
-        titledBubbleHeight,
-      );
-      leftColY += titledBubbleHeight + 4;
-      drawTitledBubble(
-        "Émetteur du visa",
-        visaData.userName,
-        col1X,
-        leftColY,
-        smallBubbleWidth,
-        titledBubbleHeight,
+      // --- ETAPE C : Appeler la fonction dédiée à la génération du PDF ---
+      const pdfBlob = await generateVisaPDF(
+        visaData,
+        observations,
+        captures,
+        otherFiles,
+        selectedStatus,
       );
 
-      // Colonne de droite
-      const statusBubbleHeight = titledBubbleHeight;
-      const statusBubbleColor =
-        statusColorMap[selectedStatus] || BUBBLE_BACKGROUND;
-      const statusBubbleTextColor = textColorForStatus(selectedStatus);
-      const statusDescription = statusDescriptionMap[selectedStatus] || "";
-
-      doc.setFillColor(...statusBubbleColor).setDrawColor(...BORDER_COLOR);
-      doc.roundedRect(
-        col2X,
-        rightColY,
-        smallBubbleWidth,
-        statusBubbleHeight,
-        5,
-        5,
-        "FD",
-      );
-      doc
-        .setFont("helvetica", "bold")
-        .setFontSize(14)
-        .setTextColor(...statusBubbleTextColor);
-      doc.text(selectedStatus, col2X + smallBubbleWidth / 2, rightColY + 8, {
-        align: "center",
-      }); // Statut (ex: REF)
-      doc
-        .setFont("helvetica", "normal")
-        .setFontSize(8)
-        .setTextColor(...statusBubbleTextColor);
-      doc.text(
-        statusDescription,
-        col2X + smallBubbleWidth / 2,
-        rightColY + 14,
-        { align: "center" },
-      ); // Description (ex: Refusé)
-      rightColY += statusBubbleHeight + 4;
-
-      // -- Ajout de la bulle "Date de visa" qui manquait ---
-      drawTitledBubble(
-        "Date de visa",
-        new Date().toLocaleDateString(),
-        col2X,
-        rightColY,
-        smallBubbleWidth,
-        titledBubbleHeight,
-      );
-      rightColY += titledBubbleHeight; // On incrémente bien le curseur de la colonne de droite
-
-      yPos = Math.max(leftColY, rightColY) + 15;
-
-      // --- Section Observations (le code est déjà correct et dynamique) ---
-      const observationsText = observations || "Aucune observation.";
-      const padding = 10;
-      const headerHeight = 18;
-      const footerHeight = 5;
-      const observationLines = doc.splitTextToSize(
-        observationsText,
-        maxContentWidth - padding * 2,
-      );
-      const lineHeight = doc.getLineHeight() / doc.internal.scaleFactor;
-      const textHeight = observationLines.length * lineHeight;
-      const totalBoxHeight = headerHeight + textHeight + footerHeight;
-      const pageHeight = doc.internal.pageSize.getHeight();
-      if (totalBoxHeight > pageHeight - yPos - margin) {
-        doc.addPage();
-        yPos = margin;
-        doc
-          .setFont("helvetica", "italic")
-          .setFontSize(8)
-          .setTextColor(150, 150, 150);
-        doc.text(
-          `Fiche Visa (suite) - ${visaData.doc.name}`,
-          pageWidth / 2,
-          yPos,
-          { align: "center" },
-        );
-        yPos += 10;
-      }
-      doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
-      doc.roundedRect(
-        margin,
-        yPos,
-        maxContentWidth,
-        totalBoxHeight,
-        10,
-        10,
-        "FD",
-      );
-      doc
-        .setFont("helvetica", "bold")
-        .setFontSize(12)
-        .setTextColor(...TEXT_COLOR_NORMAL);
-      doc.text("Observations", margin + padding, yPos + 10);
-      doc
-        .setFont("helvetica", "normal")
-        .setFontSize(10)
-        .setTextColor(...TEXT_COLOR_NORMAL);
-      doc.text(observationLines, margin + padding, yPos + headerHeight);
-
-      // --- Ajout de la bulle des pièces jointes ---
-      if (otherFiles.length > 0) {
-        const pjHeaderHeight = 12;
-        const pjFileNames = otherFiles.map((f) => `- ${f.name}`);
-        const pjLines = doc.splitTextToSize(
-          pjFileNames.join("\n"),
-          maxContentWidth - 20,
-        );
-        const pjTextHeight =
-          pjLines.length * (doc.getLineHeight() / doc.internal.scaleFactor);
-        const pjBoxHeight = pjHeaderHeight + pjTextHeight + 5;
-
-        if (yPos + pjBoxHeight > doc.internal.pageSize.getHeight() - margin) {
-          doc.addPage();
-          yPos = margin;
-        }
-
-        doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
-        doc.roundedRect(margin, yPos, maxContentWidth, pjBoxHeight, 5, 5, "FD");
-        doc
-          .setFont("helvetica", "bold")
-          .setFontSize(11)
-          .setTextColor(...TEXT_COLOR_NORMAL);
-        doc.text("Pièces Jointes", margin + 10, yPos + 8);
-        doc
-          .setFont("helvetica", "normal")
-          .setFontSize(9)
-          .setTextColor(...TEXT_COLOR_NORMAL);
-        doc.text(pjLines, margin + 10, yPos + pjHeaderHeight + 2);
-        yPos += pjBoxHeight + 10;
-      }
-
-      // --- NOUVEAU : Ajout des captures d'écran en annexe ---
-      if (captures.length > 0) {
-        doc.addPage();
-        let yPosAnnex = margin;
-        doc
-          .setFont("helvetica", "bold")
-          .setFontSize(16)
-          .text(
-            "Annexes - Captures d'écran",
-            doc.internal.pageSize.getWidth() / 2,
-            yPosAnnex,
-            { align: "center" },
-          );
-        yPosAnnex += 15;
-
-        for (const capture of captures) {
-          const reader = new FileReader();
-          const imageData = await new Promise((resolve) => {
-            reader.onload = (e) => resolve(e.target.result);
-            reader.readAsDataURL(capture);
-          });
-
-          const imgProps = doc.getImageProperties(imageData);
-          const imgWidth = imgProps.width;
-          const imgHeight = imgProps.height;
-          const ratio = imgWidth / imgHeight;
-
-          let renderWidth = maxContentWidth;
-          let renderHeight = renderWidth / ratio;
-
-          if (
-            renderHeight >
-            doc.internal.pageSize.getHeight() - yPosAnnex - margin - 15
-          ) {
-            renderHeight =
-              doc.internal.pageSize.getHeight() - yPosAnnex - margin - 15;
-            renderWidth = renderHeight * ratio;
-          }
-
-          if (
-            yPosAnnex + renderHeight + 15 >
-            doc.internal.pageSize.getHeight() - margin
-          ) {
-            doc.addPage();
-            yPosAnnex = margin;
-          }
-
-          doc
-            .setFont("helvetica", "bold")
-            .setFontSize(10)
-            .text(capture.name, margin, yPosAnnex);
-          yPosAnnex += 5;
-          const xOffset = (doc.internal.pageSize.getWidth() - renderWidth) / 2;
-          doc.addImage(
-            imageData,
-            "PNG",
-            xOffset,
-            yPosAnnex,
-            renderWidth,
-            renderHeight,
-          );
-          yPosAnnex += renderHeight + 10;
-        }
-      }
-
-      const pdfBlob = doc.output("blob");
-      const newFilename = `VISA_${visaData.userGroup}_${visaData.doc.name}`;
-
-      // --- 4. Exécuter toutes les sauvegardes en parallèle ---
+      // --- ETAPE D : Exécuter toutes les sauvegardes en parallèle ---
       const savePromises = [];
+      const newPdfFilename = `VISA_${visaData.doc.name}_${visaData.userGroup}.pdf`;
 
-      // Promesse pour la sauvegarde du fichier de suivi
+      // Sauvegarde du fichier de suivi
       savePromises.push(
         saveConfigurationFile(
           triconnectAPI,
@@ -1403,82 +1058,58 @@ function debounce(func, delay) {
         ),
       );
 
-      // Promesse pour la sauvegarde du PDF de visa
+      // Sauvegarde de la fiche de visa PDF
       savePromises.push(
         saveConfigurationFile(
           triconnectAPI,
           globalAccessToken,
           pdfBlob,
-          newFilename,
+          newPdfFilename,
           finalTargetFolderResult.id,
         ),
       );
 
-      // Promesses pour la sauvegarde des pièces jointes (si elles existent)
-      if (otherFiles.length > 0) {
-        const attachmentsFolderName = `${newFilename}_attachments`;
-        const attachmentsFolderResult = await findOrCreateFolder(
-          finalTargetFolderResult.id,
-          attachmentsFolderName,
-          globalAccessToken,
+      // Sauvegarde des captures en tant que fichiers individuels
+      captures.forEach((capture) => {
+        savePromises.push(
+          saveConfigurationFile(
+            triconnectAPI,
+            globalAccessToken,
+            capture,
+            capture.name,
+            finalTargetFolderResult.id,
+          ),
         );
+      });
 
-        // --- ajout des LIENS clicables DANS LE PDF ---
-        // On construit l'URL du dossier une seule fois
-        const attachmentsFolderUrl = `https://web.connect.trimble.com/projects/${visaData.doc.projectId}/data/folder/${attachmentsFolderResult.id}`;
+      // Sauvegarde des autres pièces jointes
+      otherFiles.forEach((file) => {
+        const attachmentFilename = file.name.toLowerCase().endsWith(".pdf")
+          ? `PJ_${file.name}`
+          : file.name;
+        savePromises.push(
+          saveConfigurationFile(
+            triconnectAPI,
+            globalAccessToken,
+            file,
+            attachmentFilename,
+            finalTargetFolderResult.id,
+          ),
+        );
+      });
 
-        const pjHeaderHeight = 12;
-        const lineHeight = doc.getLineHeight() / doc.internal.scaleFactor;
-        const pjTextHeight = otherFiles.length * lineHeight;
-        const pjBoxHeight = pjHeaderHeight + pjTextHeight + 5;
-
-        // On vérifie si on a la place d'écrire la bulle
-        if (yPos + pjBoxHeight > doc.internal.pageSize.getHeight() - margin) {
-          doc.addPage();
-          yPos = margin;
+      // Calculer le statut général et lancer la mise à jour du PSet sans l'attendre
+      const docStatuses = newTrackingData[trackingId].map(
+        (entry) => entry.status,
+      );
+      const statusPriority = ["REF", "VAO", "VSO", "SO", "En Cours"];
+      let generalStatus = "En Cours";
+      for (const priorityStatus of statusPriority) {
+        if (docStatuses.includes(priorityStatus)) {
+          generalStatus = priorityStatus;
+          break;
         }
-
-        // On dessine la bulle qui contiendra les liens
-        doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
-        doc.roundedRect(margin, yPos, maxContentWidth, pjBoxHeight, 5, 5, "FD");
-        doc
-          .setFont("helvetica", "bold")
-          .setFontSize(11)
-          .setTextColor(...TEXT_COLOR_NORMAL);
-        doc.text("Pièces Jointes (cliquables)", margin + 10, yPos + 8);
-
-        // On se prépare à écrire les liens
-        doc
-          .setFont("helvetica", "normal")
-          .setFontSize(9)
-          .setTextColor(0, 0, 238); // Couleur bleue pour les liens
-
-        let currentY = yPos + pjHeaderHeight + 2; // Position Y de départ pour la première ligne
-
-        // On boucle sur chaque fichier pour créer une ligne de texte cliquable
-        otherFiles.forEach((file) => {
-          doc.textWithLink(`- ${file.name}`, margin + 10, currentY, {
-            url: attachmentsFolderUrl,
-          });
-          currentY += lineHeight; // On passe à la ligne suivante
-        });
-
-        yPos += pjBoxHeight + 10;
-
-        otherFiles.forEach((file) => {
-          savePromises.push(
-            saveConfigurationFile(
-              triconnectAPI,
-              globalAccessToken,
-              file,
-              file.name,
-              attachmentsFolderResult.id,
-            ),
-          );
-        });
       }
-
-      // Lancer la mise à jour du PSet sans attendre
       updatePSetStatus(
         visaData.doc.projectId,
         visaData.doc.id,
@@ -1493,7 +1124,7 @@ function debounce(func, delay) {
 
       await Promise.all(savePromises);
 
-      // --- 5. Afficher le succès ---
+      // --- ETAPE E : Afficher le succès ---
       renderSuccess(
         mainContentDiv,
         `Informations enregistrées. Le statut général du document est maintenant : ${generalStatus}.`,
@@ -1506,6 +1137,329 @@ function debounce(func, delay) {
       );
       renderError(mainContentDiv, error);
     }
+  }
+
+  //Génère le document PDF de la fiche de visa.
+
+  async function generateVisaPDF(
+    visaData,
+    observations,
+    captures,
+    otherFiles,
+    selectedStatus,
+  ) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
+
+    // --- Constantes de mise en page ---
+    const BUBBLE_BACKGROUND = [217, 231, 252];
+    const BORDER_COLOR = [201, 214, 224];
+    const TEXT_COLOR_NORMAL = [0, 0, 0];
+    const statusColorMap = {
+      VSO: [40, 167, 69],
+      VAO: [255, 193, 7],
+      REF: [220, 53, 69],
+      SO: [108, 117, 125],
+      "En Cours": [253, 126, 20],
+    };
+    const statusDescriptionMap = {
+      VSO: "Validé Sans Observation",
+      VAO: "Validé Avec Observation",
+      REF: "Refusé",
+      SO: "Sans Objet",
+      "En Cours": "En cours de Visa",
+    };
+    const textColorForStatus = (status) =>
+      status === "VAO" ? [0, 0, 0] : [255, 255, 255];
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    const maxContentWidth = pageWidth - margin * 2;
+
+    // --- Fonctions utilitaires de dessin (internes à la génération du PDF) ---
+    const drawSimpleBubble = (text, x, y, width, height, fontSize) => {
+      doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
+      doc.roundedRect(x, y, width, height, 5, 5, "FD");
+      doc
+        .setFont("helvetica", "bold")
+        .setFontSize(fontSize)
+        .setTextColor(...TEXT_COLOR_NORMAL);
+      doc.text(text, x + width / 2, y + height / 2, {
+        align: "center",
+        baseline: "middle",
+      });
+    };
+
+    const drawTitledBubble = (title, value, x, y, width, height) => {
+      doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
+      doc.roundedRect(x, y, width, height, 5, 5, "FD");
+      doc
+        .setFont("helvetica", "bold")
+        .setFontSize(9)
+        .setTextColor(...TEXT_COLOR_NORMAL);
+      doc.text(title, x + width / 2, y + 6, { align: "center" });
+      doc
+        .setFont("helvetica", "bold")
+        .setFontSize(11)
+        .setTextColor(...TEXT_COLOR_NORMAL);
+      doc.text(String(value), x + width / 2, y + 14, { align: "center" });
+    };
+
+    // ===================================================================================
+    // PAGE 1 : Page de garde
+    // ===================================================================================
+    let yPos = 20;
+    doc
+      .setFont("helvetica", "bold")
+      .setFontSize(22)
+      .setTextColor(...TEXT_COLOR_NORMAL);
+    doc.text("Fiche Visa", pageWidth / 2, yPos, { align: "center" });
+    yPos += 15;
+
+    drawSimpleBubble(
+      visaData.projectName,
+      margin,
+      yPos,
+      maxContentWidth,
+      16,
+      16,
+    );
+    yPos += 16 + 6;
+
+    drawSimpleBubble(visaData.doc.name, margin, yPos, maxContentWidth, 14, 13);
+    yPos += 14 + 10;
+
+    const smallBubbleHeight = 12;
+    drawSimpleBubble(
+      `Indice: ${visaData.doc.version}`,
+      col1X,
+      yPos,
+      smallBubbleWidth,
+      smallBubbleHeight,
+      11,
+    );
+    drawSimpleBubble(
+      `Date: ${visaData.doc.depositDate}`,
+      col2X,
+      yPos,
+      smallBubbleWidth,
+      smallBubbleHeight,
+      11,
+    );
+    yPos += smallBubbleHeight + 4;
+    drawSimpleBubble(
+      `Déposé par : ${visaData.doc.depositorName}`,
+      col1X,
+      yPos,
+      maxContentWidth,
+      smallBubbleHeight,
+      11,
+    );
+    yPos += smallBubbleHeight + 10;
+
+    const titledBubbleHeight = 18;
+    let leftColY = yPos;
+    let rightColY = yPos;
+
+    // Colonne de gauche
+    drawTitledBubble(
+      "Groupe de l'émetteur de visa",
+      visaData.userGroup,
+      col1X,
+      leftColY,
+      smallBubbleWidth,
+      titledBubbleHeight,
+    );
+    leftColY += titledBubbleHeight + 4;
+    drawTitledBubble(
+      "Émetteur du visa",
+      visaData.userName,
+      col1X,
+      leftColY,
+      smallBubbleWidth,
+      titledBubbleHeight,
+    );
+
+    // Colonne de droite
+    const statusBubbleHeight = titledBubbleHeight;
+    const statusBubbleColor =
+      statusColorMap[selectedStatus] || BUBBLE_BACKGROUND;
+    const statusBubbleTextColor = textColorForStatus(selectedStatus);
+    const statusDescription = statusDescriptionMap[selectedStatus] || "";
+
+    doc.setFillColor(...statusBubbleColor).setDrawColor(...BORDER_COLOR);
+    doc.roundedRect(
+      col2X,
+      rightColY,
+      smallBubbleWidth,
+      statusBubbleHeight,
+      5,
+      5,
+      "FD",
+    );
+    doc
+      .setFont("helvetica", "bold")
+      .setFontSize(14)
+      .setTextColor(...statusBubbleTextColor);
+    doc.text(selectedStatus, col2X + smallBubbleWidth / 2, rightColY + 8, {
+      align: "center",
+    });
+    doc
+      .setFont("helvetica", "normal")
+      .setFontSize(8)
+      .setTextColor(...statusBubbleTextColor);
+    doc.text(statusDescription, col2X + smallBubbleWidth / 2, rightColY + 14, {
+      align: "center",
+    });
+    rightColY += statusBubbleHeight + 4;
+
+    drawTitledBubble(
+      "Date de visa",
+      new Date().toLocaleDateString(),
+      col2X,
+      rightColY,
+      smallBubbleWidth,
+      titledBubbleHeight,
+    );
+    rightColY += titledBubbleHeight;
+
+    yPos = Math.max(leftColY, rightColY) + 15;
+
+    // ===================================================================================
+    // PAGE 2 : Pièces jointes et Observations
+    // ===================================================================================
+    doc.addPage();
+    yPos = margin; // Réinitialisation de la position pour la nouvelle page
+
+    // --- Bulle "Pièces Jointes" ---
+    const allAttachments = [...captures, ...otherFiles];
+    let pjBubbleHeight = 0;
+    if (allAttachments.length > 0) {
+      const pjHeaderHeight = 12;
+      const pjFileNames = allAttachments.map((f) => `- ${f.name}`);
+      const pjLines = doc
+        .setFont("helvetica", "normal")
+        .setFontSize(9)
+        .splitTextToSize(pjFileNames.join("\n"), maxContentWidth - 20);
+      const pjTextHeight =
+        pjLines.length * (doc.getLineHeight() / doc.internal.scaleFactor);
+      pjBubbleHeight = pjHeaderHeight + pjTextHeight + 5;
+
+      doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
+      doc.roundedRect(
+        margin,
+        yPos,
+        maxContentWidth,
+        pjBubbleHeight,
+        5,
+        5,
+        "FD",
+      );
+      doc
+        .setFont("helvetica", "bold")
+        .setFontSize(11)
+        .setTextColor(...TEXT_COLOR_NORMAL);
+      doc.text("Pièces Jointes", margin + 10, yPos + 8);
+      doc
+        .setFont("helvetica", "normal")
+        .setFontSize(9)
+        .setTextColor(...TEXT_COLOR_NORMAL);
+      doc.text(pjLines, margin + 10, yPos + pjHeaderHeight + 2);
+
+      yPos += pjBubbleHeight + 10; // On met à jour la position
+    }
+
+    // --- Bulle "Observations" ---
+    const remainingHeight = pageHeight - yPos - margin;
+    if (remainingHeight > 20) {
+      // On ne dessine la bulle que s'il reste un espace significatif
+      const obsHeaderHeight = 12;
+      const observationsText = observations || "Aucune observation.";
+      const obsLines = doc
+        .setFont("helvetica", "normal")
+        .setFontSize(10)
+        .splitTextToSize(observationsText, maxContentWidth - 20);
+
+      doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
+      doc.roundedRect(
+        margin,
+        yPos,
+        maxContentWidth,
+        remainingHeight,
+        5,
+        5,
+        "FD",
+      );
+      doc
+        .setFont("helvetica", "bold")
+        .setFontSize(11)
+        .setTextColor(...TEXT_COLOR_NORMAL);
+      doc.text("Observations", margin + 10, yPos + 8);
+      doc
+        .setFont("helvetica", "normal")
+        .setFontSize(10)
+        .setTextColor(...TEXT_COLOR_NORMAL);
+      doc.text(obsLines, margin + 10, yPos + obsHeaderHeight + 2);
+    }
+
+    // ===================================================================================
+    // PAGE 3 ET SUIVANTES : Annexes - Captures
+    // ===================================================================================
+    if (captures.length > 0) {
+      doc.addPage();
+      let yPosAnnex = margin;
+      doc
+        .setFont("helvetica", "bold")
+        .setFontSize(16)
+        .text("Annexes - Captures d'écran", pageWidth / 2, yPosAnnex, {
+          align: "center",
+        });
+      yPosAnnex += 15;
+
+      for (const capture of captures) {
+        const reader = new FileReader();
+        const imageData = await new Promise((resolve) => {
+          reader.onload = (e) => resolve(e.target.result);
+          reader.readAsDataURL(capture);
+        });
+
+        const imgProps = doc.getImageProperties(imageData);
+        const ratio = imgProps.width / imgProps.height;
+        let renderWidth = maxContentWidth;
+        let renderHeight = renderWidth / ratio;
+
+        // Si l'image est trop haute, on la redimensionne
+        if (renderHeight > pageHeight - yPosAnnex - margin - 15) {
+          renderHeight = pageHeight - yPosAnnex - margin - 15;
+          renderWidth = renderHeight * ratio;
+        }
+
+        // Si l'image ne rentre pas sur la page actuelle, on en crée une nouvelle
+        if (yPosAnnex + renderHeight + 15 > pageHeight - margin) {
+          doc.addPage();
+          yPosAnnex = margin;
+        }
+
+        doc
+          .setFont("helvetica", "bold")
+          .setFontSize(10)
+          .text(capture.name, margin, yPosAnnex);
+        yPosAnnex += 5;
+        const xOffset = (pageWidth - renderWidth) / 2;
+        doc.addImage(
+          imageData,
+          "PNG",
+          xOffset,
+          yPosAnnex,
+          renderWidth,
+          renderHeight,
+        );
+        yPosAnnex += renderHeight + 10;
+      }
+    }
+
+    // --- Finalisation ---
+    return doc.output("blob");
   }
 
   // --- GESTIONNAIRE POUR AFFICHER LA PAGE DE CONFIGURATION ---
