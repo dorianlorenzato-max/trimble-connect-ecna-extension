@@ -1228,7 +1228,10 @@ function debounce(func, delay) {
 
     drawSimpleBubble(visaData.doc.name, margin, yPos, maxContentWidth, 14, 13);
     yPos += 14 + 10;
-
+    // Variables de mise en page ---
+    const smallBubbleWidth = maxContentWidth / 2 - 4;
+    const col1X = margin;
+    const col2X = margin + smallBubbleWidth + 8;
     const smallBubbleHeight = 12;
     drawSimpleBubble(
       `Indice: ${visaData.doc.version}`,
