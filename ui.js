@@ -277,9 +277,11 @@ function renderVisaTable(
             : "";
 
           let pjCellContent = "";
-          if (visaEntry.attachments && visaEntry.attachments.fileCount > 0) {
-            const folderUrl = `https://web.connect.trimble.com/projects/${projectId}/data/folder/${visaEntry.attachments.folderId}`;
-            pjCellContent = `<a href="${folderUrl}" target="_blank" class="pj-icon" title="Ouvrir le dossier des pièces jointes">📎</a>`;
+          // On vérifie maintenant la présence de l'ID du dossier de destination
+          if (visaEntry.destinationFolderId) {
+            const folderUrl = `https://web.connect.trimble.com/projects/${projectId}/data/folder/${visaEntry.destinationFolderId}`;
+            // On utilise la nouvelle icône et le lien vers le dossier final
+            pjCellContent = `<a href="${folderUrl}" target="_blank" class="pj-icon" title="Ouvrir le dossier du visa et des pièces jointes">📋</a>`;
           }
 
           dynamicCells += `<td>${pourLeDateHtml}</td><td>${formattedViseLeDate}</td><td>${visaCellContent}</td><td>${observationCellContent}</td><td>${pjCellContent}</td>`;
@@ -1205,11 +1207,8 @@ function renderDashboardPage(container, dashboardData) {
   });
 }
 
-/**
- * Affiche une popup personnalisée avec les observations.
- * @param {HTMLElement} targetElement - L'icône sur laquelle l'utilisateur a cliqué.
- * @param {string[]} observations - Le tableau des observations à afficher.
- */
+// Fonction qui Affiche la pop up de l'observation
+
 function renderObservationPopup(targetElement, observations) {
   // Supprime toute popup existante pour éviter les doublons
   document.querySelectorAll(".observation-popup").forEach((p) => p.remove());
@@ -1230,10 +1229,32 @@ function renderObservationPopup(targetElement, observations) {
 
   document.body.appendChild(popup);
 
-  // Positionne la popup près de l'icône
+  // Positionnement intelligent de la popup
   const rect = targetElement.getBoundingClientRect();
-  popup.style.left = `${rect.left + window.scrollX}px`;
-  popup.style.top = `${rect.bottom + window.scrollY + 5}px`;
+  const popupRect = popup.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  let left = rect.left + window.scrollX;
+  let top = rect.bottom + window.scrollY + 5;
+
+  // Ajustement horizontal : si la popup dépasse à droite
+  if (left + popupRect.width > viewportWidth) {
+    left = viewportWidth - popupRect.width - 10; // 10px de marge du bord
+  }
+
+  // Ajustement vertical : si la popup dépasse en bas
+  if (top + popupRect.height > viewportHeight + window.scrollY) {
+    top = rect.top + window.scrollY - popupRect.height - 5; // La place au-dessus
+  }
+
+  // On s'assure qu'elle ne dépasse pas en haut de l'écran non plus
+  if (top < window.scrollY) {
+    top = window.scrollY + 10; // 10px de marge du haut
+  }
+
+  popup.style.left = `${left}px`;
+  popup.style.top = `${top}px`;
 
   // Logique pour fermer la popup
   const close = () => popup.remove();
