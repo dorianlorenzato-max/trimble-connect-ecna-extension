@@ -1024,6 +1024,7 @@ function debounce(func, delay) {
         date: new Date().toISOString().split("T")[0],
         user: visaData.userName,
         observation: observations,
+        destinationFolderId: finalTargetFolderResult.id,
       };
 
       const groupEntryIndex = newTrackingData[trackingId].findIndex(
