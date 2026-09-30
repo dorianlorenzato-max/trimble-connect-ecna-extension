@@ -1226,7 +1226,7 @@ function renderObservationPopup(targetElement, observations) {
       ${observations.join("<hr>")}
     </div>
   `;
-
+  popup.style.visibility = "hidden";
   document.body.appendChild(popup);
 
   // Positionnement intelligent de la popup
@@ -1255,6 +1255,7 @@ function renderObservationPopup(targetElement, observations) {
 
   popup.style.left = `${left}px`;
   popup.style.top = `${top}px`;
+  popup.style.visibility = "visible";
 
   // Logique pour fermer la popup
   const close = () => popup.remove();
