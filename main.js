@@ -999,6 +999,7 @@ function debounce(func, delay) {
         `VISA_${visaData.doc.lot}`,
         globalAccessToken,
       );
+      const docNameWithoutExt = visaData.doc.name.replace(/\.[^/.]+$/, "");
       const finalTargetFolderResult = await findOrCreateFolder(
         lotFolderResult.id,
         `VISA_${visaData.doc.name}`,
@@ -1045,7 +1046,7 @@ function debounce(func, delay) {
 
       // --- ETAPE D : Exécuter toutes les sauvegardes en parallèle ---
       const savePromises = [];
-      const newPdfFilename = `VISA_${visaData.doc.name}_${visaData.userGroup}.pdf`;
+      const newPdfFilename = `VISA_${docNameWithoutExt}_${visaData.userGroup}.pdf`;
 
       // Sauvegarde du fichier de suivi
       savePromises.push(
@@ -1076,7 +1077,7 @@ function debounce(func, delay) {
             triconnectAPI,
             globalAccessToken,
             capture,
-            capture.name,
+            `PJ_${capture.name}`,
             finalTargetFolderResult.id,
           ),
         );
@@ -1084,9 +1085,7 @@ function debounce(func, delay) {
 
       // Sauvegarde des autres pièces jointes
       otherFiles.forEach((file) => {
-        const attachmentFilename = file.name.toLowerCase().endsWith(".pdf")
-          ? `PJ_${file.name}`
-          : file.name;
+        const attachmentFilename = `PJ_${file.name}`;
         savePromises.push(
           saveConfigurationFile(
             triconnectAPI,
@@ -1376,36 +1375,78 @@ function debounce(func, delay) {
     }
 
     // --- Bulle "Observations" ---
-    const remainingHeight = pageHeight - yPos - margin;
-    if (remainingHeight > 20) {
-      // On ne dessine la bulle que s'il reste un espace significatif
-      const obsHeaderHeight = 12;
-      const observationsText = observations || "Aucune observation.";
-      const obsLines = doc
-        .setFont("helvetica", "normal")
-        .setFontSize(10)
-        .splitTextToSize(observationsText, maxContentWidth - 20);
+    const obsHeaderHeight = 12;
+    const obsTextStartY = yPos + obsHeaderHeight + 2;
+    const obsBubbleStartY = yPos;
+    const lineHeight = doc.getLineHeight() / doc.internal.scaleFactor;
+    const pageBottom = pageHeight - margin;
 
-      doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
-      doc.roundedRect(
-        margin,
-        yPos,
-        maxContentWidth,
-        remainingHeight,
-        5,
-        5,
-        "FD",
-      );
-      doc
-        .setFont("helvetica", "bold")
-        .setFontSize(11)
-        .setTextColor(...TEXT_COLOR_NORMAL);
-      doc.text("Observations", margin + 10, yPos + 8);
-      doc
-        .setFont("helvetica", "normal")
-        .setFontSize(10)
-        .setTextColor(...TEXT_COLOR_NORMAL);
-      doc.text(obsLines, margin + 10, yPos + obsHeaderHeight + 2);
+    const observationsText = observations || "Aucune observation.";
+    const obsLines = doc
+      .setFont("helvetica", "normal")
+      .setFontSize(10)
+      .splitTextToSize(observationsText, maxContentWidth - 20);
+
+    // Dessine le début de la bulle d'observations sur la page 2
+    doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
+    // On dessine une première bulle qui va jusqu'en bas de la page
+    doc.roundedRect(
+      margin,
+      obsBubbleStartY,
+      maxContentWidth,
+      pageBottom - obsBubbleStartY,
+      5,
+      5,
+      "FD",
+    );
+    doc
+      .setFont("helvetica", "bold")
+      .setFontSize(11)
+      .setTextColor(...TEXT_COLOR_NORMAL);
+    doc.text("Observations", margin + 10, obsBubbleStartY + 8);
+
+    doc
+      .setFont("helvetica", "normal")
+      .setFontSize(10)
+      .setTextColor(...TEXT_COLOR_NORMAL);
+
+    // On met à jour yPos pour le début du texte
+    yPos = obsTextStartY;
+
+    // On parcourt chaque ligne pour la placer et gérer le saut de page
+    for (const line of obsLines) {
+      // Si la prochaine ligne dépasse le bas de la page
+      if (yPos + lineHeight > pageBottom) {
+        // On ajoute une nouvelle page
+        doc.addPage();
+        yPos = margin; // Réinitialisation de la position en haut de la nouvelle page
+
+        // On dessine une nouvelle bulle sur cette page
+        doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
+        doc.roundedRect(
+          margin,
+          yPos,
+          maxContentWidth,
+          pageBottom - yPos,
+          5,
+          5,
+          "FD",
+        );
+
+        doc
+          .setFont("helvetica", "bold")
+          .setFontSize(9)
+          .setTextColor([100, 100, 100]);
+        doc.text("Observations (suite)", margin + 10, yPos + 6);
+        doc
+          .setFont("helvetica", "normal")
+          .setFontSize(10)
+          .setTextColor(...TEXT_COLOR_NORMAL);
+
+        yPos += obsHeaderHeight; // On décale vers le bas pour le texte
+      }
+      doc.text(line, margin + 10, yPos);
+      yPos += lineHeight; // On incrémente la position pour la ligne suivante
     }
 
     // ===================================================================================
@@ -1433,15 +1474,18 @@ function debounce(func, delay) {
         const ratio = imgProps.width / imgProps.height;
         let renderWidth = maxContentWidth;
         let renderHeight = renderWidth / ratio;
+        const maxImageHeight = pageHeight - margin * 2 - 15;
 
-        if (renderHeight > pageHeight - yPosAnnex - margin - 15) {
-          renderHeight = pageHeight - yPosAnnex - margin - 15;
+        if (renderHeight > maxImageHeight) {
+          renderHeight = maxImageHeight;
           renderWidth = renderHeight * ratio;
         }
 
-        if (yPosAnnex + renderHeight + 15 > pageHeight - margin) {
-          doc.addPage();
-          yPosAnnex = margin;
+        const requiredHeight = 5 + renderHeight + 10;
+
+        if (yPosAnnex + requiredHeight > pageHeight - margin) {
+          doc.addPage(); // On saute à la page suivante
+          yPosAnnex = margin; // On se replace en haut de la nouvelle page
         }
 
         doc
