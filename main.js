@@ -1375,80 +1375,37 @@ function debounce(func, delay) {
       yPos += pjBubbleHeight + 10; // On met à jour la position
     }
 
-    // --- Bulle "Observations" ---
-    const obsHeaderHeight = 12;
-    const obsTextStartY = yPos + obsHeaderHeight + 2;
-    const obsBubbleStartY = yPos;
-    const lineHeight = doc.getLineHeight() / doc.internal.scaleFactor;
-    const pageBottom = pageHeight - margin;
-
+    // --- Bulle "Observations" (Logique robuste avec jsPDF-AutoTable) ---
     const observationsText = observations || "Aucune observation.";
-    const obsLines = doc
-      .setFont("helvetica", "normal")
-      .setFontSize(10)
-      .splitTextToSize(observationsText, maxContentWidth - 20);
 
-    // Dessine le début de la bulle d'observations sur la page 2
-    doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
-    // On dessine une première bulle qui va jusqu'en bas de la page
-    doc.roundedRect(
-      margin,
-      obsBubbleStartY,
-      maxContentWidth,
-      pageBottom - obsBubbleStartY,
-      5,
-      5,
-      "FD",
-    );
-    doc
-      .setFont("helvetica", "bold")
-      .setFontSize(11)
-      .setTextColor(...TEXT_COLOR_NORMAL);
-    doc.text("Observations", margin + 10, obsBubbleStartY + 8);
+    // On utilise autoTable pour une gestion fiable du contenu multi-pages.
+    // Cela remplace le dessin manuel d'un rectangle et le placement du texte.
+    doc.autoTable({
+      startY: yPos,
+      head: [["Observations"]], // Le titre est géré comme un en-tête de tableau
+      body: [[observationsText]], // Le texte long est le contenu d'une seule cellule
+      theme: "grid", // On utilise le thème 'grid' pour avoir des bordures
+      headStyles: {
+        fillColor: BUBBLE_BACKGROUND,
+        textColor: TEXT_COLOR_NORMAL,
+        fontStyle: "bold",
+        fontSize: 11,
+        lineColor: BORDER_COLOR, // Couleur de la bordure
+        lineWidth: 0.2,
+      },
+      bodyStyles: {
+        fillColor: BUBBLE_BACKGROUND,
+        textColor: TEXT_COLOR_NORMAL,
+        fontStyle: "normal",
+        fontSize: 10,
+        lineColor: BORDER_COLOR,
+        lineWidth: 0.2,
+      },
+    });
 
-    doc
-      .setFont("helvetica", "normal")
-      .setFontSize(10)
-      .setTextColor(...TEXT_COLOR_NORMAL);
-
-    // On met à jour yPos pour le début du texte
-    yPos = obsTextStartY;
-
-    // On parcourt chaque ligne pour la placer et gérer le saut de page
-    for (const line of obsLines) {
-      // Si la prochaine ligne dépasse le bas de la page
-      if (yPos + lineHeight > pageBottom) {
-        // On ajoute une nouvelle page
-        doc.addPage();
-        yPos = margin; // Réinitialisation de la position en haut de la nouvelle page
-
-        // On dessine une nouvelle bulle sur cette page
-        doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
-        doc.roundedRect(
-          margin,
-          yPos,
-          maxContentWidth,
-          pageBottom - yPos,
-          5,
-          5,
-          "FD",
-        );
-
-        doc
-          .setFont("helvetica", "bold")
-          .setFontSize(9)
-          .setTextColor([100, 100, 100]);
-        doc.text("Observations (suite)", margin + 10, yPos + 6);
-        doc
-          .setFont("helvetica", "normal")
-          .setFontSize(10)
-          .setTextColor(...TEXT_COLOR_NORMAL);
-
-        yPos += obsHeaderHeight; // On décale vers le bas pour le texte
-      }
-      doc.text(line, margin + 10, yPos);
-      yPos += lineHeight; // On incrémente la position pour la ligne suivante
-    }
+    // On récupère la position finale après que autoTable ait fini de dessiner
+    // pour savoir où commencer la page suivante (si nécessaire).
+    yPos = doc.autoTable.previous.finalY;
 
     // ===================================================================================
     // PAGE 3 ET SUIVANTES : Annexes - Captures
