@@ -273,7 +273,7 @@ function renderVisaTable(
 
           // On crée la cellule avec l'icône, uniquement si une observation existe
           const observationCellContent = groupObservation
-            ? `<span class="observation-icon" data-observations='${JSON.stringify([groupObservation])}'>💬</span>`
+            ? `<span class="observation-icon" data-observations='${JSON.stringify([groupObservation]).replace(/'/g, "&apos;")}'>💬</span>`
             : "";
 
           let pjCellContent = "";
@@ -300,7 +300,7 @@ function renderVisaTable(
           <td data-column-index="7">
             ${
               doc.allObservations && doc.allObservations.length > 0
-                ? `<span class="observation-icon" data-observations='${JSON.stringify(doc.allObservations)}'>💬</span>`
+                ? `<span class="observation-icon" data-observations='${JSON.stringify(doc.allObservations).replace(/'/g, "&apos;")}'>💬</span>`
                 : ""
             }
           </td>
@@ -1216,16 +1216,32 @@ function renderObservationPopup(targetElement, observations) {
   const popup = document.createElement("div");
   popup.className = "observation-popup";
 
-  // Formate les observations avec des séparateurs
-  popup.innerHTML = `
-    <div class="observation-popup-header">
-      <span>Observations</span>
-      <button class="close-btn">&times;</button>
-    </div>
-    <div class="observation-popup-content">
-      ${observations.join("<hr>")}
-    </div>
-  `;
+  // --- Construction sécurisée de la popup ---
+
+  // 1. Création de l'en-tête
+  const header = document.createElement("div");
+  header.className = "observation-popup-header";
+  header.innerHTML = `<span>Observations</span><button class="close-btn">&times;</button>`;
+
+  // 2. Création du conteneur de contenu
+  const content = document.createElement("div");
+  content.className = "observation-popup-content";
+
+  // 3. Ajout sécurisé de chaque observation
+  observations.forEach((obs, index) => {
+    const obsTextNode = document.createTextNode(obs); // Crée un nœud texte (sécurisé)
+    content.appendChild(obsTextNode);
+
+    // Ajoute un séparateur <hr> entre les observations
+    if (index < observations.length - 1) {
+      content.appendChild(document.createElement("hr"));
+    }
+  });
+
+  // 4. Assemblage de la popup
+  popup.appendChild(header);
+  popup.appendChild(content);
+
   popup.style.visibility = "hidden";
   document.body.appendChild(popup);
 
