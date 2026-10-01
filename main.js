@@ -126,9 +126,43 @@ function debounce(func, delay) {
     // On applique les permissions UNIQUEMENT si le dossier vient d'être créé.
     if (configFolderResult.created) {
       console.log(
-        "Application des permissions initiales sur 'Configuration_Visa'...",
+        "Application des permissions initiales et création des fichiers de configuration...",
       );
-      await setFolderFullAccessForAllUsers(configFolderId, globalAccessToken);
+
+      // Définition des contenus initiaux valides pour chaque fichier JSON
+      const initialFluxConfig = { flux: [] };
+      const initialAssignments = {};
+      const initialTracking = {};
+
+      // On lance la création des 3 fichiers et la mise à jour des permissions en parallèle
+      await Promise.all([
+        setFolderFullAccessForAllUsers(configFolderId, globalAccessToken),
+        saveConfigurationFile(
+          triconnectAPI,
+          globalAccessToken,
+          initialFluxConfig,
+          CONFIG_FILENAME, // "ecna-visa-config.json"
+          configFolderId,
+        ),
+        saveConfigurationFile(
+          triconnectAPI,
+          globalAccessToken,
+          initialAssignments,
+          ASSIGNMENTS_FILENAME, // "flux-assignments.json"
+          configFolderId,
+        ),
+        saveConfigurationFile(
+          triconnectAPI,
+          globalAccessToken,
+          initialTracking,
+          VISA_TRACKING_FILENAME, // "visa-tracking.json"
+          configFolderId,
+        ),
+      ]);
+
+      console.log(
+        "Permissions et fichiers de configuration initiaux créés avec succès.",
+      );
     }
 
     // --- Traitement du dossier '00_VISAS' ---
