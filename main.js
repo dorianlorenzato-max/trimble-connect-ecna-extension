@@ -20,6 +20,7 @@ import {
   normalizeAssignments,
   resolveEffectiveAssignments,
   reconcileAssignments,
+  autoSyncAssignmentsFile,
   fetchUserProjectRole,
   setFolderFullAccessForAllUsers,
 } from "./api.js";
@@ -104,6 +105,43 @@ function debounce(func, delay) {
   function invalidateFolderTreeCache() {
     folderTreeCache = null;
     folderTreeLoadingPromise = null;
+  }
+
+  // Mutex (par onglet) : sérialise les écritures du fichier d'affectations
+  let assignmentsWriteQueue = Promise.resolve();
+  function runWithAssignmentsLock(task) {
+    const run = assignmentsWriteQueue.then(() => task());
+    assignmentsWriteQueue = run.catch(() => {}); // la file continue même si une tâche échoue
+    return run;
+  }
+
+  // Synchronisation silencieuse : jamais bloquante, jamais visible par l'utilisateur
+  async function startAssignmentsAutoSync() {
+    try {
+      // Réutilise le cache déjà en cours de chargement par le tableau de bord
+      const cache = await loadFolderTreeAndAssignments();
+      const result = await runWithAssignmentsLock(() =>
+        autoSyncAssignmentsFile({
+          triconnectAPI,
+          accessToken: globalAccessToken,
+          configFolderId,
+          filename: ASSIGNMENTS_FILENAME,
+          folders: cache.folders,
+          complete: cache.complete,
+        }),
+      );
+      console.info(
+        "Synchronisation des affectations :",
+        result.status,
+        result.diff || "",
+      );
+      if (result.status === "written" && folderTreeCache) {
+        folderTreeCache.rawAssignments = result.assignments;
+      }
+    } catch (error) {
+      // Droits insuffisants, réseau... : sans conséquence, l'affichage reste correct
+      console.warn("Synchronisation des affectations ignorée :", error);
+    }
   }
 
   // Charge (une seule fois par session) l'arbre complet et les affectations résolues.
@@ -265,6 +303,9 @@ function debounce(func, delay) {
 
     // Afficher l'accueil
     handleDashboardDisplay();
+
+    // Synchronisation silencieuse des affectations (tâche de fond, non attendue)
+    startAssignmentsAutoSync();
   } catch (error) {
     console.error(
       "Erreur critique lors de l'initialisation de l'extension :",
@@ -1753,6 +1794,7 @@ function debounce(func, delay) {
 
     renderSaving(mainContentDiv); // Afficher un message de "suppression en cours"
     try {
+      await assignmentsWriteQueue; // attend la fin d'une éventuelle synchro en cours
       const [existingConfig, assignmentsConfig] = await Promise.all([
         fetchConfigurationFile(
           globalAccessToken,
@@ -1997,6 +2039,7 @@ function debounce(func, delay) {
             `Le nom du flux a changé de "${oldFluxName}" à "${newFluxName}". Mise à jour des affectations.`,
           );
 
+          await assignmentsWriteQueue; // attend la fin d'une éventuelle synchro en cours
           // On lit le fichier d'affectations
           const assignmentsConfig = await fetchConfigurationFile(
             globalAccessToken,
@@ -2292,27 +2335,31 @@ function debounce(func, delay) {
     renderSaving(mainContentDiv);
 
     try {
-      // 1. On relit le fichier (données fraîches) et on n'applique QUE nos modifications
-      const freshRaw = await fetchConfigurationFile(
-        globalAccessToken,
-        configFolderId,
-        ASSIGNMENTS_FILENAME,
-      );
-      const merged = { ...normalizeAssignments(freshRaw), ...pendingChanges };
+      // Lecture + fusion + écriture dans une section exclusive :
+      // si une synchro silencieuse est en cours, on attend qu'elle ait terminé.
+      await runWithAssignmentsLock(async () => {
+        // 1. On relit le fichier (données fraîches) et on n'applique QUE nos modifications
+        const freshRaw = await fetchConfigurationFile(
+          globalAccessToken,
+          configFolderId,
+          ASSIGNMENTS_FILENAME,
+        );
+        const merged = { ...normalizeAssignments(freshRaw), ...pendingChanges };
 
-      // 2. On réconcilie avec l'arbre : copies héritées créées / mises à jour / supprimées
-      const { assignments: finalAssignments } = reconcileAssignments(
-        merged,
-        assignTree.folders,
-      );
+        // 2. On réconcilie avec l'arbre : copies héritées créées / mises à jour / supprimées
+        const { assignments: finalAssignments } = reconcileAssignments(
+          merged,
+          assignTree.folders,
+        );
 
-      await saveConfigurationFile(
-        triconnectAPI,
-        globalAccessToken,
-        finalAssignments,
-        ASSIGNMENTS_FILENAME,
-        configFolderId,
-      );
+        await saveConfigurationFile(
+          triconnectAPI,
+          globalAccessToken,
+          finalAssignments,
+          ASSIGNMENTS_FILENAME,
+          configFolderId,
+        );
+      });
       invalidateFolderTreeCache();
       renderSuccess(
         mainContentDiv,
