@@ -315,7 +315,23 @@ async function fetchProjectGroups(projectId, accessToken) {
 
 // lecture du fichier JSON pour la configuration des flux
 
-async function fetchConfigurationFile(accessToken, folderId, filename) {
+// Signature simple d'un fichier : sert à détecter une modification concurrente.
+function buildFileSignature(fileInfo) {
+  if (!fileInfo) return null;
+  return [
+    fileInfo.modifiedOn,
+    fileInfo.version,
+    fileInfo.revision,
+    fileInfo.versionId,
+    fileInfo.size,
+  ]
+    .map((v) => v ?? "")
+    .join("|");
+}
+
+// Lit un fichier JSON de configuration et retourne { data, signature }.
+// Fichier absent : { data: null, signature: null }.
+async function fetchConfigurationFileWithMeta(accessToken, folderId, filename) {
   const apiBaseUrl = "https://app21.connect.trimble.com/tc/api/2.0";
   try {
     const listItemsUrl = `${apiBaseUrl}/folders/${folderId}/items`;
@@ -333,7 +349,7 @@ async function fetchConfigurationFile(accessToken, folderId, filename) {
       (item) => item.name === filename && item.type === "FILE",
     );
 
-    if (!fileInfo) return null;
+    if (!fileInfo) return { data: null, signature: null };
 
     const getDownloadUrl = `${apiBaseUrl}/files/fs/${fileInfo.id}/downloadurl`;
     const downloadInfoResponse = await fetch(getDownloadUrl, {
@@ -347,11 +363,110 @@ async function fetchConfigurationFile(accessToken, folderId, filename) {
     if (!fileContentResponse.ok)
       throw new Error("Le téléchargement du contenu du fichier a échoué.");
 
-    return await fileContentResponse.json();
+    return {
+      data: await fileContentResponse.json(),
+      signature: buildFileSignature(fileInfo),
+    };
   } catch (error) {
     console.error("Erreur dans fetchConfigurationFile:", error);
     throw error;
   }
+}
+
+// Comportement historique conservé : retourne uniquement le contenu (ou null).
+async function fetchConfigurationFile(accessToken, folderId, filename) {
+  const { data } = await fetchConfigurationFileWithMeta(
+    accessToken,
+    folderId,
+    filename,
+  );
+  return data;
+}
+
+// Version légère : lit uniquement la signature (aucun téléchargement du contenu).
+async function fetchConfigurationFileSignature(
+  accessToken,
+  folderId,
+  filename,
+) {
+  const listItemsUrl = `https://app21.connect.trimble.com/tc/api/2.0/folders/${folderId}/items`;
+  const itemsResponse = await fetch(listItemsUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!itemsResponse.ok)
+    throw new Error(
+      `Impossible de lister le contenu du dossier (Statut: ${itemsResponse.status}).`,
+    );
+  const allItems = await itemsResponse.json();
+  return buildFileSignature(
+    allItems.find((item) => item.name === filename && item.type === "FILE"),
+  );
+}
+
+// Délai aléatoire avant écriture : désynchronise deux utilisateurs qui se connectent en même temps.
+const SYNC_JITTER_MIN_MS = 500;
+const SYNC_JITTER_RANGE_MS = 2000;
+
+// Met à jour silencieusement les copies d'affectations héritées (dossiers nouveaux ou déplacés).
+// Retourne { status, diff?, assignments? } avec status parmi :
+//  "skipped-incomplete" | "no-file" | "up-to-date" | "conflict" | "written"
+async function autoSyncAssignmentsFile({
+  triconnectAPI,
+  accessToken,
+  configFolderId,
+  filename,
+  folders,
+  complete,
+}) {
+  // Garde-fou 1 : un arbre partiel fausserait les calculs
+  if (!complete) return { status: "skipped-incomplete" };
+
+  const attempt = async () => {
+    // Garde-fou 2 : lecture fraîche, avec signature
+    const { data, signature } = await fetchConfigurationFileWithMeta(
+      accessToken,
+      configFolderId,
+      filename,
+    );
+    if (data === null) return { status: "no-file" };
+    console.info("[Sync affectations] signature du fichier lu :", signature); // à retirer après validation
+
+    const { assignments, diff, hasChanges } = reconcileAssignments(
+      data,
+      folders,
+    );
+    if (!hasChanges) return { status: "up-to-date" };
+
+    await new Promise((resolve) =>
+      setTimeout(
+        resolve,
+        SYNC_JITTER_MIN_MS + Math.random() * SYNC_JITTER_RANGE_MS,
+      ),
+    );
+
+    // Quelqu'un a-t-il écrit entre-temps ? Si oui, on n'écrase rien.
+    const currentSignature = await fetchConfigurationFileSignature(
+      accessToken,
+      configFolderId,
+      filename,
+    );
+    if (currentSignature !== signature) return { status: "conflict" };
+
+    await saveConfigurationFile(
+      triconnectAPI,
+      accessToken,
+      assignments,
+      filename,
+      configFolderId,
+    );
+    return { status: "written", diff, assignments };
+  };
+
+  let result = await attempt();
+  if (result.status === "conflict") {
+    result = await attempt(); // un seul nouvel essai, sur données fraîches
+  }
+  return result;
 }
 
 //Sauvegarde un objet de configuration dans un fichier JSON dans le dossier de configuration
@@ -1053,6 +1168,7 @@ export {
   normalizeAssignments,
   resolveEffectiveAssignments,
   reconcileAssignments,
+  autoSyncAssignmentsFile,
   fetchUserProjectRole,
   calculateGeneralStatus,
   setFolderFullAccessForAllUsers,
