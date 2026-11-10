@@ -2,6 +2,9 @@
  * Module pour la communication avec les APIs Trimble Connect.
  */
 
+// Nombre maximal de requêtes simultanées pour la lecture des PDF et de leurs versions
+const VISA_FETCH_CONCURRENCY = 6;
+
 // Fonction principale pour récupérer et agréger toutes les données nécessaires aux visas.
 async function fetchVisaDocuments(
   accessToken,
@@ -21,14 +24,11 @@ async function fetchVisaDocuments(
     effectiveAssignments, // Map issue de resolveEffectiveAssignments
   } = options;
 
-  const [userToGroupMap, trackingData] = await Promise.all([
-    fetchUsersAndGroups(projectId, accessToken),
-    fetchConfigurationFile(
-      accessToken,
-      configFolderId,
-      "visa-tracking.json",
-    ).then((data) => data || {}),
-  ]);
+  const trackingData = await fetchConfigurationFile(
+    accessToken,
+    configFolderId,
+    "visa-tracking.json",
+  ).then((data) => data || {});
 
   // Table plate { idDossier: nomDuFlux } (flux effectif, hérité inclus).
   // Le reste de la fonction continue à utiliser `assignmentsConfig` tel quel.
@@ -45,24 +45,25 @@ async function fetchVisaDocuments(
     return [];
   }
 
-  // ÉTAPE A : Créer les promesses pour récupérer la DERNIÈRE version de chaque PDF dans les dossiers affectés
-  const pdfFilePromises = assignedFolderIds.map((folderId) =>
-    fetchPDFFilesInFolder(folderId, accessToken).catch(() => []),
+  // ÉTAPES A + B : récupérer la DERNIÈRE version de chaque PDF dans les dossiers affectés
+  // (au plus VISA_FETCH_CONCURRENCY dossiers lus simultanément), puis aplatir
+  const nestedLatestPdfFiles = await mapWithConcurrency(
+    assignedFolderIds,
+    VISA_FETCH_CONCURRENCY,
+    (folderId) => fetchPDFFilesInFolder(folderId, accessToken).catch(() => []),
   );
-
-  // ÉTAPE B : Exécuter ces promesses et aplatir le résultat
-  const nestedLatestPdfFiles = await Promise.all(pdfFilePromises);
   const latestPdfFiles = nestedLatestPdfFiles.flat();
 
-  // ÉTAPE C : Pour chaque fichier (dernière version), créer une nouvelle promesse pour récupérer TOUTES ses versions
-  const allVersionsPromises = latestPdfFiles.map((latestFile) =>
-    fetchFileAllVersions(latestFile.id, accessToken).then((versions) =>
-      versions.map((v) => ({ ...v, parentId: latestFile.parentId })),
-    ),
+  // ÉTAPES C + D : pour chaque fichier, récupérer TOUTES ses versions
+  // (même limite de concurrence), puis aplatir le résultat final
+  const nestedAllVersions = await mapWithConcurrency(
+    latestPdfFiles,
+    VISA_FETCH_CONCURRENCY,
+    (latestFile) =>
+      fetchFileAllVersions(latestFile.id, accessToken).then((versions) =>
+        versions.map((v) => ({ ...v, parentId: latestFile.parentId })),
+      ),
   );
-
-  // ÉTAPE D : Exécuter ces nouvelles promesses et aplatir le résultat final
-  const nestedAllVersions = await Promise.all(allVersionsPromises);
   let allPdfFiles = nestedAllVersions.flat();
 
   // ÉTAPE E : La variable `filesToProcess` contient maintenant toutes les versions de tous les documents
@@ -429,7 +430,6 @@ async function autoSyncAssignmentsFile({
       filename,
     );
     if (data === null) return { status: "no-file" };
-    console.info("[Sync affectations] signature du fichier lu :", signature); // à retirer après validation
 
     const { assignments, diff, hasChanges } = reconcileAssignments(
       data,
