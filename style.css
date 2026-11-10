@@ -1203,3 +1203,61 @@ select[multiple] {
   color: #007a93;
   transform: scale(1.1);
 }
+
+/* === AFFECTATION : HÉRITAGE (grisé, badge, message) === */
+.folder-item.inherited > .folder-name {
+  color: #8a8a8a;
+  font-weight: normal;
+  font-style: italic;
+}
+
+/* Un dossier grisé reste lisible quand il est sélectionné */
+.folder-item.inherited.selected > .folder-name {
+  background-color: #6c8a93;
+  color: #fff;
+}
+
+.folder-flux-badge {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  background-color: #d7ecf1;
+  color: #005a70;
+  vertical-align: middle;
+}
+
+.folder-flux-badge:empty {
+  display: none;
+}
+
+.folder-item.inherited > .folder-flux-badge {
+  background-color: #e4e7e9;
+  color: #777;
+}
+
+#flux-assignment-select:disabled {
+  background-color: #eee;
+  color: #777;
+  cursor: not-allowed;
+}
+
+.heredity-info {
+  background-color: #f4f6f7;
+  border-left: 3px solid #8a8a8a;
+  padding: 8px 10px;
+  margin: 0 0 15px 0;
+  font-size: 0.9em;
+  color: #555;
+}
+
+.affectation-legend {
+  font-size: 0.9em;
+  color: #666;
+}
+
+.affectation-legend .legend-inherited {
+  color: #8a8a8a;
+  font-style: italic;
+}
