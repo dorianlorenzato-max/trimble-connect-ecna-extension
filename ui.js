@@ -645,6 +645,7 @@ function renderAffectationPage(container, projectName) {
     <div class="affectation-page-container">
       <h1>Affectation d'un flux à un dossier</h1>
       <p>Projet : <strong>${projectName}</strong></p>
+      <p class="affectation-legend">Dossier <span class="legend-inherited">grisé</span> = flux hérité du dossier parent. La pastille indique le flux effectif du dossier.</p>
 
       <div class="affectation-layout-grid">
         <!-- Panneau de gauche : Arborescence des dossiers -->
@@ -672,31 +673,55 @@ function renderAffectationPage(container, projectName) {
 
 // Met à jour le panneau d'affectation avec les informations du dossier sélectionné.
 
-function updateAssignmentPanel(folder, allFluxNames, currentAssignedFlux) {
+// Petit utilitaire pour insérer des noms de dossier dans du HTML en sécurité
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// state = { flux, heredity, locked, sourceName, isTopLevel }
+function updateAssignmentPanel(folder, allFluxNames, state) {
   const panel = document.getElementById("assignment-panel");
   if (!panel) return;
+  const { flux, heredity, locked, sourceName, isTopLevel } = state;
 
   const fluxOptions = allFluxNames
     .map(
       (name) =>
-        `<option value="${name}" ${name === currentAssignedFlux ? "selected" : ""}>${name}</option>`,
+        `<option value="${name}" ${name === flux ? "selected" : ""}>${name}</option>`,
     )
     .join("");
+
+  const lockedMessage = locked
+    ? `<p class="heredity-info">🔒 Flux hérité de : <strong>${escapeHtml(sourceName || "dossier parent")}</strong>.<br>
+         Décochez « Hérédité » pour choisir une autre affectation (ou aucune).</p>`
+    : "";
+
+  const heredityLabel = isTopLevel
+    ? "Hérédité : transmettre le flux aux sous-dossiers"
+    : "Hérédité : reprendre le flux du dossier parent (et le transmettre)";
+  const heredityTitle = isTopLevel
+    ? "Si coché, ce flux est appliqué à tous les sous-dossiers (y compris ceux créés plus tard). Si décoché, seul ce dossier est affecté."
+    : "Si coché, ce dossier reprend automatiquement le flux de son dossier parent. Décochez pour lui donner une affectation propre.";
 
   panel.innerHTML = `
         <div class="assignment-panel-content">
             <h3>Dossier Sélectionné</h3>
-            <p class="selected-folder-name">${folder.name}</p>
+            <p class="selected-folder-name">${escapeHtml(folder.name)}</p>
+            ${lockedMessage}
             <div class="form-group">
                 <label for="flux-assignment-select">Flux de validation à affecter :</label>
-                <select id="flux-assignment-select">
+                <select id="flux-assignment-select" ${locked ? "disabled" : ""}>
                     <option value="">-- Aucun flux --</option>
                     ${fluxOptions}
                 </select>
             </div>
-            <div class="heredity-checkbox-container" title="Si coché, le flux sélectionné sera appliqué à ce dossier et à tous ses sous-dossiers.">
-                <input type="checkbox" id="heredity-checkbox">
-                <label for="heredity-checkbox">Appliquer l'hérédité</label>
+            <div class="heredity-checkbox-container" title="${heredityTitle}">
+                <input type="checkbox" id="heredity-checkbox" ${heredity ? "checked" : ""}>
+                <label for="heredity-checkbox">${heredityLabel}</label>
             </div>
         </div>
     `;
