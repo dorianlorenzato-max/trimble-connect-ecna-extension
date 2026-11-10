@@ -16,6 +16,10 @@ import {
   getProjectRootId,
   recursivelyFetchAllSubfolders,
   fetchAllProjectFolders,
+  fetchProjectFolderTree,
+  normalizeAssignments,
+  resolveEffectiveAssignments,
+  reconcileAssignments,
   fetchUserProjectRole,
   setFolderFullAccessForAllUsers,
 } from "./api.js";
@@ -83,6 +87,55 @@ function debounce(func, delay) {
   let currentAssignments = {};
   let selectedFolderInfo = null;
   let pendingChanges = {};
+
+  // Cache de session : arbre des dossiers + affectations résolues
+  let folderTreeCache = null;
+  let folderTreeLoadingPromise = null;
+
+  function invalidateFolderTreeCache() {
+    folderTreeCache = null;
+    folderTreeLoadingPromise = null;
+  }
+
+  // Charge (une seule fois par session) l'arbre complet et les affectations résolues.
+  async function loadFolderTreeAndAssignments(forceRefresh = false) {
+    if (forceRefresh) invalidateFolderTreeCache();
+    if (folderTreeCache) return folderTreeCache;
+    if (folderTreeLoadingPromise) return folderTreeLoadingPromise;
+
+    const loading = (async () => {
+      const [tree, rawAssignments] = await Promise.all([
+        fetchProjectFolderTree(triconnectAPI, globalAccessToken),
+        fetchConfigurationFile(
+          globalAccessToken,
+          configFolderId,
+          ASSIGNMENTS_FILENAME,
+        ),
+      ]);
+      const effectiveAssignments = resolveEffectiveAssignments(
+        rawAssignments,
+        tree.folders,
+        { scanComplete: tree.complete },
+      );
+      return {
+        rootId: tree.rootId,
+        folders: tree.folders,
+        complete: tree.complete,
+        rawAssignments: rawAssignments || {},
+        effectiveAssignments,
+        folderIdToNameMap: new Map(tree.folders.map((f) => [f.id, f.name])),
+      };
+    })();
+
+    folderTreeLoadingPromise = loading;
+    try {
+      const result = await loading;
+      if (folderTreeLoadingPromise === loading) folderTreeCache = result;
+      return result;
+    } finally {
+      if (folderTreeLoadingPromise === loading) folderTreeLoadingPromise = null;
+    }
+  }
 
   // --- INITIALISATION DE L'EXTENSION ---
   try {
@@ -201,6 +254,33 @@ function debounce(func, delay) {
       .getElementById("documentBtn")
       .addEventListener("click", () => handleTableDisplay("documents"));
 
+    // ===== TEST TEMPORAIRE PALIER 1 =====
+    const fakeFolders = [
+      { id: "A", name: "A", parentId: "R", isTopLevel: true },
+      { id: "B", name: "B", parentId: "A", isTopLevel: false },
+      { id: "C", name: "C", parentId: "A", isTopLevel: false },
+      { id: "D", name: "D", parentId: "B", isTopLevel: false },
+    ];
+    const fakeRaw = {
+      A: { flux: "X", heredity: true },
+      B: { flux: "Y", heredity: false },
+    };
+    console.table(
+      [...resolveEffectiveAssignments(fakeRaw, fakeFolders)].map(([id, v]) => ({
+        id,
+        ...v,
+      })),
+    );
+    console.log("Réconciliation :", reconcileAssignments(fakeRaw, fakeFolders));
+    const realTree = await fetchProjectFolderTree(
+      triconnectAPI,
+      globalAccessToken,
+    );
+    console.log(
+      `Arbo réelle : ${realTree.folders.length} dossiers, complete = ${realTree.complete}`,
+    );
+    // ===== FIN TEST =====
+
     // Afficher l'accueil
     handleDashboardDisplay();
   } catch (error) {
@@ -266,19 +346,15 @@ function debounce(func, delay) {
         currentViseurGroups = []; // On s'assure qu'elle est vide pour le mode "Missions"
       }
 
-      const allProjectFolders = await fetchAllProjectFolders(
-        triconnectAPI,
-        globalAccessToken,
-      );
-      const folderIdToNameMap = new Map(
-        allProjectFolders.map((f) => [f.id, f.name]),
-      );
+      const { folderIdToNameMap, effectiveAssignments } =
+        await loadFolderTreeAndAssignments();
 
       const fetchOptions = {
         mode,
         loggedInUserGroupIds,
         allFluxDefinitions,
         folderIdToNameMap, // On passe la carte à la fonction de récupération
+        effectiveAssignments, // Affectations résolues (héritage inclus)
       };
 
       const documents = await fetchVisaDocuments(
@@ -310,19 +386,13 @@ function debounce(func, delay) {
       // --- 1. Récupération de toutes les données en parallèle ---
       const projectInfo = await triconnectAPI.project.getCurrentProject();
       currentProjectId = projectInfo.id;
-      const allProjectFolders = await fetchAllProjectFolders(
-        triconnectAPI,
-        globalAccessToken,
-      );
-      const folderIdToNameMap = new Map(
-        allProjectFolders.map((f) => [f.id, f.name]),
-      );
+      const { folderIdToNameMap, effectiveAssignments } =
+        await loadFolderTreeAndAssignments();
 
       const [
         loggedInUser,
         fluxDefinitions,
         allGroupsInProject,
-        assignments,
         trackingData,
         allVisaDocuments,
       ] = await Promise.all([
@@ -336,11 +406,6 @@ function debounce(func, delay) {
         fetchConfigurationFile(
           globalAccessToken,
           configFolderId,
-          ASSIGNMENTS_FILENAME,
-        ),
-        fetchConfigurationFile(
-          globalAccessToken,
-          configFolderId,
           VISA_TRACKING_FILENAME,
         ).then((data) => data || {}),
         fetchVisaDocuments(
@@ -348,7 +413,7 @@ function debounce(func, delay) {
           triconnectAPI,
           configFolderId,
           ASSIGNMENTS_FILENAME,
-          { mode: "documents", folderIdToNameMap },
+          { mode: "documents", folderIdToNameMap, effectiveAssignments },
         ),
       ]);
       allFluxDefinitions = fluxDefinitions;
@@ -856,17 +921,11 @@ function debounce(func, delay) {
     renderLoading(mainContentDiv);
     try {
       const projectInfo = await triconnectAPI.project.getCurrentProject();
-      const [loggedInUser, assignments, userToGroupMap, visaStates] =
-        await Promise.all([
-          fetchLoggedInUserDetails(globalAccessToken),
-          fetchConfigurationFile(
-            globalAccessToken,
-            configFolderId,
-            ASSIGNMENTS_FILENAME,
-          ),
-          fetchUsersAndGroups(projectInfo.id, globalAccessToken),
-          fetchVisaPossibleStates(projectInfo.id, globalAccessToken),
-        ]);
+      const [loggedInUser, userToGroupMap, visaStates] = await Promise.all([
+        fetchLoggedInUserDetails(globalAccessToken),
+        fetchUsersAndGroups(projectInfo.id, globalAccessToken),
+        fetchVisaPossibleStates(projectInfo.id, globalAccessToken),
+      ]);
 
       const visaData = {
         doc: doc,
@@ -874,9 +933,7 @@ function debounce(func, delay) {
         loggedInUser: loggedInUser,
         userName: `${loggedInUser.firstName} ${loggedInUser.lastName}`,
         userGroup: userToGroupMap.get(loggedInUser.id) || "Groupe non trouvé",
-        fluxName: assignments
-          ? assignments[doc.parentId] || "Aucun flux affecté"
-          : "Aucun flux affecté",
+        fluxName: doc.fluxName || "Aucun flux affecté",
         visaStates: visaStates || [],
       };
 
@@ -1536,40 +1593,43 @@ function debounce(func, delay) {
       );
       summaryContainer.innerHTML = `<p style="text-align:center; margin-top:20px;">Chargement du récapitulatif...</p>`;
 
-      const [fluxConfig, assignmentsConfig, allProjectFolders] =
-        await Promise.all([
-          fetchConfigurationFile(
-            globalAccessToken,
-            configFolderId,
-            CONFIG_FILENAME,
-          ),
-          fetchConfigurationFile(
-            globalAccessToken,
-            configFolderId,
-            ASSIGNMENTS_FILENAME,
-          ),
-          fetchAllProjectFolders(triconnectAPI, globalAccessToken),
-        ]);
+      const [fluxConfig, treeCache] = await Promise.all([
+        fetchConfigurationFile(
+          globalAccessToken,
+          configFolderId,
+          CONFIG_FILENAME,
+        ),
+        loadFolderTreeAndAssignments(),
+      ]);
 
-      const folderIdToNameMap = new Map(
-        allProjectFolders.map((f) => [f.id, f.name]),
-      );
+      const { effectiveAssignments, folderIdToNameMap } = treeCache;
       const allFlows = fluxConfig?.flux || [];
-      const allAssignments = assignmentsConfig || {};
       const assignmentsByFlux = {};
 
-      for (const folderId in allAssignments) {
-        const fluxName = allAssignments[folderId];
-        if (fluxName) {
-          if (!assignmentsByFlux[fluxName]) {
-            assignmentsByFlux[fluxName] = [];
-          }
-          const folderName = folderIdToNameMap.get(folderId);
-          if (folderName) {
-            assignmentsByFlux[fluxName].push(folderName);
-          }
+      // Nombre de sous-dossiers qui héritent de chaque dossier « source »
+      const inheritedCountBySource = new Map();
+      effectiveAssignments.forEach((info) => {
+        if (info.flux && info.locked && info.sourceId) {
+          inheritedCountBySource.set(
+            info.sourceId,
+            (inheritedCountBySource.get(info.sourceId) || 0) + 1,
+          );
         }
-      }
+      });
+
+      // On liste uniquement les dossiers sources : « Dossier (+ N sous-dossiers) »
+      effectiveAssignments.forEach((info, folderId) => {
+        if (!info.flux || info.locked) return;
+        const folderName = folderIdToNameMap.get(folderId);
+        if (!folderName) return;
+        const count = inheritedCountBySource.get(folderId) || 0;
+        const label =
+          count > 0
+            ? `${folderName} (+ ${count} sous-dossier${count > 1 ? "s" : ""})`
+            : folderName;
+        if (!assignmentsByFlux[info.flux]) assignmentsByFlux[info.flux] = [];
+        assignmentsByFlux[info.flux].push(label);
+      });
 
       const summaryData = allFlows.map((flow) => ({
         fluxName: flow.name,
@@ -1734,12 +1794,18 @@ function debounce(func, delay) {
       const finalConfigurationData = { ...existingConfig, flux: updatedFluxes }; // Conserver les autres propriétés du fichier si elles existent
 
       //  On nettoie le fichier d'affectations ---
-      const updatedAssignments = { ...assignmentsConfig };
+      const updatedAssignments = normalizeAssignments(assignmentsConfig);
       let assignmentsCleaned = false;
       for (const folderId in updatedAssignments) {
-        if (updatedAssignments[folderId] === fluxNameToDelete) {
-          delete updatedAssignments[folderId]; // On supprime l'affectation orpheline
-          assignmentsCleaned = true;
+        const entry = updatedAssignments[folderId];
+        if (entry.flux !== fluxNameToDelete) continue;
+        assignmentsCleaned = true;
+        if (entry.auto || entry.heredity) {
+          // Copie héritée, ou source cochée : l'entrée n'a plus d'utilité
+          delete updatedAssignments[folderId];
+        } else {
+          // Dossier détaché : on conserve l'état « détaché, sans flux »
+          updatedAssignments[folderId] = { ...entry, flux: null };
         }
       }
 
@@ -1768,6 +1834,7 @@ function debounce(func, delay) {
       }
 
       await Promise.all(saveTasks);
+      invalidateFolderTreeCache(); // les affectations ont changé
 
       renderSuccess(
         mainContentDiv,
@@ -1955,11 +2022,12 @@ function debounce(func, delay) {
             ASSIGNMENTS_FILENAME,
           );
 
-          const updatedAssignments = { ...assignmentsConfig };
+          const updatedAssignments = normalizeAssignments(assignmentsConfig);
           let assignmentsUpdated = false;
           for (const folderId in updatedAssignments) {
-            if (updatedAssignments[folderId] === oldFluxName) {
-              updatedAssignments[folderId] = newFluxName; // On met à jour avec le nouveau nom
+            const entry = updatedAssignments[folderId];
+            if (entry.flux === oldFluxName) {
+              updatedAssignments[folderId] = { ...entry, flux: newFluxName }; // nouveau nom
               assignmentsUpdated = true;
             }
           }
@@ -1973,6 +2041,7 @@ function debounce(func, delay) {
               ASSIGNMENTS_FILENAME,
               configFolderId,
             );
+            invalidateFolderTreeCache();
             console.log(
               "Le fichier des affectations a été mis à jour avec le nouveau nom de flux.",
             );
@@ -2173,6 +2242,7 @@ function debounce(func, delay) {
         ASSIGNMENTS_FILENAME,
         configFolderId,
       );
+      invalidateFolderTreeCache(); // sinon les onglets afficheraient l'ancien état
       renderSuccess(
         mainContentDiv,
         "Toutes les affectations ont été sauvegardées avec succès.",
