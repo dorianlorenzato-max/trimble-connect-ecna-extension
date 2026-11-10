@@ -84,9 +84,18 @@ function debounce(func, delay) {
 
   // Variables pour la page d'affectation
   let allProjectFlows = [];
-  let currentAssignments = {};
   let selectedFolderInfo = null;
-  let pendingChanges = {};
+  let pendingChanges = {}; // { folderId: { flux, heredity } } : uniquement ce que l'admin a modifié
+
+  // Brouillon d'édition de la page d'affectation
+  let draftAssignments = {}; // affectations normalisées + modifications en cours
+  let draftEffective = new Map(); // résolution du brouillon (flux effectif, grisé, source)
+  let assignTree = {
+    folders: [],
+    complete: true,
+    childrenByParent: new Map(),
+    folderById: new Map(),
+  };
 
   // Cache de session : arbre des dossiers + affectations résolues
   let folderTreeCache = null;
@@ -253,33 +262,6 @@ function debounce(func, delay) {
     document
       .getElementById("documentBtn")
       .addEventListener("click", () => handleTableDisplay("documents"));
-
-    // ===== TEST TEMPORAIRE PALIER 1 =====
-    const fakeFolders = [
-      { id: "A", name: "A", parentId: "R", isTopLevel: true },
-      { id: "B", name: "B", parentId: "A", isTopLevel: false },
-      { id: "C", name: "C", parentId: "A", isTopLevel: false },
-      { id: "D", name: "D", parentId: "B", isTopLevel: false },
-    ];
-    const fakeRaw = {
-      A: { flux: "X", heredity: true },
-      B: { flux: "Y", heredity: false },
-    };
-    console.table(
-      [...resolveEffectiveAssignments(fakeRaw, fakeFolders)].map(([id, v]) => ({
-        id,
-        ...v,
-      })),
-    );
-    console.log("Réconciliation :", reconcileAssignments(fakeRaw, fakeFolders));
-    const realTree = await fetchProjectFolderTree(
-      triconnectAPI,
-      globalAccessToken,
-    );
-    console.log(
-      `Arbo réelle : ${realTree.folders.length} dossiers, complete = ${realTree.complete}`,
-    );
-    // ===== FIN TEST =====
 
     // Afficher l'accueil
     handleDashboardDisplay();
@@ -2107,7 +2089,75 @@ function debounce(func, delay) {
       .getElementById("save-flux-btn")
       .addEventListener("click", handleSaveFluxClick);
   }
+  // Index de l'arbre pour l'affichage en mémoire
+  function buildAssignTree(treeCache) {
+    const childrenByParent = new Map();
+    const folderById = new Map();
+    treeCache.folders.forEach((f) => {
+      folderById.set(f.id, f);
+      if (!childrenByParent.has(f.parentId))
+        childrenByParent.set(f.parentId, []);
+      childrenByParent.get(f.parentId).push(f);
+    });
+    return {
+      folders: treeCache.folders,
+      complete: treeCache.complete,
+      childrenByParent,
+      folderById,
+    };
+  }
 
+  function recomputeDraftEffective() {
+    draftEffective = resolveEffectiveAssignments(
+      draftAssignments,
+      assignTree.folders,
+      { scanComplete: assignTree.complete },
+    );
+  }
+
+  // Met à jour l'aspect d'un dossier de l'arbre (grisé + badge de flux)
+  function applyFolderVisual(listItem, folderId) {
+    const info = draftEffective.get(folderId);
+    listItem.classList.toggle("inherited", Boolean(info && info.locked));
+    const badge = listItem.querySelector(":scope > .folder-flux-badge");
+    if (badge) {
+      badge.textContent = info && info.flux ? info.flux : "";
+      badge.title =
+        info && info.locked && info.sourceName
+          ? `Flux hérité de : ${info.sourceName}`
+          : "";
+    }
+  }
+
+  function refreshTreeVisuals() {
+    document
+      .querySelectorAll("#folder-tree-root .folder-item")
+      .forEach((li) => applyFolderVisual(li, li.dataset.folderId));
+  }
+
+  // Nombre de dossiers ayant DÉJÀ un flux dont l'affectation changerait
+  function countImpactedAssignedFolders(simulatedAssignments) {
+    const after = resolveEffectiveAssignments(
+      simulatedAssignments,
+      assignTree.folders,
+      { scanComplete: assignTree.complete },
+    );
+    let count = 0;
+    draftEffective.forEach((before, folderId) => {
+      if (!before.flux) return;
+      const afterInfo = after.get(folderId);
+      if ((afterInfo ? afterInfo.flux : null) !== before.flux) count++;
+    });
+    return count;
+  }
+
+  // Enregistre une modification dans le brouillon et met l'arbre à jour
+  function setDraftEntry(folderId, entry) {
+    draftAssignments[folderId] = entry;
+    pendingChanges[folderId] = entry;
+    recomputeDraftEffective();
+    refreshTreeVisuals();
+  }
   // --- GESTIONNAIRE D'ÉVÉNEMENT POUR LE BOUTON D'AFFECTATION DES FLUX---
   async function handleAssignFluxClick() {
     if (!globalAccessToken || !triconnectAPI) {
@@ -2123,26 +2173,20 @@ function debounce(func, delay) {
     try {
       const projectInfo = await triconnectAPI.project.getCurrentProject();
 
-      // On lance tous les chargements de données en parallèle pour la performance
-      const [fluxConfig, assignmentsConfig, rootSubfolders] = await Promise.all(
-        [
-          fetchConfigurationFile(
-            globalAccessToken,
-            configFolderId,
-            CONFIG_FILENAME,
-          ),
-          fetchConfigurationFile(
-            globalAccessToken,
-            configFolderId,
-            ASSIGNMENTS_FILENAME,
-          ),
-          getRootFolders(triconnectAPI, globalAccessToken),
-        ],
-      );
+      // Données fraîches pour l'édition (arbre rescanné, affectations relues)
+      const [fluxConfig, treeCache] = await Promise.all([
+        fetchConfigurationFile(
+          globalAccessToken,
+          configFolderId,
+          CONFIG_FILENAME,
+        ),
+        loadFolderTreeAndAssignments(true),
+      ]);
 
-      // On stocke les données pour les réutiliser
       allProjectFlows = fluxConfig ? fluxConfig.flux : [];
-      currentAssignments = assignmentsConfig || {};
+      assignTree = buildAssignTree(treeCache);
+      draftAssignments = normalizeAssignments(treeCache.rawAssignments);
+      recomputeDraftEffective();
 
       // On affiche l'interface
       renderAffectationPage(mainContentDiv, projectInfo.name);
@@ -2150,7 +2194,16 @@ function debounce(func, delay) {
       const treeRootElement = document.getElementById("folder-tree-root");
       treeRootElement.innerHTML = "";
 
-      renderAndAttachFolderListeners(rootSubfolders, treeRootElement);
+      renderAndAttachFolderListeners(
+        assignTree.childrenByParent.get(treeCache.rootId) || [],
+        treeRootElement,
+      );
+
+      if (!treeCache.complete) {
+        alert(
+          "Attention : certains dossiers n'ont pas pu être lus. L'arborescence affichée est partielle.",
+        );
+      }
 
       document
         .getElementById("back-to-config-btn")
@@ -2172,56 +2225,61 @@ function debounce(func, delay) {
 
   function displayFolderAssignmentDetails(folder) {
     selectedFolderInfo = folder;
-    const displayedFlux =
-      pendingChanges[folder.id] ?? currentAssignments[folder.id] ?? null;
+    const info = draftEffective.get(folder.id) || {
+      flux: null,
+      locked: false,
+      sourceName: null,
+    };
+    const entry = draftAssignments[folder.id] || { flux: null, heredity: true };
+    const folderData = assignTree.folderById.get(folder.id);
     const allFluxNames = allProjectFlows.map((f) => f.name);
 
-    updateAssignmentPanel(folder, allFluxNames, displayedFlux);
+    updateAssignmentPanel(folder, allFluxNames, {
+      flux: info.flux,
+      heredity: entry.heredity !== false,
+      locked: info.locked,
+      sourceName: info.sourceName,
+      isTopLevel: Boolean(folderData && folderData.isTopLevel),
+    });
 
     const selectElement = document.getElementById("flux-assignment-select");
     const heredityCheckbox = document.getElementById("heredity-checkbox");
 
-    // Fonction interne pour appliquer les changements en mémoire
-    const applyChanges = async () => {
-      const selectedFlux = selectElement.value;
-      const applyHeredity = heredityCheckbox.checked;
+    // Changement de flux (impossible si le dossier est grisé : la liste est désactivée)
+    selectElement.addEventListener("change", () => {
+      setDraftEntry(folder.id, {
+        flux: selectElement.value || null,
+        heredity: heredityCheckbox.checked,
+      });
+      displayFolderAssignmentDetails(folder); // rafraîchit le panneau
+    });
 
-      // On met toujours à jour le dossier parent
-      console.log(
-        `Mémorisation pour ${folder.name}: '${selectedFlux || "Aucun"}'`,
-      );
-      pendingChanges[folder.id] = selectedFlux;
+    // Cochage / décochage de l'hérédité
+    heredityCheckbox.addEventListener("change", () => {
+      const current = draftEffective.get(folder.id) || { flux: null };
+      // Décocher : le flux courant est conservé jusqu'à modification (A.4)
+      const newEntry = {
+        flux: current.flux,
+        heredity: heredityCheckbox.checked,
+      };
+      const simulated = { ...draftAssignments, [folder.id]: newEntry };
+      const impacted = countImpactedAssignedFolders(simulated);
 
-      // Si la case est cochée, on applique à toute la descendance
-      if (applyHeredity && selectedFlux) {
-        console.log(
-          `Application de l'hérédité en cours pour le dossier ${folder.name}...`,
-        );
-        try {
-          const allSubIds = await recursivelyFetchAllSubfolders(
-            folder.id,
-            globalAccessToken,
-          );
-          allSubIds.forEach((subId) => {
-            pendingChanges[subId] = selectedFlux;
-          });
-          console.log(
-            `Hérédité appliquée à ${allSubIds.length} sous-dossier(s).`,
-          );
-        } catch (error) {
-          console.error("Erreur lors de l'application de l'hérédité:", error);
-        }
+      // NB : pour ne confirmer que le COCHAGE, ajouter « heredityCheckbox.checked && »
+      // devant « impacted > 3 ».
+      if (
+        impacted > 3 &&
+        !confirm(
+          `Cette modification va changer l'affectation de ${impacted} dossier(s) ayant déjà un flux. Voulez-vous continuer ?`,
+        )
+      ) {
+        displayFolderAssignmentDetails(folder); // remet la case dans son état précédent
+        return;
       }
-      // Si la case n'est pas cochée, la logique s'arrête ici, seul le parent est affecté.
-    };
 
-    // On attache la logique aux deux éléments
-    if (selectElement) {
-      selectElement.addEventListener("change", applyChanges);
-    }
-    if (heredityCheckbox) {
-      heredityCheckbox.addEventListener("change", applyChanges);
-    }
+      setDraftEntry(folder.id, newEntry);
+      displayFolderAssignmentDetails(folder);
+    });
   }
 
   // Sauvegarde l'affectation choisie
@@ -2232,9 +2290,22 @@ function debounce(func, delay) {
       return;
     }
     renderSaving(mainContentDiv);
-    const finalAssignments = { ...currentAssignments, ...pendingChanges };
 
     try {
+      // 1. On relit le fichier (données fraîches) et on n'applique QUE nos modifications
+      const freshRaw = await fetchConfigurationFile(
+        globalAccessToken,
+        configFolderId,
+        ASSIGNMENTS_FILENAME,
+      );
+      const merged = { ...normalizeAssignments(freshRaw), ...pendingChanges };
+
+      // 2. On réconcilie avec l'arbre : copies héritées créées / mises à jour / supprimées
+      const { assignments: finalAssignments } = reconcileAssignments(
+        merged,
+        assignTree.folders,
+      );
+
       await saveConfigurationFile(
         triconnectAPI,
         globalAccessToken,
@@ -2242,12 +2313,12 @@ function debounce(func, delay) {
         ASSIGNMENTS_FILENAME,
         configFolderId,
       );
-      invalidateFolderTreeCache(); // sinon les onglets afficheraient l'ancien état
+      invalidateFolderTreeCache();
       renderSuccess(
         mainContentDiv,
         "Toutes les affectations ont été sauvegardées avec succès.",
       );
-      // On recharge la page pour que les "pendingChanges" deviennent la nouvelle norme
+      // On recharge la page pour repartir d'un état propre
       setTimeout(handleAssignFluxClick, 1500);
     } catch (error) {
       console.error(
@@ -2279,25 +2350,26 @@ function debounce(func, delay) {
       folderNameSpan.className = "folder-name";
       folderNameSpan.textContent = folder.name;
 
-      listItem.appendChild(folderNameSpan);
-      parentElement.appendChild(listItem);
+      const badge = document.createElement("span");
+      badge.className = "folder-flux-badge";
 
-      // Le clic sur le nom du dossier fait deux choses :
-      // 1. Déplie l'arborescence (si pas déjà fait)
-      // 2. Affiche le panneau d'affectation
-      folderNameSpan.addEventListener("click", async (event) => {
+      listItem.appendChild(folderNameSpan);
+      listItem.appendChild(badge);
+      parentElement.appendChild(listItem);
+      applyFolderVisual(listItem, folder.id);
+
+      // Le clic sur le nom du dossier : sélection + panneau d'affectation + dépli
+      folderNameSpan.addEventListener("click", (event) => {
         event.stopPropagation();
 
-        // Mettre en surbrillance le dossier sélectionné
         document
           .querySelectorAll(".folder-item.selected")
           .forEach((el) => el.classList.remove("selected"));
         listItem.classList.add("selected");
 
-        // AFFICHER LE PANNEAU D'AFFECTATION
         displayFolderAssignmentDetails({ id: folder.id, name: folder.name });
 
-        // DÉPLIER L'ARBORESCENCE (logique existante)
+        // Déjà déplié une fois : on bascule simplement l'affichage
         if (listItem.dataset.loaded === "true") {
           const subList = listItem.querySelector("ul");
           if (subList) {
@@ -2308,27 +2380,13 @@ function debounce(func, delay) {
           return;
         }
 
-        const loadingSpan = document.createElement("span");
-        loadingSpan.textContent = " (chargement...)";
-        loadingSpan.className = "loading-text";
-        folderNameSpan.appendChild(loadingSpan);
-
-        try {
-          const subFolders = await fetchFolderContents(
-            folder.id,
-            globalAccessToken,
-          );
-          const subList = document.createElement("ul");
-          subList.className = "folder-tree";
-          listItem.appendChild(subList);
-          renderAndAttachFolderListeners(subFolders, subList);
-          listItem.dataset.loaded = "true";
-        } catch (error) {
-          console.error(`Erreur au chargement du dossier ${folder.id}`, error);
-          folderNameSpan.textContent += " (erreur)";
-        } finally {
-          folderNameSpan.removeChild(loadingSpan);
-        }
+        // Premier dépli : les sous-dossiers viennent de la mémoire (aucun appel API)
+        const subFolders = assignTree.childrenByParent.get(folder.id) || [];
+        const subList = document.createElement("ul");
+        subList.className = "folder-tree";
+        listItem.appendChild(subList);
+        renderAndAttachFolderListeners(subFolders, subList);
+        listItem.dataset.loaded = "true";
       });
     });
   }
