@@ -13,18 +13,30 @@ async function fetchVisaDocuments(
   const projectInfo = await triconnectAPI.project.getCurrentProject();
   const projectId = projectInfo.id;
 
-  const { mode, loggedInUserGroupIds, allFluxDefinitions, folderIdToNameMap } =
-    options;
+  const {
+    mode,
+    loggedInUserGroupIds,
+    allFluxDefinitions,
+    folderIdToNameMap,
+    effectiveAssignments, // Map issue de resolveEffectiveAssignments
+  } = options;
 
-  const [userToGroupMap, assignmentsConfig, trackingData] = await Promise.all([
+  const [userToGroupMap, trackingData] = await Promise.all([
     fetchUsersAndGroups(projectId, accessToken),
-    fetchConfigurationFile(accessToken, configFolderId, assignmentsFilename),
     fetchConfigurationFile(
       accessToken,
       configFolderId,
       "visa-tracking.json",
     ).then((data) => data || {}),
   ]);
+
+  // Table plate { idDossier: nomDuFlux } (flux effectif, hérité inclus).
+  // Le reste de la fonction continue à utiliser `assignmentsConfig` tel quel.
+  // Le paramètre `assignmentsFilename` n'est plus lu ici (conservé pour compatibilité).
+  const assignmentsConfig = {};
+  (effectiveAssignments || new Map()).forEach((info, folderId) => {
+    if (info.flux) assignmentsConfig[folderId] = info.flux;
+  });
 
   const visaPropertyId = "775c8d80-179b-11f1-b157-5bc3cc52c2d2";
 
@@ -691,31 +703,223 @@ async function recursivelyFetchAllSubfolders(startFolderId, accessToken) {
   return allSubfolderIds;
 }
 
-// Fonction de récupération des noms de dossier pour tableau configuration
-async function fetchAllProjectFolders(triconnectAPI, accessToken) {
-  const rootId = await getProjectRootId(triconnectAPI, accessToken);
-  const allFolders = []; // On commence avec une liste vide
-  await _recursivelyGetAllFolders(rootId, accessToken, allFolders);
-  return allFolders;
-}
-
-//Fonction récursive
-async function _recursivelyGetAllFolders(folderId, accessToken, folderList) {
-  try {
-    const subFolders = await fetchFolderContents(folderId, accessToken);
-    for (const folder of subFolders) {
-      folderList.push({ id: folder.id, name: folder.name });
-      // Appel récursif pour descendre dans l'arborescence
-      await _recursivelyGetAllFolders(folder.id, accessToken, folderList);
+// Exécute `worker` sur chaque élément, avec au plus `limit` exécutions simultanées.
+// Le worker ne doit pas lever d'exception (il gère ses propres erreurs).
+async function mapWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  async function run() {
+    while (true) {
+      const i = nextIndex++;
+      if (i >= items.length) return;
+      results[i] = await worker(items[i], i);
     }
-  } catch (error) {
-    console.warn(
-      `Impossible de scanner le contenu du dossier ${folderId}. Il sera ignoré.`,
-      error,
-    );
   }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run));
+  return results;
 }
 
+// Scanne tout l'arbre, niveau par niveau, en parallèle.
+// Retourne { rootId, folders: [{id, name, parentId, isTopLevel}], complete }
+// `complete` vaut false si au moins un dossier n'a pas pu être lu.
+async function fetchProjectFolderTree(triconnectAPI, accessToken) {
+  const rootId = await getProjectRootId(triconnectAPI, accessToken);
+  const folders = [];
+  let complete = true;
+  let currentLevel = [rootId];
+
+  while (currentLevel.length > 0) {
+    const levelResults = await mapWithConcurrency(
+      currentLevel,
+      6,
+      async (parentId) => {
+        try {
+          const subFolders = await fetchFolderContents(parentId, accessToken);
+          return { parentId, subFolders };
+        } catch (error) {
+          console.warn(
+            `Impossible de scanner le dossier ${parentId}. L'arborescence sera marquée incomplète.`,
+            error,
+          );
+          return { parentId, subFolders: null };
+        }
+      },
+    );
+
+    const nextLevel = [];
+    for (const { parentId, subFolders } of levelResults) {
+      if (subFolders === null) {
+        complete = false;
+        continue;
+      }
+      for (const folder of subFolders) {
+        folders.push({
+          id: folder.id,
+          name: folder.name,
+          parentId,
+          isTopLevel: parentId === rootId,
+        });
+        nextLevel.push(folder.id);
+      }
+    }
+    currentLevel = nextLevel;
+  }
+  return { rootId, folders, complete };
+}
+
+// Conservée pour compatibilité : retourne uniquement la liste des dossiers.
+async function fetchAllProjectFolders(triconnectAPI, accessToken) {
+  const { folders } = await fetchProjectFolderTree(triconnectAPI, accessToken);
+  return folders;
+}
+// ===== AFFECTATIONS : normalisation, résolution, réconciliation =====
+
+const DEFAULT_ASSIGNMENT = { flux: null, heredity: true };
+
+// Lit le fichier d'affectations (ancien ou nouveau format) et retourne toujours des objets.
+// Ancien format : { idDossier: "Nom du flux" }  → traité comme « détaché ».
+function normalizeAssignments(raw) {
+  const normalized = {};
+  if (!raw || typeof raw !== "object") return normalized;
+  for (const [folderId, value] of Object.entries(raw)) {
+    if (typeof value === "string") {
+      normalized[folderId] = { flux: value || null, heredity: false };
+    } else if (value && typeof value === "object") {
+      normalized[folderId] = {
+        ...value,
+        flux: value.flux || null,
+        heredity: value.heredity !== false,
+      };
+    }
+  }
+  return normalized;
+}
+
+// Un dossier est « lié » à son parent (donc grisé) si sa case est cochée,
+// s'il a un parent dossier, et si ce parent n'est pas un dossier de niveau 1 décoché.
+function isLinkedToParent(folder, entries, folderById) {
+  if (!folder || folder.isTopLevel) return false;
+  const entry = entries[folder.id] || DEFAULT_ASSIGNMENT;
+  if (entry.heredity === false) return false;
+  const parent = folderById.get(folder.parentId);
+  if (!parent) return false;
+  if (parent.isTopLevel) {
+    const parentEntry = entries[parent.id] || DEFAULT_ASSIGNMENT;
+    if (parentEntry.heredity === false) return false; // règle D1 (option a)
+  }
+  return true;
+}
+
+// Retourne une Map : folderId -> { flux, sourceId, sourceName, locked }
+// locked = true  → flux hérité (liste grisée)
+function resolveEffectiveAssignments(rawAssignments, folders, options = {}) {
+  const { scanComplete = true } = options;
+  const entries = normalizeAssignments(rawAssignments);
+  const folderById = new Map(folders.map((f) => [f.id, f]));
+  const resolved = new Map();
+
+  const resolveFolder = (folderId) => {
+    if (resolved.has(folderId)) return resolved.get(folderId);
+    const folder = folderById.get(folderId);
+    const entry = entries[folderId] || DEFAULT_ASSIGNMENT;
+    let result;
+    if (isLinkedToParent(folder, entries, folderById)) {
+      const parentResult = resolveFolder(folder.parentId);
+      result = {
+        flux: parentResult.flux,
+        sourceId: parentResult.sourceId,
+        sourceName: parentResult.sourceName,
+        locked: true,
+      };
+    } else {
+      result = {
+        // Une entrée « auto » n'est qu'une copie : jamais autoritaire.
+        flux: entry.auto ? null : entry.flux,
+        sourceId: folderId,
+        sourceName: folder ? folder.name : null,
+        locked: false,
+      };
+    }
+    resolved.set(folderId, result);
+    return result;
+  };
+
+  folders.forEach((f) => resolveFolder(f.id));
+
+  // Repli (D5) : si le scan est incomplet, on utilise les flux enregistrés
+  // pour les dossiers que l'on n'a pas pu atteindre.
+  if (!scanComplete) {
+    for (const [folderId, entry] of Object.entries(entries)) {
+      if (!folderById.has(folderId) && entry.flux) {
+        resolved.set(folderId, {
+          flux: entry.flux,
+          sourceId: null,
+          sourceName: null,
+          locked: Boolean(entry.auto),
+          fromSnapshot: true,
+        });
+      }
+    }
+  }
+  return resolved;
+}
+
+// Calcule le fichier d'affectations « propre » :
+//  - crée / met à jour les copies (auto) des dossiers liés ayant un flux effectif
+//  - supprime les copies devenues inutiles
+//  - ne modifie JAMAIS une entrée autonome (source ou détachée)
+// Aucun nettoyage de dossiers disparus (décision D4).
+function reconcileAssignments(rawAssignments, folders) {
+  const today = new Date().toISOString().split("T")[0];
+  const entries = normalizeAssignments(rawAssignments);
+  const effective = resolveEffectiveAssignments(entries, folders, {
+    scanComplete: true,
+  });
+  const result = { ...entries };
+  const diff = { created: [], updated: [], deleted: [] };
+
+  for (const folder of folders) {
+    const info = effective.get(folder.id);
+    const entry = entries[folder.id];
+
+    if (info.locked) {
+      if (info.flux) {
+        const snapshot = {
+          flux: info.flux,
+          heredity: true,
+          auto: true,
+          syncedAt: today,
+        };
+        if (!entry) {
+          result[folder.id] = snapshot;
+          diff.created.push(folder.id);
+        } else if (!entry.auto || entry.flux !== info.flux) {
+          result[folder.id] = snapshot;
+          diff.updated.push(folder.id);
+        }
+      } else if (entry) {
+        delete result[folder.id];
+        diff.deleted.push(folder.id);
+      }
+    } else if (entry && entry.auto) {
+      // Copie devenue sans objet (le dossier n'est plus lié à son parent)
+      delete result[folder.id];
+      diff.deleted.push(folder.id);
+    }
+  }
+
+  // Entrées équivalentes au défaut : inutiles
+  for (const [folderId, entry] of Object.entries(result)) {
+    if (!entry.auto && !entry.flux && entry.heredity) {
+      delete result[folderId];
+      diff.deleted.push(folderId);
+    }
+  }
+
+  const hasChanges =
+    diff.created.length + diff.updated.length + diff.deleted.length > 0;
+  return { assignments: result, diff, hasChanges };
+}
 //  Récupère le rôle de l'utilisateur connecté pour le projet actuel
 async function fetchUserProjectRole(projectId, accessToken) {
   // Cet endpoint est spécifique à l'utilisateur courant dans le contexte d'un projet
@@ -826,7 +1030,7 @@ async function setFolderFullAccessForAllUsers(folderId, accessToken) {
     throw error;
   }
 }
-
+// test
 // On exporte les fonctions pour qu'elles soientt utilisables dans main.js
 export {
   fetchVisaDocuments,
@@ -845,6 +1049,10 @@ export {
   getProjectRootId,
   recursivelyFetchAllSubfolders,
   fetchAllProjectFolders,
+  fetchProjectFolderTree,
+  normalizeAssignments,
+  resolveEffectiveAssignments,
+  reconcileAssignments,
   fetchUserProjectRole,
   calculateGeneralStatus,
   setFolderFullAccessForAllUsers,
