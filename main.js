@@ -78,6 +78,7 @@ function debounce(func, delay) {
   let showOldRevisions = false;
   let documentNameFilter = "";
   let visaAttachments = [];
+  let currentAddFiles = null; // fonction d'ajout de fichiers de l'interface de visa actuellement ouverte
 
   // Variables pour la page d'affectation
   let allProjectFlows = [];
@@ -140,6 +141,38 @@ function debounce(func, delay) {
     }
   }
 
+  // Collage d'images (Ctrl+V) : écouteur unique pour toute la session.
+  // Il est ignoré si l'interface de visa n'est pas affichée.
+  document.addEventListener("paste", (e) => {
+    if (!currentAddFiles || !document.getElementById("drop-zone")) return;
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+
+    const pastedFiles = [];
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const timestamp = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+
+    for (const item of items) {
+      if (item.kind === "file" && item.type.startsWith("image/")) {
+        const blob = item.getAsFile();
+        if (!blob) continue;
+        const suffix = pastedFiles.length > 0 ? `-${pastedFiles.length}` : "";
+        // File.name est en lecture seule : on crée un nouveau File avec le nom voulu
+        pastedFiles.push(
+          new File([blob], `capture-${timestamp}${suffix}.png`, {
+            type: blob.type || "image/png",
+          }),
+        );
+      }
+    }
+
+    if (pastedFiles.length > 0) {
+      e.preventDefault();
+      currentAddFiles(pastedFiles);
+    }
+  });
+
   // Charge (une seule fois par session) l'arbre complet et les affectations résolues.
   async function loadFolderTreeAndAssignments(forceRefresh = false) {
     if (forceRefresh) invalidateFolderTreeCache();
@@ -167,6 +200,7 @@ function debounce(func, delay) {
         rawAssignments: rawAssignments || {},
         effectiveAssignments,
         folderIdToNameMap: new Map(tree.folders.map((f) => [f.id, f.name])),
+        folderById: new Map(tree.folders.map((f) => [f.id, f])),
       };
     })();
 
@@ -365,15 +399,16 @@ function debounce(func, delay) {
         currentViseurGroups = []; // On s'assure qu'elle est vide pour le mode "Missions"
       }
 
-      const { folderIdToNameMap, effectiveAssignments } =
+      const { folderIdToNameMap, effectiveAssignments, folderById } =
         await loadFolderTreeAndAssignments();
 
       const fetchOptions = {
         mode,
         loggedInUserGroupIds,
         allFluxDefinitions,
-        folderIdToNameMap, // On passe la carte à la fonction de récupération
-        effectiveAssignments, // Affectations résolues (héritage inclus)
+        folderIdToNameMap,
+        effectiveAssignments,
+        folderById, // Pour reconstruire le chemin (infobulle)
       };
 
       const documents = await fetchVisaDocuments(
@@ -405,7 +440,7 @@ function debounce(func, delay) {
       // --- 1. Récupération de toutes les données en parallèle ---
       const projectInfo = await triconnectAPI.project.getCurrentProject();
       currentProjectId = projectInfo.id;
-      const { folderIdToNameMap, effectiveAssignments } =
+      const { folderIdToNameMap, effectiveAssignments, folderById } =
         await loadFolderTreeAndAssignments();
 
       const [
@@ -432,7 +467,12 @@ function debounce(func, delay) {
           triconnectAPI,
           configFolderId,
           ASSIGNMENTS_FILENAME,
-          { mode: "documents", folderIdToNameMap, effectiveAssignments },
+          {
+            mode: "documents",
+            folderIdToNameMap,
+            effectiveAssignments,
+            folderById,
+          },
         ),
       ]);
       allFluxDefinitions = fluxDefinitions;
@@ -748,7 +788,7 @@ function debounce(func, delay) {
       .querySelectorAll(".sort-icon")
       .forEach((icon) => (icon.innerHTML = "")); // Vide toutes les flèches
     const activeSortIcon = document.querySelector(
-      `.th-content[data-field="${sortState.field}"] .sort-icon`,
+      `th[data-field="${sortState.field}"] .sort-icon`,
     );
     if (activeSortIcon) {
       activeSortIcon.innerHTML = sortState.direction === "asc" ? "▲" : "▼";
@@ -1018,18 +1058,8 @@ function debounce(func, delay) {
         addFiles(e.dataTransfer.files);
       });
 
-      document.addEventListener("paste", (e) => {
-        const items = e.clipboardData.items;
-        for (const item of items) {
-          if (item.type.indexOf("image") !== -1) {
-            const blob = item.getAsFile();
-            const now = new Date();
-            const timestamp = `${now.getHours()}${now.getMinutes()}${now.getSeconds()}`;
-            blob.name = `capture-${timestamp}.png`;
-            addFiles([blob]);
-          }
-        }
-      });
+      // Le collage est géré par l'écouteur global (voir plus haut)
+      currentAddFiles = addFiles;
 
       attachmentList.addEventListener("click", (e) => {
         if (e.target.classList.contains("remove-file-btn")) {
@@ -1128,6 +1158,16 @@ function debounce(func, delay) {
         newTrackingData[trackingId] = [];
       }
 
+      const groupEntryIndex = newTrackingData[trackingId].findIndex(
+        (e) => e.groupId === userGroupId,
+      );
+
+      // Compteur cumulatif : les anciennes PJ restent dans le dossier de visa
+      const previousAttachmentCount =
+        groupEntryIndex > -1
+          ? newTrackingData[trackingId][groupEntryIndex].attachmentCount || 0
+          : 0;
+
       const visaEntry = {
         groupId: userGroupId,
         status: selectedStatus,
@@ -1135,11 +1175,10 @@ function debounce(func, delay) {
         user: visaData.userName,
         observation: observations,
         destinationFolderId: finalTargetFolderResult.id,
+        attachmentCount:
+          previousAttachmentCount + captures.length + otherFiles.length,
       };
 
-      const groupEntryIndex = newTrackingData[trackingId].findIndex(
-        (e) => e.groupId === userGroupId,
-      );
       if (groupEntryIndex > -1) {
         newTrackingData[trackingId][groupEntryIndex] = visaEntry;
       } else {
@@ -2479,6 +2518,7 @@ function debounce(func, delay) {
       "Nom Document",
       "Version",
       "Lot",
+      "Dossier parent",
       "Dépositaire",
       "Date Dépôt",
       "Statut Global",
@@ -2507,6 +2547,7 @@ function debounce(func, delay) {
         d.name,
         d.version,
         d.lot,
+        d.lotParentName || "",
         d.depositorName,
         d.depositDate,
         // On transforme la cellule de statut en objet pour lui appliquer un style
@@ -2612,7 +2653,9 @@ function debounce(func, delay) {
     let headers = [
       "Nom Document",
       "Version",
+      "Dernier indice",
       "Lot",
+      "Dossier parent",
       "Dépositaire",
       "Date Dépôt",
       "Statut Global",
@@ -2623,19 +2666,33 @@ function debounce(func, delay) {
         `${group.name} - Pour le`,
         `${group.name} - Visé le`,
         `${group.name} - Visa`,
-        `${group.name} - Observation`, // On ajoute l'en-tête pour la nouvelle colonne
+        `${group.name} - Observation`,
+        `${group.name} - PJ`,
       );
     });
 
     const csvRows = [headers.join(";")]; // Entête du CSV
 
+    // Version maximale de chaque document (même logique que le filtre "Anciens indices")
+    const latestVersionById = new Map();
+    allOriginalVisaDocuments.forEach((d) => {
+      const v = parseInt(d.version, 10) || 0;
+      if (!latestVersionById.has(d.id) || v > latestVersionById.get(d.id)) {
+        latestVersionById.set(d.id, v);
+      }
+    });
+
     allOriginalVisaDocuments.forEach((d) => {
       const observationsText = (d.allObservations || []).join(" | "); // On joint avec un séparateur lisible
       const escapedObservations = observationsText.replace(/"/g, '""'); // On échappe les guillemets internes
+      const isLatest =
+        (parseInt(d.version, 10) || 0) === latestVersionById.get(d.id);
       const row = [
         `"${d.name}"`,
         d.version,
+        isLatest ? "X" : "",
         d.lot,
+        `"${(d.lotParentName || "").replace(/"/g, '""')}"`,
         d.depositorName,
         d.depositDate,
         d.status,
@@ -2697,7 +2754,8 @@ function debounce(func, delay) {
           pourLeDate,
           viseLeDate ? new Date(viseLeDate).toLocaleDateString() : "",
           visaStatus,
-          `"${groupObservation.replace(/"/g, '""')}"`, // On ajoute l'observation formatée pour Excel
+          `"${groupObservation.replace(/"/g, '""')}"`,
+          visaEntry.attachmentCount > 0 ? "oui" : "",
         );
       });
       csvRows.push(row.join(";"));
