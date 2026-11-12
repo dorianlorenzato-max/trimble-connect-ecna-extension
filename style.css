@@ -545,6 +545,7 @@ select[multiple] {
 }
 
 .visa-data-bubble textarea {
+  box-sizing: border-box;
   width: 100%;
   min-height: 120px;
   border: 1px solid #ccc;
@@ -1263,9 +1264,10 @@ select[multiple] {
 }
 /* === LÉGENDE CHAMP OBLIGATOIRE (interface de visa) === */
 .visa-required-hint {
+  grid-column: 1 / -1; /* occupe toute la largeur de la grille, comme les autres blocs */
   color: #dc3545;
   font-size: 0.85rem;
-  margin: 0 0 8px 0;
+  margin: 0 0 -12px 0; /* rapproche la légende du bloc Observations (l'espace de la grille est de 20px) */
 }
 /* === COLONNE LOT / DOSSIER : mention du dossier parent === */
 .lot-cell-parent {
@@ -1274,4 +1276,25 @@ select[multiple] {
   margin-top: 2px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+/* === FILTRE HIÉRARCHIQUE "LOT / DOSSIER" : niveau enfant === */
+.filter-children {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0 6px 22px;
+  padding-left: 8px;
+  border-left: 2px solid #e0e0e0;
+}
+
+/* === ICÔNE ENTONNOIR (filtre) === */
+.filter-icon svg {
+  vertical-align: middle;
+  pointer-events: none; /* le clic est capté par le <span> parent */
+}
+
+/* === ICÔNE DE TRI : triangle gris clair sur les colonnes triables non triées === */
+.th-content.sortable .sort-icon:empty::after {
+  content: "▼";
+  color: #bbb;
 }
