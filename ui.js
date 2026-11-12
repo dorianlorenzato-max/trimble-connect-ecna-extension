@@ -131,7 +131,7 @@ function renderVisaTable(
         <div class="th-content ${header.sortable ? "sortable" : ""}">
             ${header.text}
             <span class="sort-icon"></span>
-            ${header.filterable ? `<span class="filter-icon" data-field="${header.field}">&#x25BC;</span>` : ""}
+                        ${header.filterable ? `<span class="filter-icon" data-field="${header.field}" title="Filtrer"><svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M1 2h14l-5.5 6.5V14l-3-1.5V8.5z"/></svg></span>` : ""}
         </div>
     `;
 
@@ -749,13 +749,12 @@ function renderVisaInterfacePage(container, visaData) {
       <h1>Interface de Visa</h1>
       
       <div class="visa-interface-grid">
-        <!-- Colonne de Gauche -->
+                <!-- Colonne de Gauche -->
         <div class="visa-col">
-          <div class="visa-data-bubble full-width">
-            <label for="observations">Observations</label>
-            <p class="visa-required-hint">Champ obligatoire : saisissez au moins 2 caractères (exemple : « ok »).</p>
-            <textarea id="observations" placeholder="Ajoutez vos observations ici..."></textarea>
-        </div>
+          <div class="visa-data-bubble">
+            <label>Nom du Groupe de l'utilisateur</label>
+            <span>${userGroup}</span>
+          </div>
           <div class="visa-data-bubble">
             <label>Nom de l'utilisateur</label>
             <span>${userName}</span>
@@ -815,6 +814,9 @@ function renderVisaInterfacePage(container, visaData) {
             <!-- La liste des fichiers sera générée ici par JavaScript -->
           </ul>
         </div>
+        <!-- Légende du champ obligatoire (au-dessus des observations) -->
+        <p class="visa-required-hint">Champ obligatoire : saisissez au moins 2 caractères (exemple : « ok »).</p>
+
         <!-- Section Observations -->
         <div class="visa-data-bubble full-width">
             <label for="observations">Observations</label>
@@ -967,6 +969,157 @@ function renderFilterPopup(
   window.addEventListener("click", handleClickOutside);
 }
 
+// Popup de filtre hiérarchique pour la colonne "Lot / Dossier"
+// options : [{ id, name, hasSelf, children: [{ id, name }] }]
+// currentFilter : { parents: [ids], children: { parentId: [folderIds] } }
+function renderLotFilterPopup(
+  targetElement,
+  options,
+  currentFilter,
+  onApply,
+  onClear,
+) {
+  document.querySelectorAll(".filter-popup").forEach((popup) => popup.remove());
+
+  const popup = document.createElement("div");
+  popup.className = "filter-popup active";
+  popup.dataset.field = "lotFull";
+
+  // État de travail local (copie du filtre courant)
+  const state = { parents: new Set(currentFilter.parents), children: {} };
+  Object.entries(currentFilter.children).forEach(([parentId, ids]) => {
+    state.children[parentId] = new Set(ids);
+  });
+
+  const list = document.createElement("div");
+  popup.appendChild(list);
+  const childrenBoxes = new Map(); // parentId -> conteneur des enfants (ou null)
+
+  // Les enfants sont visibles si aucun filtre, ou si leur parent est coché
+  function refreshVisibility() {
+    const filtering = state.parents.size > 0;
+    childrenBoxes.forEach((box, parentId) => {
+      if (!box) return;
+      box.style.display =
+        !filtering || state.parents.has(parentId) ? "" : "none";
+    });
+  }
+
+  options.forEach((opt) => {
+    const block = document.createElement("div");
+    block.style.marginBottom = "6px";
+
+    // Case du dossier parent
+    const parentLabel = document.createElement("label");
+    const parentCb = document.createElement("input");
+    parentCb.type = "checkbox";
+    parentCb.checked = state.parents.has(opt.id);
+    parentLabel.appendChild(parentCb);
+    parentLabel.appendChild(document.createTextNode(opt.name));
+    block.appendChild(parentLabel);
+
+    // Cases des dossiers enfants
+    let childrenBox = null;
+    if (opt.children.length > 0) {
+      childrenBox = document.createElement("div");
+      childrenBox.className = "filter-children";
+
+      const items = [];
+      if (opt.hasSelf) {
+        items.push({ id: opt.id, label: `${opt.name} (dossier lui-même)` });
+      }
+      opt.children.forEach((c) => items.push({ id: c.id, label: c.name }));
+
+      items.forEach((item) => {
+        const label = document.createElement("label");
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = state.children[opt.id]
+          ? state.children[opt.id].has(item.id)
+          : false;
+        cb.addEventListener("change", () => {
+          if (!state.children[opt.id]) state.children[opt.id] = new Set();
+          if (cb.checked) {
+            state.children[opt.id].add(item.id);
+            // Cocher un enfant coche automatiquement son parent
+            state.parents.add(opt.id);
+            parentCb.checked = true;
+          } else {
+            state.children[opt.id].delete(item.id);
+          }
+          refreshVisibility();
+        });
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(item.label));
+        childrenBox.appendChild(label);
+      });
+      block.appendChild(childrenBox);
+    }
+    childrenBoxes.set(opt.id, childrenBox);
+
+    parentCb.addEventListener("change", () => {
+      if (parentCb.checked) {
+        state.parents.add(opt.id);
+      } else {
+        state.parents.delete(opt.id);
+        delete state.children[opt.id]; // décocher le parent efface ses enfants
+        if (childrenBox) {
+          childrenBox
+            .querySelectorAll('input[type="checkbox"]')
+            .forEach((i) => (i.checked = false));
+        }
+      }
+      refreshVisibility();
+    });
+
+    list.appendChild(block);
+  });
+
+  refreshVisibility();
+
+  const actions = document.createElement("div");
+  actions.className = "filter-popup-actions";
+  actions.innerHTML = `
+    <button class="button-secondary button-small filter-clear-btn">Effacer</button>
+    <button class="button-primary button-small filter-apply-btn">Appliquer</button>
+  `;
+  popup.appendChild(actions);
+
+  // Positionnement sous l'icône
+  const rect = targetElement.getBoundingClientRect();
+  popup.style.top = `${rect.bottom + window.scrollY + 5}px`;
+  popup.style.left = `${rect.left + window.scrollX}px`;
+  document.body.appendChild(popup);
+
+  function handleClickOutside(event) {
+    if (
+      !popup.contains(event.target) &&
+      !targetElement.contains(event.target)
+    ) {
+      popup.remove();
+      window.removeEventListener("click", handleClickOutside);
+    }
+  }
+  window.addEventListener("click", handleClickOutside);
+
+  popup.querySelector(".filter-apply-btn").addEventListener("click", () => {
+    const parents = Array.from(state.parents);
+    const children = {};
+    parents.forEach((parentId) => {
+      const set = state.children[parentId];
+      if (set && set.size > 0) children[parentId] = Array.from(set);
+    });
+    onApply({ parents, children });
+    popup.remove();
+    window.removeEventListener("click", handleClickOutside);
+  });
+
+  popup.querySelector(".filter-clear-btn").addEventListener("click", () => {
+    onClear();
+    popup.remove();
+    window.removeEventListener("click", handleClickOutside);
+  });
+}
 // fonction pour le tableau récap de la configuration
 
 function renderConfigSummaryTable(container, summaryData) {
@@ -1342,6 +1495,7 @@ export {
   renderVisaInterfacePage,
   attachResizableTableEvents,
   renderFilterPopup,
+  renderLotFilterPopup,
   renderConfigSummaryTable,
   renderDashboardPage,
   renderObservationPopup,
