@@ -34,6 +34,7 @@ import {
   renderVisaInterfacePage,
   attachResizableTableEvents,
   renderFilterPopup,
+  renderLotFilterPopup,
   renderConfigSummaryTable,
   renderDashboardPage,
   renderObservationPopup,
@@ -69,6 +70,7 @@ function debounce(func, delay) {
   let processedVisaDocuments = []; //Pour export des tableaux
   let allFluxDefinitions = []; // stike l'ensembles des flux et des groupes affectés aux flux
   let activeFilters = {}; //Stocke les filtres actifs par colonne
+  let lotFilter = { parents: [], children: {} }; // Filtre à 2 niveaux de la colonne "Lot / Dossier"
   let sortState = {
     field: "depositDate", // Tri par défaut
     direction: "desc", // Descendant pour que le plus récent soit en haut
@@ -421,6 +423,7 @@ function debounce(func, delay) {
 
       allOriginalVisaDocuments = documents;
       activeFilters = {};
+      lotFilter = { parents: [], children: {} };
       currentPage = 1;
       applyFiltersAndSortAndRenderTable();
     } catch (error) {
@@ -696,6 +699,19 @@ function debounce(func, delay) {
       }
     }
 
+    // Filtre "Lot / Dossier" à deux niveaux (parent, puis enfants éventuels)
+    if (lotFilter.parents.length > 0) {
+      processedVisaDocuments = processedVisaDocuments.filter((doc) => {
+        if (!lotFilter.parents.includes(doc.lotParentId)) return false;
+        const selectedChildren = lotFilter.children[doc.lotParentId] || [];
+        // Aucun enfant coché : tout le parent. Sinon : uniquement les enfants cochés.
+        return (
+          selectedChildren.length === 0 ||
+          selectedChildren.includes(doc.parentId)
+        );
+      });
+    }
+
     // ÉTAPE 4 : Appliquer le tri (logique MISE A JOUR)
     const { field, direction } = sortState;
     if (field) {
@@ -776,11 +792,11 @@ function debounce(func, delay) {
     // Mettre à jour les icônes de filtre (code existant)
     document.querySelectorAll(".filter-icon").forEach((icon) => {
       const field = icon.dataset.field;
-      if (activeFilters[field] && activeFilters[field].length > 0) {
-        icon.classList.add("active");
-      } else {
-        icon.classList.remove("active");
-      }
+      const isActive =
+        field === "lotFull"
+          ? lotFilter.parents.length > 0
+          : Boolean(activeFilters[field] && activeFilters[field].length > 0);
+      icon.classList.toggle("active", isActive);
     });
 
     // Mettre à jour les icônes de tri (nouveau code)
@@ -946,9 +962,64 @@ function debounce(func, delay) {
       );
     }
   }
+  // Construit les options du filtre hiérarchique "Lot / Dossier" et ouvre le popup
+  function handleLotFilterIconClick(iconElement) {
+    const parentsMap = new Map(); // parentId -> { name, hasSelf, children: Map }
 
+    allOriginalVisaDocuments.forEach((doc) => {
+      const parentId = doc.lotParentId;
+      if (!parentsMap.has(parentId)) {
+        parentsMap.set(parentId, {
+          id: parentId,
+          name: doc.lotParentName || doc.lot,
+          hasSelf: false,
+          children: new Map(),
+        });
+      }
+      const entry = parentsMap.get(parentId);
+      if (doc.parentId === parentId) {
+        entry.hasSelf = true; // document posé directement dans le dossier source
+      } else {
+        entry.name = doc.lotParentName || entry.name;
+        entry.children.set(doc.parentId, doc.lot);
+      }
+    });
+
+    const options = Array.from(parentsMap.values())
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        hasSelf: p.hasSelf,
+        children: Array.from(p.children, ([id, name]) => ({ id, name })).sort(
+          (a, b) => a.name.localeCompare(b.name),
+        ),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    renderLotFilterPopup(
+      iconElement,
+      options,
+      lotFilter,
+      (newFilter) => {
+        lotFilter = newFilter;
+        currentPage = 1;
+        applyFiltersAndSortAndRenderTable();
+      },
+      () => {
+        lotFilter = { parents: [], children: {} };
+        currentPage = 1;
+        applyFiltersAndSortAndRenderTable();
+      },
+    );
+  }
   // fonction pour les pop up et filtres dans le tableau des visas
   async function handleFilterIconClick(iconElement, columnField) {
+    // La colonne "Lot / Dossier" utilise un filtre hiérarchique dédié
+    if (columnField === "lotFull") {
+      handleLotFilterIconClick(iconElement);
+      return;
+    }
+
     const uniqueValues = [
       ...new Set(
         allOriginalVisaDocuments.map((doc) => String(doc[columnField])),
