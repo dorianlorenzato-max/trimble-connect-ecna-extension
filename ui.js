@@ -94,7 +94,12 @@ function renderVisaTable(
       sticky: true,
     },
     { text: "Version", filterable: true, sortable: true, field: "version" },
-    { text: "Lot / Dossier", filterable: true, sortable: true, field: "lot" },
+    {
+      text: "Lot / Dossier",
+      filterable: true,
+      sortable: true,
+      field: "lotFull",
+    },
     {
       text: "Nom du dépositaire",
       filterable: true,
@@ -293,7 +298,10 @@ function renderVisaTable(
           <td class="action-col" data-column-index="0"><span class="view-doc-icon" data-doc-id="${doc.id}" title="Visualiser le document">👁️</span></td>
           <td data-column-index="1" class="sticky-column-name">${doc.name || ""}</td>
           <td data-column-index="2">${doc.version || ""}</td>
-          <td data-column-index="3"><a href="${folderUrl}" target="_blank">${doc.lot || ""}</a></td>
+                    <td data-column-index="3" title="${escapeHtml(doc.lotPath || doc.lot || "")}">
+            <a href="${folderUrl}" target="_blank">${escapeHtml(doc.lot || "")}</a>
+            ${doc.lotParentName ? `<div class="lot-cell-parent">↳ dans : ${escapeHtml(doc.lotParentName)}</div>` : ""}
+          </td>
           <td data-column-index="4">${doc.depositorName || ""}</td>
           <td data-column-index="5">${doc.depositDate || ""}</td>
           <td data-column-index="6"><span class="status-cell-tag ${statusClass}">${doc.status || "N/A"}</span></td>
@@ -743,10 +751,11 @@ function renderVisaInterfacePage(container, visaData) {
       <div class="visa-interface-grid">
         <!-- Colonne de Gauche -->
         <div class="visa-col">
-          <div class="visa-data-bubble">
-            <label>Nom du Groupe de l'utilisateur</label>
-            <span>${userGroup}</span>
-          </div>
+          <div class="visa-data-bubble full-width">
+            <label for="observations">Observations</label>
+            <p class="visa-required-hint">Champ obligatoire : saisissez au moins 2 caractères (exemple : « ok »).</p>
+            <textarea id="observations" placeholder="Ajoutez vos observations ici..."></textarea>
+        </div>
           <div class="visa-data-bubble">
             <label>Nom de l'utilisateur</label>
             <span>${userName}</span>
