@@ -22,6 +22,7 @@ async function fetchVisaDocuments(
     allFluxDefinitions,
     folderIdToNameMap,
     effectiveAssignments, // Map issue de resolveEffectiveAssignments
+    folderById, // Map id -> dossier (pour le chemin de l'infobulle)
   } = options;
 
   const trackingData = await fetchConfigurationFile(
@@ -206,6 +207,47 @@ async function fetchVisaDocuments(
       : "Date inconnue";
     const lot = folderIdToNameMap.get(file.parentId) || "Dossier inconnu";
     const fluxName = assignmentsConfig[file.parentId] || null;
+
+    // Dossier "parent" = premier dossier de la chaîne d'hérédité (source du flux).
+    // Rien n'est affiché si le document est dans le dossier source lui-même,
+    // ou si la source est inconnue (arbre partiel).
+    const assignmentInfo = effectiveAssignments
+      ? effectiveAssignments.get(file.parentId)
+      : null;
+    let lotParentName = "";
+    let lotPath = lot;
+    if (
+      assignmentInfo &&
+      assignmentInfo.sourceId &&
+      assignmentInfo.sourceName &&
+      assignmentInfo.sourceId !== file.parentId
+    ) {
+      lotParentName = assignmentInfo.sourceName;
+      if (folderById) {
+        // Chemin depuis le dossier source jusqu'au dossier du document
+        const chain = [];
+        const visited = new Set();
+        let currentId = file.parentId;
+        let reachedSource = false;
+        while (currentId && !visited.has(currentId)) {
+          visited.add(currentId);
+          const folder = folderById.get(currentId);
+          if (!folder) break;
+          chain.unshift(folder.name);
+          if (currentId === assignmentInfo.sourceId) {
+            reachedSource = true;
+            break;
+          }
+          currentId = folder.parentId;
+        }
+        lotPath = reachedSource
+          ? chain.join(" › ")
+          : `${lotParentName} › … › ${lot}`;
+      } else {
+        lotPath = `${lotParentName} › … › ${lot}`;
+      }
+    }
+    const lotFull = lotParentName ? `${lotParentName} › ${lot}` : lot;
     const allObservations = docTrackingInfo
       .filter((entry) => entry.observation) // On ne garde que les entrées qui ont une observation
       .map(
@@ -221,7 +263,10 @@ async function fetchVisaDocuments(
       parentId: file.parentId,
       name: file.name,
       version: versionNumber,
-      lot: lot,
+      lot: lot, //  utilisé pour nommer les dossiers VISA_<lot>
+      lotParentName: lotParentName,
+      lotFull: lotFull,
+      lotPath: lotPath,
       depositorName: depositorName,
       depositDate: depositDate,
       status: status, // Le statut, maintenant correctement calculé pour cette version
