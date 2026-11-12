@@ -1261,3 +1261,17 @@ select[multiple] {
   color: #8a8a8a;
   font-style: italic;
 }
+/* === LÉGENDE CHAMP OBLIGATOIRE (interface de visa) === */
+.visa-required-hint {
+  color: #dc3545;
+  font-size: 0.85rem;
+  margin: 0 0 8px 0;
+}
+/* === COLONNE LOT / DOSSIER : mention du dossier parent === */
+.lot-cell-parent {
+  font-size: 0.75rem;
+  color: #888;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
