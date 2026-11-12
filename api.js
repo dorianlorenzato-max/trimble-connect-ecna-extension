@@ -215,6 +215,7 @@ async function fetchVisaDocuments(
       ? effectiveAssignments.get(file.parentId)
       : null;
     let lotParentName = "";
+    let lotParentId = file.parentId; // par défaut : le dossier lui-même
     let lotPath = lot;
     if (
       assignmentInfo &&
@@ -223,6 +224,7 @@ async function fetchVisaDocuments(
       assignmentInfo.sourceId !== file.parentId
     ) {
       lotParentName = assignmentInfo.sourceName;
+      lotParentId = assignmentInfo.sourceId;
       if (folderById) {
         // Chemin depuis le dossier source jusqu'au dossier du document
         const chain = [];
@@ -265,6 +267,7 @@ async function fetchVisaDocuments(
       version: versionNumber,
       lot: lot, //  utilisé pour nommer les dossiers VISA_<lot>
       lotParentName: lotParentName,
+      lotParentId: lotParentId,
       lotFull: lotFull,
       lotPath: lotPath,
       depositorName: depositorName,
