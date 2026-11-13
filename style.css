@@ -1128,6 +1128,19 @@ select[multiple] {
   padding-right: 10px; /* Ajoute un peu d'espace à droite */
 }
 
+/* "N/A" de la légende : texte en gras SANS pastille.
+   Mêmes dimensions que les pastilles pour que les définitions restent alignées. */
+.visa-legend .legend-na-label {
+  display: inline-block;
+  width: 60px;
+  padding: 3px 10px;
+  margin-right: 10px;
+  border: 1px solid transparent;
+  text-align: center;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
 /* === SECTION POUR LES PIÈCES JOINTES === */
 .attachment-area {
   background-color: #f0f5f9;
