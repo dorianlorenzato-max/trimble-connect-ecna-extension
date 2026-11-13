@@ -97,6 +97,15 @@ function describeDeadline(deadline, today = new Date()) {
     state: todayMidnight <= deadline ? "ok" : "late",
   };
 }
+// URL du visualiseur 2D de Trimble Connect.
+// Avec versionId : ouvre l'indice (version) précis du document.
+// Sans versionId : comportement historique.
+function buildViewerUrl(projectId, fileId, versionId) {
+  const base = `https://web.connect.trimble.com/projects/${projectId}/viewer/2D?id=${fileId}`;
+  if (!versionId) return `${base}&version=${fileId}`;
+  const v = encodeURIComponent(versionId);
+  return `${base}&version=${v}&type=revisions&etag=${v}`;
+}
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
 (async function () {
@@ -1192,7 +1201,11 @@ function describeDeadline(deadline, today = new Date()) {
     document.querySelectorAll(".visa-table td[data-action]").forEach((cell) => {
       cell.addEventListener("click", () => {
         if (cell.dataset.action === "open-doc") {
-          const viewerUrl = `https://web.connect.trimble.com/projects/${projectId}/viewer/2D?id=${cell.dataset.docId}&version=${cell.dataset.docId}`;
+          const viewerUrl = buildViewerUrl(
+            projectId,
+            cell.dataset.docId,
+            cell.dataset.versionId,
+          );
           window.open(viewerUrl, "_blank");
         } else if (cell.dataset.action === "open-folder") {
           const folderUrl = `https://web.connect.trimble.com/projects/${projectId}/data/folder/${cell.dataset.folderId}`;
@@ -1570,7 +1583,7 @@ function describeDeadline(deadline, today = new Date()) {
         .getElementById("save-visa-btn")
         .addEventListener("click", () => handleSaveVisaClick(visaData));
       document.getElementById("view-doc-btn").addEventListener("click", () => {
-        const viewerUrl = `https://web.connect.trimble.com/projects/${projectInfo.id}/viewer/2D?id=${doc.id}&version=${doc.id}`;
+        const viewerUrl = buildViewerUrl(projectInfo.id, doc.id, doc.versionId);
         window.open(viewerUrl, "_blank");
       });
     } catch (error) {
