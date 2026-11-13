@@ -71,6 +71,9 @@ function renderVisaTable(
         <div class="legend-item">
           <span class="legend-color-box status-en-cours">En cours</span> En cours de Visa
         </div>
+        <div class="legend-item">
+          <span class="legend-na-label">N/A</span> Non applicable
+        </div>
       </div>
     </div>
   `;
