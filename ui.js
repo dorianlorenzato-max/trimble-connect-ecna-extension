@@ -352,17 +352,18 @@ function renderVisaTable(
 
       return `
         <tr>
-          <td class="action-col" data-column-index="0"><span class="view-doc-icon" data-doc-id="${doc.id}" title="Visualiser le document">👁️</span></td>
-          <td data-column-index="1" class="sticky-column-name">${doc.name || ""}</td>
-          <td data-column-index="2">${doc.version || ""}</td>
-                    <td data-column-index="3" title="${escapeHtml(doc.lotPath || doc.lot || "")}">
+          ${checkboxCell}
+          ${viserCell}
+          <td data-column-index="${1 + colOffset}" class="sticky-column-name cell-clickable" data-action="open-doc" data-doc-id="${escapeHtml(doc.id)}" title="Ouvrir le document">${doc.name || ""}</td>
+          <td data-column-index="${2 + colOffset}">${doc.version || ""}</td>
+                    <td data-column-index="${3 + colOffset}" title="${escapeHtml(doc.lotPath || doc.lot || "")}">
             <a href="${folderUrl}" target="_blank">${escapeHtml(doc.lot || "")}</a>
             ${doc.lotParentName ? `<div class="lot-cell-parent">↳ dans : ${escapeHtml(doc.lotParentName)}</div>` : ""}
           </td>
-          <td data-column-index="4">${doc.depositorName || ""}</td>
-          <td data-column-index="5">${doc.depositDate || ""}</td>
-          <td data-column-index="6"><span class="status-cell-tag ${statusClass}">${doc.status || "N/A"}</span></td>
-          <td data-column-index="7">
+          <td data-column-index="${4 + colOffset}">${doc.depositorName || ""}</td>
+          <td data-column-index="${5 + colOffset}">${doc.depositDate || ""}</td>
+          <td data-column-index="${6 + colOffset}" ${statusCellAttrs}><span class="status-cell-tag ${statusClass}">${doc.status || "N/A"}</span></td>
+          <td data-column-index="${7 + colOffset}">
             ${
               doc.allObservations && doc.allObservations.length > 0
                 ? `<span class="observation-icon" data-observations='${JSON.stringify(doc.allObservations).replace(/'/g, "&apos;")}'>💬</span>`
