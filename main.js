@@ -634,28 +634,13 @@ function describeDeadline(deadline, today = new Date()) {
             }
             // --- CORRIGÉ : On ne calcule "en retard" et "à émettre" QUE si l'étape est active ---
             else if (isStepActive) {
-              const deadline = new Date(doc.depositDateObject);
-              let baseDateForDeadline = new Date(doc.depositDateObject);
-
-              // Si ce n'est pas l'étape 1, la base du calcul est la date du visa précédent
-              if (step.step > 1) {
-                const previousStep = fluxDef.steps.find(
-                  (s) => s.step === step.step - 1,
-                );
-                const previousStepVisas = docTrackingInfo.filter((entry) =>
-                  previousStep.groupIds.includes(entry.groupId),
-                );
-                const latestPreviousVisaDate = new Date(
-                  Math.max.apply(
-                    null,
-                    previousStepVisas.map((entry) => new Date(entry.date)),
-                  ),
-                );
-                baseDateForDeadline = latestPreviousVisaDate;
-              }
-
-              deadline.setDate(
-                baseDateForDeadline.getDate() + step.durationDays,
+              // Date limite calculée avec la même fonction que l'interface de visa
+              // et la colonne "Pour le" (date de base + durée, sans mélange de mois).
+              // null = non calculable : le visa est alors compté "à émettre".
+              const deadline = computeVisaDeadline(
+                { ...doc, trackingInfo: docTrackingInfo },
+                groupId,
+                allFluxDefinitions,
               );
 
               // Incrémentation des compteurs "par groupe" et "pour l'utilisateur"
