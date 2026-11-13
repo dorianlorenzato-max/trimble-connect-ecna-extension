@@ -822,18 +822,27 @@ function getLocalISODate(date = new Date()) {
   // attache la table de visa et tri par ordre alphabétique
 
   function attachVisaTableEvents(documents, projectId, mode) {
-    document.querySelectorAll(".visa-table tbody tr").forEach((row, index) => {
-      const doc = documents[index];
-      if (doc) {
-        row.addEventListener("click", () => {
-          if (mode === "documents") {
-            const viewerUrl = `https://web.connect.trimble.com/projects/${projectId}/viewer/2D?id=${doc.id}&version=${doc.id}`;
-            window.open(viewerUrl, "_blank");
-          } else {
-            handleDocumentRowClick(doc);
-          }
-        });
-      }
+    // Cellules cliquables : nom du document (visualiseur) et statut (dossier des visas émis)
+    document.querySelectorAll(".visa-table td[data-action]").forEach((cell) => {
+      cell.addEventListener("click", () => {
+        if (cell.dataset.action === "open-doc") {
+          const viewerUrl = `https://web.connect.trimble.com/projects/${projectId}/viewer/2D?id=${cell.dataset.docId}&version=${cell.dataset.docId}`;
+          window.open(viewerUrl, "_blank");
+        } else if (cell.dataset.action === "open-folder") {
+          const folderUrl = `https://web.connect.trimble.com/projects/${projectId}/data/folder/${cell.dataset.folderId}`;
+          window.open(folderUrl, "_blank");
+        }
+      });
+    });
+
+    // Bouton VISER (onglet Missions) : ouvre l'interface de visa
+    document.querySelectorAll(".viser-btn").forEach((button) => {
+      button.addEventListener("click", () => {
+        const doc = documents.find(
+          (d) => d.trackingId === button.dataset.trackingId,
+        );
+        if (doc) handleDocumentRowClick(doc);
+      });
     });
 
     document.querySelectorAll(".filter-icon").forEach((icon) => {
@@ -855,18 +864,6 @@ function getLocalISODate(date = new Date()) {
           sortState.direction = "asc";
         }
         applyFiltersAndSortAndRenderTable();
-      });
-    });
-
-    // bouton cliquable pour oeil de visualisation de document
-    document.querySelectorAll(".view-doc-icon").forEach((icon) => {
-      icon.addEventListener("click", (event) => {
-        event.stopPropagation();
-        const docId = icon.dataset.docId;
-        if (docId && projectId) {
-          const viewerUrl = `https://web.connect.trimble.com/projects/${projectId}/viewer/2D?id=${docId}&version=${docId}`;
-          window.open(viewerUrl, "_blank");
-        }
       });
     });
 
@@ -892,24 +889,6 @@ function getLocalISODate(date = new Date()) {
         event.stopPropagation(); // TRÈS IMPORTANT : Empêche la navigation
         const observations = JSON.parse(icon.dataset.observations);
         renderObservationPopup(icon, observations);
-      });
-    });
-
-    // On cible spécifiquement les liens dans la colonne "Lot" (qui a l'index 3)
-    document
-      .querySelectorAll('.visa-table td[data-column-index="3"] a')
-      .forEach((link) => {
-        link.addEventListener("click", (event) => {
-          // Cette ligne est la clé : elle empêche le clic de se propager à la ligne <tr> parente.
-          event.stopPropagation();
-        });
-      });
-
-    // --- Gérer le clic sur les icônes PJ ---
-    document.querySelectorAll(".pj-icon").forEach((icon) => {
-      icon.addEventListener("click", (event) => {
-        // Empêche le clic de se propager à la ligne <tr> et de déclencher la navigation
-        event.stopPropagation();
       });
     });
 
