@@ -18,6 +18,7 @@ import {
   reconcileAssignments,
   autoSyncAssignmentsFile,
   fetchUserProjectRole,
+  computeVisaDeadline,
   setFolderFullAccessForAllUsers,
 } from "./api.js";
 import {
@@ -56,6 +57,40 @@ function debounce(func, delay) {
 function getLocalISODate(date = new Date()) {
   const pad = (n) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+// Fige la 2ᵉ ligne d'en-têtes (Pour le / Visé le / Visa / Obs / PJ) juste SOUS la 1ʳᵉ
+// (noms de groupes). Sans cela, les deux lignes se collent en haut (top: 0) et la 2ᵉ masque la 1ʳᵉ.
+function stickSecondHeaderRow(table) {
+  const headerRows = table.querySelectorAll("thead tr");
+  if (headerRows.length < 2) return; // Missions : une seule ligne d'en-têtes
+
+  const applyOffset = () => {
+    const offset = Math.floor(headerRows[0].getBoundingClientRect().height);
+    headerRows[1].querySelectorAll("th").forEach((th) => {
+      th.style.top = `${offset}px`;
+    });
+  };
+
+  applyOffset();
+  // Réajuste si la hauteur de la 1ʳᵉ ligne change (redimensionnement de colonne ou de fenêtre)
+  if (typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(applyOffset).observe(headerRows[0]);
+  }
+}
+
+// Texte et état d'affichage d'une date limite de visa.
+// état : "ok"   = date du jour <= date limite (visa dans les temps) → vert
+//        "late" = date du jour >  date limite (visa en retard)      → orange
+//        "na"   = date non calculable                               → neutre
+function describeDeadline(deadline, today = new Date()) {
+  if (!deadline) return { text: "N/A", state: "na" };
+  const todayMidnight = new Date(today);
+  todayMidnight.setHours(0, 0, 0, 0);
+  return {
+    text: deadline.toLocaleDateString(),
+    state: todayMidnight <= deadline ? "ok" : "late",
+  };
 }
 
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
@@ -895,6 +930,7 @@ function getLocalISODate(date = new Date()) {
     const visaTableElement = document.querySelector(".visa-table");
     if (visaTableElement) {
       attachResizableTableEvents(visaTableElement);
+      stickSecondHeaderRow(visaTableElement);
     }
     if (mode === "documents") {
       const exportBtn = document.getElementById("export-main-btn");
@@ -1038,20 +1074,37 @@ function getLocalISODate(date = new Date()) {
     renderLoading(mainContentDiv);
     try {
       const projectInfo = await triconnectAPI.project.getCurrentProject();
-      const [loggedInUser, userToGroupMap, visaStates] = await Promise.all([
-        fetchLoggedInUserDetails(globalAccessToken),
-        fetchUsersAndGroups(projectInfo.id, globalAccessToken),
-        fetchVisaPossibleStates(projectInfo.id, globalAccessToken),
-      ]);
+      const [loggedInUser, userToGroupMap, visaStates, allGroups] =
+        await Promise.all([
+          fetchLoggedInUserDetails(globalAccessToken),
+          fetchUsersAndGroups(projectInfo.id, globalAccessToken),
+          fetchVisaPossibleStates(projectInfo.id, globalAccessToken),
+          fetchProjectGroups(projectInfo.id, globalAccessToken),
+        ]);
+
+      const userGroupName =
+        userToGroupMap.get(loggedInUser.id) || "Groupe non trouvé";
+
+      // Date limite de visa du groupe de l'utilisateur (même groupe que celui du visa enregistré)
+      const userGroupObject = allGroups.find((g) => g.name === userGroupName);
+      const deadlineInfo = describeDeadline(
+        computeVisaDeadline(
+          doc,
+          userGroupObject ? userGroupObject.id : null,
+          allFluxDefinitions,
+        ),
+      );
 
       const visaData = {
         doc: doc,
         projectName: projectInfo.name,
         loggedInUser: loggedInUser,
         userName: `${loggedInUser.firstName} ${loggedInUser.lastName}`,
-        userGroup: userToGroupMap.get(loggedInUser.id) || "Groupe non trouvé",
+        userGroup: userGroupName,
         fluxName: doc.fluxName || "Aucun flux affecté",
         visaStates: visaStates || [],
+        deadlineText: deadlineInfo.text,
+        deadlineState: deadlineInfo.state,
       };
 
       renderVisaInterfacePage(mainContentDiv, visaData);
@@ -1397,7 +1450,15 @@ function getLocalISODate(date = new Date()) {
       });
     };
 
-    const drawTitledBubble = (title, value, x, y, width, height) => {
+    const drawTitledBubble = (
+      title,
+      value,
+      x,
+      y,
+      width,
+      height,
+      valueColor = TEXT_COLOR_NORMAL,
+    ) => {
       doc.setFillColor(...BUBBLE_BACKGROUND).setDrawColor(...BORDER_COLOR);
       doc.roundedRect(x, y, width, height, 5, 5, "FD");
       doc
@@ -1408,7 +1469,7 @@ function getLocalISODate(date = new Date()) {
       doc
         .setFont("helvetica", "bold")
         .setFontSize(11)
-        .setTextColor(...TEXT_COLOR_NORMAL);
+        .setTextColor(...valueColor);
       doc.text(String(value), x + width / 2, y + 14, { align: "center" });
     };
 
@@ -1535,6 +1596,20 @@ function getLocalISODate(date = new Date()) {
       rightColY,
       smallBubbleWidth,
       titledBubbleHeight,
+    );
+    rightColY += titledBubbleHeight + 4;
+
+    // Date limite de visa (même valeur et même code couleur qu'à l'écran).
+    // Vert et orange légèrement assombris pour rester lisibles sur le fond bleu clair.
+    const deadlineColorMap = { ok: [25, 135, 60], late: [220, 100, 0] };
+    drawTitledBubble(
+      "Date limite de visa",
+      visaData.deadlineText || "N/A",
+      col2X,
+      rightColY,
+      smallBubbleWidth,
+      titledBubbleHeight,
+      deadlineColorMap[visaData.deadlineState] || TEXT_COLOR_NORMAL,
     );
     rightColY += titledBubbleHeight;
 
