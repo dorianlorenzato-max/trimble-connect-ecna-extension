@@ -1126,6 +1126,56 @@ function calculateGeneralStatus(docTrackingInfo) {
 }
 
 /**
+ * Calcule la date limite de visa d'un groupe pour un document
+ * (même logique que la colonne "Pour le" du tableau "Documents").
+ *  - Étape 1 : date de dépôt + durée de l'étape.
+ *  - Étape > 1 : date du dernier visa de l'étape précédente + durée de l'étape.
+ * @returns {Date|null} Date (à minuit, heure locale) ou null si non calculable
+ *                      (flux/groupe introuvable, étape précédente incomplète).
+ */
+function computeVisaDeadline(doc, groupId, fluxDefinitions) {
+  if (!doc || !groupId || !doc.fluxName || !doc.depositDateObject) return null;
+
+  const fluxDefinition = (fluxDefinitions || []).find(
+    (flux) => flux.name === doc.fluxName,
+  );
+  if (!fluxDefinition || !Array.isArray(fluxDefinition.steps)) return null;
+
+  const stepInfo = fluxDefinition.steps.find((s) =>
+    s.groupIds.includes(groupId),
+  );
+  if (!stepInfo) return null;
+
+  let baseDate;
+  if (stepInfo.step === 1) {
+    baseDate = new Date(doc.depositDateObject);
+  } else {
+    const previousStep = fluxDefinition.steps.find(
+      (s) => s.step === stepInfo.step - 1,
+    );
+    if (!previousStep) return null;
+
+    const previousVisas = (doc.trackingInfo || []).filter((entry) =>
+      previousStep.groupIds.includes(entry.groupId),
+    );
+    // Étape précédente incomplète : pas de date limite calculable
+    if (previousVisas.length !== previousStep.groupIds.length) return null;
+
+    baseDate = new Date(
+      Math.max.apply(
+        null,
+        previousVisas.map((entry) => new Date(entry.date)),
+      ),
+    );
+  }
+
+  const deadline = new Date(baseDate);
+  deadline.setDate(deadline.getDate() + stepInfo.durationDays);
+  deadline.setHours(0, 0, 0, 0); // comparaison au jour près
+  return isNaN(deadline.getTime()) ? null : deadline;
+}
+
+/**
  * Récupère toutes les versions d'un fichier spécifique.
  * @param {string} fileId - L'ID du fichier.
  * @param {string} accessToken - Le token d'accès.
@@ -1219,5 +1269,6 @@ export {
   autoSyncAssignmentsFile,
   fetchUserProjectRole,
   calculateGeneralStatus,
+  computeVisaDeadline,
   setFolderFullAccessForAllUsers,
 };
