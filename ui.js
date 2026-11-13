@@ -133,7 +133,7 @@ function renderVisaTable(
     },
     { text: "Statut", filterable: true, sortable: true, field: "status" },
     {
-      text: "Obs",
+      text: "Observations",
       filterable: false,
       sortable: false,
       field: "observations",
@@ -795,8 +795,23 @@ function updateAssignmentPanel(folder, allFluxNames, state) {
 
 // Affiche la page pour viser un document
 function renderVisaInterfacePage(container, visaData) {
-  const { doc, projectName, userName, userGroup, fluxName, visaStates } =
-    visaData;
+  const {
+    doc,
+    projectName,
+    userName,
+    userGroup,
+    fluxName,
+    visaStates,
+    deadlineText,
+    deadlineState,
+  } = visaData;
+  // Vert : dans les temps / Orange : en retard / aucune couleur : N/A
+  const deadlineClass =
+    deadlineState === "ok"
+      ? "visa-deadline-ok"
+      : deadlineState === "late"
+        ? "visa-deadline-late"
+        : "";
   // Données pour l'exemple
   const visaStatusOptions = visaStates
     .map((status) => `<option value="${status}">${status}</option>`)
@@ -821,7 +836,13 @@ function renderVisaInterfacePage(container, visaData) {
             <label>Date de Visa</label>
             <span>${new Date().toLocaleDateString()}</span>
           </div>
+          <div class="visa-data-bubble">
+            <label>Date limite de visa</label>
+            <span class="${deadlineClass}">${deadlineText || "N/A"}</span>
+          </div>
         </div>
+
+        <!-- Colonne Centrale -->
 
         <!-- Colonne Centrale -->
         <div class="visa-col">
