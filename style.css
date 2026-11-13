@@ -1377,3 +1377,79 @@ select[multiple] {
   color: #fd7e14; /* orange : date limite dépassée */
   font-weight: bold;
 }
+/* === BARRE DE SÉLECTION (téléchargement des documents cochés) === */
+.selection-bar {
+  box-sizing: border-box;
+  min-height: 44px; /* hauteur réservée : le tableau ne bouge pas quand la barre apparaît */
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 8px 0;
+  visibility: hidden;
+}
+.selection-bar.visible {
+  visibility: visible;
+}
+.selection-bar-count {
+  font-weight: bold;
+  color: #003a72;
+}
+.button-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.select-checkbox:disabled {
+  cursor: not-allowed;
+}
+
+/* === FENÊTRE DE RAPPORT DE TÉLÉCHARGEMENT === */
+.download-report-overlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.download-report-dialog {
+  background: #fff;
+  border-radius: 10px;
+  padding: 24px;
+  width: min(560px, 90vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+  text-align: left;
+}
+.download-report-dialog h2 {
+  margin: 0 0 12px 0;
+  font-size: 1.2rem;
+  color: #003a72;
+}
+.download-report-list {
+  overflow-y: auto;
+  margin: 10px 0;
+  padding-left: 20px;
+}
+.download-report-list li {
+  margin-bottom: 10px;
+  word-break: break-word;
+}
+.download-report-meta {
+  color: #666;
+  font-size: 0.9em;
+}
+.download-report-reason {
+  color: #dc3545;
+  font-size: 0.9em;
+}
+.download-report-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
