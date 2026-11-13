@@ -50,6 +50,14 @@ function debounce(func, delay) {
   };
 }
 
+// Date LOCALE au format AAAA-MM-JJ.
+// (toISOString() convertit en UTC : entre minuit et 1h/2h du matin à Paris,
+// il renvoyait la veille.)
+function getLocalISODate(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 // Exécution dans une fonction auto-appelée pour ne pas polluer l'espace global
 (async function () {
   const mainContentDiv = document.getElementById("mainContent");
@@ -1213,7 +1221,7 @@ function debounce(func, delay) {
       const docNameWithoutExt = visaData.doc.name.replace(/\.[^/.]+$/, "");
       const finalTargetFolderResult = await findOrCreateFolder(
         lotFolderResult.id,
-        `VISA_${visaData.doc.name}`,
+        `VISA_${docNameWithoutExt}`,
         globalAccessToken,
       );
 
@@ -1242,7 +1250,7 @@ function debounce(func, delay) {
       const visaEntry = {
         groupId: userGroupId,
         status: selectedStatus,
-        date: new Date().toISOString().split("T")[0],
+        date: getLocalISODate(),
         user: visaData.userName,
         observation: observations,
         destinationFolderId: finalTargetFolderResult.id,
