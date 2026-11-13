@@ -59,7 +59,7 @@ body {
 .visa-table-container {
   display: flex; /* Utilise flexbox pour l'agencement */
   flex-direction: column; /* Agencement vertical (header, body, footer) */
-  height: 70vh; /* Hauteur fixe, par exemple 70% de la hauteur de la vue */
+  max-height: 70vh; /* Hauteur MAXIMALE : le tableau se réduit quand il y a peu de lignes */
   width: 100%;
   max-width: none;
   margin: 0 auto;
@@ -69,7 +69,7 @@ body {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 .visa-table-body-wrapper {
-  flex-grow: 1; /* Prend tout l'espace vertical restant */
+  min-height: 0; /* Permet au corps de rétrécir et de défiler quand le conteneur atteint max-height */
   overflow-y: auto; /* La barre de défilement apparaît ici ! */
   overflow-x: auto;
 }
@@ -137,9 +137,6 @@ body {
   position: sticky;
   top: 0;
   z-index: 10;
-}
-.visa-table tbody tr:hover {
-  background-color: #f1f1f1;
 }
 
 /* === STYLES UNIFIÉS POUR LES BOUTONS === */
@@ -490,11 +487,6 @@ select[multiple] {
   border-radius: 5px;
   margin-bottom: 20px;
 }
-/* Pour indiquer que les lignes du tableau sont cliquables */
-.visa-table tbody tr:hover {
-  background-color: #eaf6ff; /* Un bleu clair pour le survol */
-  cursor: pointer;
-}
 
 /* === PAGE D'INTERFACE DE VISA === */
 .visa-interface-container {
@@ -782,39 +774,104 @@ select[multiple] {
   font-weight: bold;
 }
 
-/* Style pour la nouvelle colonne d'action (l'œil) */
-.visa-table .action-col {
+/* === COLONNES FIGÉES À GAUCHE ===
+   Documents : [case à cocher] [Nom du document]
+   Missions  : [case à cocher] [VISER] [Nom du document]
+   Les z-index des EN-TÊTES (th) sont supérieurs à ceux des CELLULES (td) :
+   les lignes qui défilent passent ainsi sous l'en-tête. */
+
+/* Colonne case à cocher */
+.visa-table .select-col {
   position: sticky;
-  left: 0; /* Collée au bord gauche */
-  background-color: #f8f8f8; /* Pour le TH */
-  z-index: 7; /* Au-dessus des colonnes normales */
+  left: 0;
+  box-sizing: border-box;
+  width: 40px;
+  min-width: 40px;
+  max-width: 40px;
+  padding-left: 0;
+  padding-right: 0;
+  text-align: center;
 }
-
-/* Style pour l'icône de visualisation dans le tableau */
-.view-doc-icon {
+.visa-table th.select-col {
+  background-color: #f8f8f8;
+  z-index: 8;
+}
+.visa-table td.select-col {
+  background-color: #fff;
+  z-index: 3;
+}
+.select-checkbox {
   cursor: pointer;
-  font-size: 1.2em;
-  color: #005a70; /* Utilise une couleur thématique */
-  transition: transform 0.2s ease;
+  margin: 0;
+  vertical-align: middle;
 }
 
-.view-doc-icon:hover {
-  transform: scale(1.2); /* Grossit légèrement au survol */
-  color: #007a93;
+/* Colonne bouton VISER (Missions uniquement) */
+.visa-table .viser-col {
+  position: sticky;
+  left: 40px; /* après la colonne case à cocher */
+  box-sizing: border-box;
+  width: 90px;
+  min-width: 90px;
+  max-width: 90px;
+  padding-left: 8px;
+  padding-right: 8px;
+  text-align: center;
+}
+.visa-table th.viser-col {
+  background-color: #f8f8f8;
+  z-index: 7;
+}
+.visa-table td.viser-col {
+  background-color: #fff;
+  z-index: 2;
 }
 
-/* Style pour la colonne fixe (Nom du document) */
+/* Colonne "Nom du document" */
 .visa-table .sticky-column-name {
   position: sticky;
-  left: 40px; /* Décalée de la largeur de la colonne action */
-  background-color: #f8f8f8; /* Pour le TH */
-  z-index: 6; /* Juste en dessous de la colonne action, mais au-dessus du reste */
+  left: 40px; /* Documents : juste après la colonne case à cocher */
 }
-
-/* Appliquer un fond blanc aux cellules de données fixes pour masquer le contenu qui défile */
-.visa-table td.action-col,
+.visa-table th.sticky-column-name {
+  background-color: #f8f8f8;
+  z-index: 6;
+}
 .visa-table td.sticky-column-name {
   background-color: #fff;
+  z-index: 1;
+}
+/* Missions : après la case à cocher (40px) + VISER (90px) */
+.visa-table--missions .sticky-column-name {
+  left: 130px;
+}
+
+/* Cellules cliquables (nom du document, statut) : surbrillance au survol */
+.visa-table td.cell-clickable {
+  cursor: pointer;
+}
+.visa-table td.cell-clickable:hover {
+  background-color: #eaf6ff;
+}
+
+/* Bouton VISER */
+.viser-btn {
+  background-color: #003a72; /* bleu foncé */
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.viser-btn:hover {
+  background-color: #002a54;
+}
+
+/* Dernière ligne : pas de double trait avec le pied de page du tableau */
+.visa-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
 /* Ajuster le z-index général des en-têtes */
