@@ -1368,3 +1368,12 @@ select[multiple] {
   content: "▼";
   color: #bbb;
 }
+/* === INTERFACE DE VISA : date limite === */
+.visa-deadline-ok {
+  color: #28a745; /* vert : date du jour <= date limite */
+  font-weight: bold;
+}
+.visa-deadline-late {
+  color: #fd7e14; /* orange : date limite dépassée */
+  font-weight: bold;
+}
