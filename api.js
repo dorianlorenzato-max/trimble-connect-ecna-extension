@@ -254,8 +254,8 @@ async function fetchVisaDocuments(
       .filter((entry) => entry.observation) // On ne garde que les entrées qui ont une observation
       .map(
         (entry) =>
-          // On formate la chaîne pour inclure l'utilisateur et la date
-          `<b>${entry.user} (${new Date(entry.date).toLocaleDateString("fr-FR")}) :</b><br>${entry.observation}`,
+          // Texte brut : le saut de ligne est respecté par la popup (white-space: pre-wrap)
+          `${entry.user} (${new Date(entry.date).toLocaleDateString("fr-FR")}) :\n${entry.observation}`,
       );
 
     visaDocuments.push({
