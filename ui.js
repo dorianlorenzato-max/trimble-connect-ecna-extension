@@ -355,7 +355,7 @@ function renderVisaTable(
         <tr>
           ${checkboxCell}
           ${viserCell}
-          <td data-column-index="${1 + colOffset}" class="sticky-column-name cell-clickable" data-action="open-doc" data-doc-id="${escapeHtml(doc.id)}" title="Ouvrir le document">${doc.name || ""}</td>
+          <td data-column-index="${1 + colOffset}" class="sticky-column-name cell-clickable" data-action="open-doc" data-doc-id="${escapeHtml(doc.id)}" data-version-id="${escapeHtml(doc.versionId || "")}" title="Ouvrir le document">${doc.name || ""}</td>
           <td data-column-index="${2 + colOffset}">${doc.version || ""}</td>
                     <td data-column-index="${3 + colOffset}" title="${escapeHtml(doc.lotPath || doc.lot || "")}">
             <a href="${folderUrl}" target="_blank">${escapeHtml(doc.lot || "")}</a>
