@@ -1194,6 +1194,7 @@ async function fetchFileAllVersions(fileId, accessToken) {
   }
   const versions = await response.json();
   // L'API renvoie des objets de version, on s'assure qu'ils ont bien un ID de fichier parent pour la cohérence
+  console.log("DIAG VERSION", JSON.stringify(versions[0], null, 2), versions.length);
   return versions.map((versionObject) => ({
     ...versionObject,
     parentId: versionObject.folderId,
