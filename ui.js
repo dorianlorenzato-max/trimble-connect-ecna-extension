@@ -48,6 +48,7 @@ function renderVisaTable(
   viseurGroups = [],
   allFluxDefinitions = [],
   projectId,
+  selectedKeys = new Set(), // trackingId des lignes cochées
 ) {
   // On extrait les variables de l'état de pagination
   const { currentPage, itemsPerPage } = paginationState;
@@ -344,7 +345,7 @@ function renderVisaTable(
         : "";
 
       // Cellules de tête : [case à cocher] (+ [VISER] en Missions)
-      const checkboxCell = `<td class="select-col" data-column-index="0"><input type="checkbox" class="select-checkbox" data-tracking-id="${escapeHtml(doc.trackingId)}" aria-label="Sélectionner le document"></td>`;
+      const checkboxCell = `<td class="select-col" data-column-index="0"><input type="checkbox" class="select-checkbox" data-tracking-id="${escapeHtml(doc.trackingId)}" aria-label="Sélectionner le document" ${selectedKeys.has(doc.trackingId) ? "checked" : ""}></td>`;
       const viserCell =
         mode === "missions"
           ? `<td class="viser-col" data-column-index="1"><button type="button" class="viser-btn" data-tracking-id="${escapeHtml(doc.trackingId)}">VISER</button></td>`
@@ -434,6 +435,7 @@ function renderVisaTable(
         </div>                             
         ${legendHtml}
     </div>
+    <div id="selection-bar" class="selection-bar"></div>
     <div class="visa-table-container">
         <div class="visa-table-body-wrapper">
             <table class="visa-table ${mode === "missions" ? "visa-table--missions" : ""}">
@@ -457,6 +459,75 @@ function renderVisaTable(
         </div>
     </div>
   `;
+}
+// Barre de sélection au-dessus du tableau : visible uniquement si au moins une ligne est cochée.
+// La hauteur est réservée en CSS pour que le tableau ne se décale pas.
+function renderSelectionBar(
+  barElement,
+  selectedCount,
+  isDownloading,
+  progressLabel,
+) {
+  if (selectedCount === 0) {
+    barElement.innerHTML = "";
+    barElement.classList.remove("visible");
+    return;
+  }
+  const downloadLabel = isDownloading
+    ? progressLabel || "Téléchargement…"
+    : `Télécharger (${selectedCount})`;
+  barElement.classList.add("visible");
+  barElement.innerHTML = `
+    <span class="selection-bar-count">${selectedCount} document(s) sélectionné(s)</span>
+    <button type="button" id="download-selected-btn" class="button-primary button-small" ${isDownloading ? "disabled" : ""}>${downloadLabel}</button>
+    <button type="button" id="clear-selection-btn" class="button-secondary button-small" ${isDownloading ? "disabled" : ""}>Tout désélectionner</button>
+  `;
+}
+
+// Fenêtre de rapport : documents non téléchargés (affichée UNIQUEMENT en cas d'échec).
+// failures : [{ name, version, lot, reason }]
+function renderDownloadReportPopup(failures, downloadedCount) {
+  document
+    .querySelectorAll(".download-report-overlay")
+    .forEach((el) => el.remove());
+
+  const summary =
+    downloadedCount > 0
+      ? `${downloadedCount} document(s) téléchargé(s). ${failures.length} document(s) non téléchargé(s) :`
+      : "Aucun document n'a pu être téléchargé :";
+
+  const items = failures
+    .map(
+      (f) => `
+      <li>
+        <strong>${escapeHtml(f.name)}</strong>
+        <span class="download-report-meta">(indice ${escapeHtml(f.version)} – ${escapeHtml(f.lot)})</span><br>
+        <span class="download-report-reason">${escapeHtml(f.reason)}</span>
+      </li>`,
+    )
+    .join("");
+
+  const overlay = document.createElement("div");
+  overlay.className = "download-report-overlay";
+  overlay.innerHTML = `
+    <div class="download-report-dialog" role="dialog" aria-modal="true" aria-labelledby="download-report-title">
+      <h2 id="download-report-title">Téléchargement : documents non téléchargés</h2>
+      <p>${summary}</p>
+      <ul class="download-report-list">${items}</ul>
+      <div class="download-report-actions">
+        <button type="button" class="button-primary download-report-close">Fermer</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay
+    .querySelector(".download-report-close")
+    .addEventListener("click", close);
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) close();
+  });
 }
 
 // Affiche la page principale de configuration (avec les boutons Créer et Gérer)
@@ -1578,4 +1649,6 @@ export {
   renderConfigSummaryTable,
   renderDashboardPage,
   renderObservationPopup,
+  renderSelectionBar,
+  renderDownloadReportPopup,
 };
