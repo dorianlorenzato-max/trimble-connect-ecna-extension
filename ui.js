@@ -25,7 +25,18 @@ function renderError(container, error) {
 function renderWelcome(container) {
   container.innerHTML = `<p>Bienvenue sur l'interface de gestion de visa ECNA ! Cliquez sur un bouton ci-dessus pour commencer.</p>`;
 }
-
+// Dossier des visas émis d'un document : celui de l'entrée de suivi la plus récente.
+// Retourne null si aucun visa avec dossier n'existe.
+function getStatusFolderId(doc) {
+  const entries = (doc.trackingInfo || []).filter((e) => e.destinationFolderId);
+  if (entries.length === 0) return null;
+  let latest = entries[0];
+  entries.forEach((e) => {
+    // ">=" : à date égale, l'entrée la plus tardive dans le tableau l'emporte
+    if (String(e.date || "") >= String(latest.date || "")) latest = e;
+  });
+  return latest.destinationFolderId;
+}
 // Construit et affiche le tableau des visas
 function renderVisaTable(
   container,
@@ -88,7 +99,12 @@ function renderVisaTable(
     pageTitle = "Tableau de Bord"; // Fallback
   }
   const standardHeaders = [
-    { text: "", filterable: false, sortable: false, field: "action" },
+    // 1ʳᵉ colonne : case à cocher (Documents et Missions)
+    { text: "", filterable: false, sortable: false, field: "select" },
+    // 2ᵉ colonne (Missions uniquement) : bouton VISER
+    ...(mode === "missions"
+      ? [{ text: "", filterable: false, sortable: false, field: "viser" }]
+      : []),
     {
       text: "Nom du document",
       filterable: false,
@@ -127,16 +143,26 @@ function renderVisaTable(
   let headerRow1 = "";
   let headerRow2 = "";
   let totalColumns = standardHeaders.length;
+  // En Missions, la colonne VISER s'insère avant "Nom du document" : tous les index suivants sont décalés de 1
+  const colOffset = mode === "missions" ? 1 : 0;
 
   // Génération des en-têtes standard
   standardHeaders.forEach((header, index) => {
-    let headerContent = `
+    let headerContent;
+    if (header.field === "select") {
+      // Case à cocher d'en-tête (aucune action pour le moment)
+      headerContent = `<input type="checkbox" class="select-checkbox select-all-checkbox" title="Tout sélectionner" aria-label="Tout sélectionner">`;
+    } else if (header.field === "viser") {
+      headerContent = ""; // colonne du bouton VISER : en-tête vide
+    } else {
+      headerContent = `
         <div class="th-content ${header.sortable ? "sortable" : ""}">
             ${header.text}
             <span class="sort-icon"></span>
                         ${header.filterable ? `<span class="filter-icon" data-field="${header.field}" title="Filtrer"><svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true"><path d="M1 2h14l-5.5 6.5V14l-3-1.5V8.5z"/></svg></span>` : ""}
         </div>
     `;
+    }
 
     // Si c'est la colonne du nom du document, on ajoute la barre de recherche
     if (header.field === "name") {
@@ -146,11 +172,20 @@ function renderVisaTable(
             </div>
         `;
     }
+    const thClass =
+      header.field === "select"
+        ? "select-col"
+        : header.field === "viser"
+          ? "viser-col"
+          : header.field === "name"
+            ? "sticky-column-name"
+            : "";
+    const hasResizer = header.field !== "select" && header.field !== "viser";
     headerRow1 += `
       <th rowspan="${mode === "documents" ? "2" : "1"}" data-column-index="${index}" data-field="${header.field}" 
-          class="${header.field === "action" ? "action-col" : ""} ${header.field === "name" ? "sticky-column-name" : ""}">
+          class="${thClass}">
         ${headerContent}
-        ${header.field !== "action" ? '<div class="resizer"></div>' : ""}
+        ${hasResizer ? '<div class="resizer"></div>' : ""}
       </th>
     `;
   });
@@ -168,8 +203,8 @@ function renderVisaTable(
         <th class="sub-header">PJ</th>
       `;
     });
-    // On incrémente de 4 colonnes par groupe
-    totalColumns += viseurGroups.length * 4;
+    // On incrémente de 5 colonnes par groupe
+    totalColumns += viseurGroups.length * 5;
   }
 
   // Génération des lignes et remplissage des cellules
@@ -295,6 +330,25 @@ function renderVisaTable(
           dynamicCells += `<td>${pourLeDateHtml}</td><td>${formattedViseLeDate}</td><td>${visaCellContent}</td><td>${observationCellContent}</td><td>${pjCellContent}</td>`;
         });
       }
+      // Statut cliquable uniquement si un visa a été émis (donc pas "En Cours" ni "N/A")
+      const statusFolderId = getStatusFolderId(doc);
+      const normalizedStatus = String(doc.status || "N/A")
+        .trim()
+        .toLowerCase();
+      const isStatusClickable =
+        Boolean(statusFolderId) &&
+        normalizedStatus !== "en cours" &&
+        normalizedStatus !== "n/a";
+      const statusCellAttrs = isStatusClickable
+        ? `class="cell-clickable" data-action="open-folder" data-folder-id="${escapeHtml(statusFolderId)}" title="Ouvrir le dossier des visas émis"`
+        : "";
+
+      // Cellules de tête : [case à cocher] (+ [VISER] en Missions)
+      const checkboxCell = `<td class="select-col" data-column-index="0"><input type="checkbox" class="select-checkbox" data-tracking-id="${escapeHtml(doc.trackingId)}" aria-label="Sélectionner le document"></td>`;
+      const viserCell =
+        mode === "missions"
+          ? `<td class="viser-col" data-column-index="1"><button type="button" class="viser-btn" data-tracking-id="${escapeHtml(doc.trackingId)}">VISER</button></td>`
+          : "";
 
       return `
         <tr>
@@ -381,7 +435,7 @@ function renderVisaTable(
     </div>
     <div class="visa-table-container">
         <div class="visa-table-body-wrapper">
-            <table class="visa-table">
+            <table class="visa-table ${mode === "missions" ? "visa-table--missions" : ""}">
                 <thead>
                     <tr>${headerRow1}</tr>
                     ${mode === "documents" ? `<tr>${headerRow2}</tr>` : ""}
