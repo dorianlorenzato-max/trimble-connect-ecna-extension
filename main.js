@@ -2552,167 +2552,478 @@ function debounce(func, delay) {
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, "-");
     const filename = `${projectName}_Export_Suivi_Visa_${today}.pdf`;
 
-    const doc = new jsPDF({ orientation: "landscape" });
+    // ---------- Paramètres de mise en page : A3 paysage ----------
+    const doc = new jsPDF({
+      orientation: "landscape",
+      unit: "mm",
+      format: "a3",
+    });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 10;
+    const usableWidth = pageWidth - margin * 2;
+    const OBS_GLOBAL_LIMIT = 120; // caractères max dans la colonne "Observations"
+    const OBS_GROUP_LIMIT = 60; // caractères max dans la colonne "Observation" d'un groupe
+    const BORDER_COLOR = [200, 200, 200];
+    const RED = [220, 53, 69];
+
     const statusColors = {
-      VSO: {
-        background: [40, 167, 69], // Vert
-        text: [255, 255, 255],
-      },
-      VAO: {
-        background: [255, 193, 7], // Jaune
-        text: [0, 0, 0], // Texte noir pour une meilleure lisibilité
-      },
-      "En Cours": {
-        background: [253, 126, 20], // Orange
-        text: [255, 255, 255],
-      },
-      REF: {
-        background: [220, 53, 69], // Rouge
-        text: [255, 255, 255],
-      },
-      SO: {
-        background: [108, 117, 125], // Gris
-        text: [255, 255, 255],
-      },
+      VSO: { background: [40, 167, 69], text: [255, 255, 255] },
+      VAO: { background: [255, 193, 7], text: [0, 0, 0] },
+      "En Cours": { background: [253, 126, 20], text: [255, 255, 255] },
+      REF: { background: [220, 53, 69], text: [255, 255, 255] },
+      SO: { background: [108, 117, 125], text: [255, 255, 255] },
     };
-    // Titre et date dans le PDF
+
+    // ---------- Fonctions utilitaires ----------
+    const formatFr = (iso) =>
+      iso ? new Date(iso).toLocaleDateString("fr-FR") : "";
+
+    const truncate = (text, limit) =>
+      text.length > limit ? `${text.slice(0, limit).trimEnd()}…` : text;
+
+    const statusCell = (status) => {
+      const style = statusColors[status];
+      return {
+        content: status || "",
+        styles: {
+          fillColor: style ? style.background : null,
+          textColor: style ? style.text : null,
+          halign: "center",
+          valign: "middle",
+        },
+      };
+    };
+
+    // Cellule d'observation : texte complet si court, sinon texte tronqué
+    // + ligne réservée pour "suite en annexe X" (dessinée en rouge ensuite).
+    const obsCell = (fullText, limit, annexNumber) => {
+      if (!fullText) return "";
+      if (fullText.length <= limit) return fullText;
+      return { content: `${truncate(fullText, limit)}\n `, annexNumber };
+    };
+
+    // Date "Pour le" d'un groupe (même logique que le tableau à l'écran)
+    const computeDeadlineLabel = (d, group) => {
+      const fluxDef = allFluxDefinitions.find((f) => f.name === d.fluxName);
+      if (!fluxDef || !d.depositDateObject) return "N/A";
+      const stepInfo = fluxDef.steps.find((s) => s.groupIds.includes(group.id));
+      if (!stepInfo) return "N/A";
+      if (stepInfo.step === 1) {
+        const deadline = new Date(d.depositDateObject);
+        deadline.setDate(deadline.getDate() + stepInfo.durationDays);
+        return deadline.toLocaleDateString("fr-FR");
+      }
+      const previousStep = fluxDef.steps.find(
+        (s) => s.step === stepInfo.step - 1,
+      );
+      if (!previousStep) return "N/A";
+      const previousStepVisas = (d.trackingInfo || []).filter((entry) =>
+        previousStep.groupIds.includes(entry.groupId),
+      );
+      if (previousStepVisas.length !== previousStep.groupIds.length) {
+        return "En attente";
+      }
+      const latest = new Date(
+        Math.max.apply(
+          null,
+          previousStepVisas.map((entry) => new Date(entry.date)),
+        ),
+      );
+      latest.setDate(latest.getDate() + stepInfo.durationDays);
+      return latest.toLocaleDateString("fr-FR");
+    };
+
+    // ---------- Préparation des données (observations + annexes) ----------
+    const annexes = []; // { number, label, entries: [...] }
+
+    const rowsData = processedVisaDocuments.map((d) => {
+      const obsEntries = (d.trackingInfo || [])
+        .filter((e) => e.observation)
+        .map((e) => {
+          const g = currentViseurGroups.find((vg) => vg.id === e.groupId);
+          return {
+            groupName: g ? g.name : "Groupe inconnu",
+            user: e.user || "",
+            date: formatFr(e.date),
+            text: String(e.observation),
+          };
+        });
+
+      const globalFull = obsEntries
+        .map((e) => `${e.user} (${e.date}) : ${e.text}`)
+        .join("\n");
+      const needsAnnex =
+        globalFull.length > OBS_GLOBAL_LIMIT ||
+        obsEntries.some((e) => e.text.length > OBS_GROUP_LIMIT);
+
+      let annexNumber = null;
+      if (needsAnnex) {
+        annexNumber = annexes.length + 1;
+        annexes.push({
+          number: annexNumber,
+          label: `${d.name} (indice ${d.version})`,
+          entries: obsEntries,
+        });
+      }
+      return { d, globalFull, annexNumber };
+    });
+
+    // ---------- Colonnes ----------
+    const staticCols = [
+      {
+        header: "Nom Document",
+        width: 40,
+        halign: "left",
+        cell: (r) => r.d.name,
+      },
+      {
+        header: "Version",
+        width: 13,
+        halign: "center",
+        cell: (r) => String(r.d.version),
+      },
+      { header: "Lot", width: 20, halign: "left", cell: (r) => r.d.lot },
+      {
+        header: "Dossier parent",
+        width: 20,
+        halign: "left",
+        cell: (r) => r.d.lotParentName || "",
+      },
+      {
+        header: "Dépositaire",
+        width: 22,
+        halign: "left",
+        cell: (r) => r.d.depositorName,
+      },
+      {
+        header: "Date Dépôt",
+        width: 18,
+        halign: "center",
+        cell: (r) => r.d.depositDate,
+      },
+      {
+        header: "Statut Global",
+        width: 15,
+        halign: "center",
+        cell: (r) => statusCell(r.d.status),
+      },
+      {
+        header: "Observations",
+        width: 48,
+        halign: "left",
+        cell: (r) => obsCell(r.globalFull, OBS_GLOBAL_LIMIT, r.annexNumber),
+      },
+    ];
+    const groupCols = [
+      { header: "Pour le", width: 18, halign: "center" },
+      { header: "Visé le", width: 18, halign: "center" },
+      { header: "Visa", width: 15, halign: "center" },
+      { header: "Observation", width: 30, halign: "left" },
+    ];
+    const staticWidth = staticCols.reduce((s, c) => s + c.width, 0);
+    const repeatCols = staticCols.slice(0, 2); // répétées dans chaque volet suivant
+    const repeatWidth = repeatCols.reduce((s, c) => s + c.width, 0);
+    const groupWidth = groupCols.reduce((s, c) => s + c.width, 0);
+
+    // ---------- Découpage en volets (entre deux groupes uniquement) ----------
+    const groups = currentViseurGroups;
+    const blocks = [];
+    if (groups.length === 0) {
+      blocks.push({ first: true, groups: [] });
+    } else {
+      const n1 = Math.max(
+        1,
+        Math.floor((usableWidth - staticWidth) / groupWidth),
+      );
+      blocks.push({ first: true, groups: groups.slice(0, n1) });
+      const nRest = Math.max(
+        1,
+        Math.floor((usableWidth - repeatWidth) / groupWidth),
+      );
+      for (let i = n1; i < groups.length; i += nRest) {
+        blocks.push({ first: false, groups: groups.slice(i, i + nRest) });
+      }
+    }
+
+    // ---------- Titre, date, filtres ----------
     doc.setFontSize(18);
-    doc.text(`Export du Suivi des Visas - Projet: ${projectName}`, 14, 22);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`Export du Suivi des Visas - Projet: ${projectName}`, margin, 16);
     doc.setFontSize(11);
     doc.setTextColor(100);
-    doc.text(`Date de l'export: ${new Date().toLocaleDateString()}`, 14, 30);
+    doc.text(
+      `Date de l'export: ${new Date().toLocaleDateString("fr-FR")}`,
+      margin,
+      23,
+    );
 
-    // Préparation des en-têtes (y compris dynamiques)
-    const head = [[]]; // Pour les en-têtes groupés
-    const subhead = [];
-    const staticHeaders = [
-      "Nom Document",
-      "Version",
-      "Lot",
-      "Dossier parent",
-      "Dépositaire",
-      "Date Dépôt",
-      "Statut Global",
-      "Observations",
-    ];
-    staticHeaders.forEach((h) => {
-      head[0].push({ content: h, rowSpan: 2 });
-    });
-
-    currentViseurGroups.forEach((group) => {
-      head[0].push({
-        content: group.name,
-        colSpan: 4, // On passe le colSpan à 4
-        styles: { halign: "center" },
-      });
-      subhead.push("Pour le", "Visé le", "Visa", "Observation"); // On ajoute l'en-tête
-    });
-    head.push(subhead);
-
-    // Préparation du corps du tableau (avec les données FILTRÉES)
-    const body = processedVisaDocuments.map((d) => {
-      const globalStatus = d.status || "";
-      const globalStatusStyle = statusColors[globalStatus];
-
-      const row = [
-        d.name,
-        d.version,
-        d.lot,
-        d.lotParentName || "",
-        d.depositorName,
-        d.depositDate,
-        // On transforme la cellule de statut en objet pour lui appliquer un style
-        {
-          content: globalStatus,
-          styles: {
-            fillColor: globalStatusStyle ? globalStatusStyle.background : null,
-            textColor: globalStatusStyle ? globalStatusStyle.text : null,
-            halign: "center",
-          },
-        },
-        (d.allObservations || []).join("\n"),
-      ];
-      currentViseurGroups.forEach((group) => {
-        let pourLeDateHtml = "N/A";
-        let deadlineObject = null;
-        const fluxDef = allFluxDefinitions.find((f) => f.name === d.fluxName);
-        if (fluxDef && d.depositDateObject) {
-          const stepInfo = fluxDef.steps.find((s) =>
-            s.groupIds.includes(group.id),
-          );
-
-          if (stepInfo) {
-            if (stepInfo.step === 1) {
-              deadlineObject = new Date(d.depositDateObject);
-              deadlineObject.setDate(
-                deadlineObject.getDate() + stepInfo.durationDays,
-              );
-              pourLeDateHtml = deadlineObject.toLocaleDateString();
-            } else {
-              const previousStep = fluxDef.steps.find(
-                (s) => s.step === stepInfo.step - 1,
-              );
-              if (previousStep) {
-                const previousStepVisas = d.trackingInfo.filter((entry) =>
-                  previousStep.groupIds.includes(entry.groupId),
-                );
-                if (previousStepVisas.length === previousStep.groupIds.length) {
-                  const latestPreviousVisaDate = new Date(
-                    Math.max.apply(
-                      null,
-                      previousStepVisas.map((entry) => new Date(entry.date)),
-                    ),
-                  );
-                  deadlineObject = new Date(latestPreviousVisaDate);
-                  deadlineObject.setDate(
-                    deadlineObject.getDate() + stepInfo.durationDays,
-                  );
-                  pourLeDateHtml = deadlineObject.toLocaleDateString();
-                } else {
-                  pourLeDateHtml = "En attente";
-                }
-              }
-            }
-          }
-        }
-        const viseLeDate =
-          d.trackingInfo.find((entry) => entry.groupId === group.id)?.date ||
-          "";
-        const visaEntry =
-          d.trackingInfo.find((entry) => entry.groupId === group.id) || {};
-        const visaStatus = visaEntry.status || "";
-        const groupObservation = visaEntry.observation || "";
-        const visaStatusStyle = statusColors[visaStatus];
-
-        row.push(
-          pourLeDateHtml,
-          viseLeDate ? new Date(viseLeDate).toLocaleDateString() : "",
-          // On fait de même pour la cellule de visa dynamique
-          {
-            content: visaStatus,
-            styles: {
-              fillColor: visaStatusStyle ? visaStatusStyle.background : null,
-              textColor: visaStatusStyle ? visaStatusStyle.text : null,
-              halign: "center",
-            },
-          },
-          groupObservation,
+    const filterLabels = {
+      version: "Version",
+      depositorName: "Dépositaire",
+      depositDate: "Date de dépôt",
+      status: "Statut",
+    };
+    const filterParts = [];
+    if (documentNameFilter.trim() !== "") {
+      filterParts.push(
+        `Nom du document contient « ${documentNameFilter.trim()} »`,
+      );
+    }
+    filterParts.push(
+      showOldRevisions
+        ? "Anciens indices inclus"
+        : "Derniers indices uniquement",
+    );
+    for (const field in activeFilters) {
+      const values = activeFilters[field];
+      if (values && values.length > 0) {
+        filterParts.push(
+          `${filterLabels[field] || field} : ${values.join(", ")}`,
         );
+      }
+    }
+    if (lotFilter.parents.length > 0) {
+      const nameById = new Map();
+      allOriginalVisaDocuments.forEach((x) => {
+        nameById.set(x.lotParentId, x.lotParentName || x.lot);
+        nameById.set(x.parentId, x.lot);
       });
-      return row;
+      const lotText = lotFilter.parents
+        .map((pid) => {
+          const parentName = nameById.get(pid) || pid;
+          const children = (lotFilter.children[pid] || []).map((cid) =>
+            cid === pid
+              ? `${parentName} (dossier lui-même)`
+              : nameById.get(cid) || cid,
+          );
+          return children.length > 0
+            ? `${parentName} › ${children.join(" / ")}`
+            : parentName;
+        })
+        .join(" ; ");
+      filterParts.push(`Lot / Dossier : ${lotText}`);
+    }
+
+    doc.setFontSize(9);
+    const filterLines = doc.splitTextToSize(
+      `Filtres appliqués : ${filterParts.join("  |  ")}`,
+      usableWidth,
+    );
+    doc.text(filterLines, margin, 29);
+    let startY = 29 + filterLines.length * 4 + 3;
+
+    if (blocks.length > 1) {
+      doc.text(
+        `Le tableau est découpé en ${blocks.length} volets (largeur de page). Chaque volet répète les colonnes « Nom Document » et « Version ».`,
+        margin,
+        startY,
+      );
+      startY += 5;
+    }
+
+    // ---------- Dessin de "suite en annexe X" en rouge ----------
+    const drawAnnexMarker = (data) => {
+      if (data.section !== "body") return;
+      const raw = data.cell.raw;
+      if (!raw || typeof raw !== "object" || !raw.annexNumber) return;
+      doc.setFontSize(data.cell.styles.fontSize);
+      const lineHeight = doc.getLineHeight() / doc.internal.scaleFactor;
+      const lines = data.cell.text || [];
+      const lastIsPlaceholder =
+        lines.length > 0 && String(lines[lines.length - 1]).trim() === "";
+      const markerIndex = lastIsPlaceholder ? lines.length - 1 : lines.length;
+      const pos = data.cell.getTextPos();
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...RED);
+      doc.text(
+        `suite en annexe ${raw.annexNumber}`,
+        pos.x,
+        pos.y + markerIndex * lineHeight,
+        { baseline: "top" },
+      );
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(0, 0, 0);
+    };
+
+    // ---------- Tableau principal (un ou plusieurs volets) ----------
+    blocks.forEach((block, blockIndex) => {
+      const cols = block.first ? staticCols : repeatCols;
+      const hasGroups = block.groups.length > 0;
+
+      // En-têtes
+      const head1 = cols.map((c) => ({
+        content: c.header,
+        rowSpan: hasGroups ? 2 : 1,
+        styles: { halign: "center", valign: "middle" },
+      }));
+      const head2 = [];
+      block.groups.forEach((group) => {
+        head1.push({
+          content: group.name,
+          colSpan: groupCols.length,
+          styles: { halign: "center" },
+        });
+        groupCols.forEach((gc) => head2.push(gc.header));
+      });
+      const head = hasGroups ? [head1, head2] : [head1];
+
+      // Corps
+      const body = rowsData.map((r) => {
+        const row = cols.map((c) => c.cell(r));
+        block.groups.forEach((group) => {
+          const visaEntry =
+            (r.d.trackingInfo || []).find((e) => e.groupId === group.id) || {};
+          row.push(
+            computeDeadlineLabel(r.d, group),
+            formatFr(visaEntry.date),
+            statusCell(visaEntry.status || ""),
+            obsCell(
+              visaEntry.observation ? String(visaEntry.observation) : "",
+              OBS_GROUP_LIMIT,
+              r.annexNumber,
+            ),
+          );
+        });
+        return row;
+      });
+
+      // Largeurs fixes par colonne
+      const columnStyles = {};
+      let colIndex = 0;
+      cols.forEach((c) => {
+        columnStyles[colIndex++] = { cellWidth: c.width, halign: c.halign };
+      });
+      block.groups.forEach(() => {
+        groupCols.forEach((gc) => {
+          columnStyles[colIndex++] = { cellWidth: gc.width, halign: gc.halign };
+        });
+      });
+
+      // Position de départ
+      let tableStartY = startY;
+      if (blockIndex > 0) {
+        doc.addPage();
+        doc.setFontSize(11);
+        doc.setTextColor(60);
+        doc.text(
+          `Suite du tableau – groupes : ${block.groups.map((g) => g.name).join(", ")}`,
+          margin,
+          10,
+        );
+        tableStartY = 14;
+      }
+
+      doc.autoTable({
+        head,
+        body,
+        startY: tableStartY,
+        theme: "grid",
+        tableWidth: "wrap",
+        rowPageBreak: "avoid",
+        margin: { top: 14, bottom: 14, left: margin, right: margin },
+        styles: {
+          fontSize: 7,
+          cellPadding: 1.2,
+          overflow: "linebreak",
+          valign: "top",
+          lineColor: BORDER_COLOR,
+          lineWidth: 0.1,
+        },
+        headStyles: {
+          fillColor: [0, 58, 114], // Bleu Eiffage
+          textColor: [255, 255, 255],
+          halign: "center",
+          valign: "middle",
+        },
+        columnStyles,
+        didDrawCell: drawAnnexMarker,
+      });
     });
 
-    doc.autoTable({
-      head: head,
-      body: body,
-      startY: 35,
-      theme: "striped",
-      headStyles: { fillColor: [0, 58, 114] }, // Bleu Eiffage
-    });
+    // ---------- Annexe : observations complètes ----------
+    if (annexes.length > 0) {
+      doc.addPage();
+      doc.setFontSize(16);
+      doc.setTextColor(0, 0, 0);
+      doc.text("Annexe – Observations complètes", margin, 14);
+
+      const annexBody = [];
+      annexes.forEach((a) =>
+        a.entries.forEach((e) =>
+          annexBody.push([
+            {
+              content: `Annexe ${a.number}`,
+              styles: { fontStyle: "bold", textColor: RED },
+            },
+            a.label,
+            e.groupName,
+            e.date,
+            e.user,
+            e.text,
+          ]),
+        ),
+      );
+
+      doc.autoTable({
+        head: [
+          [
+            "Annexe",
+            "Document (indice)",
+            "Groupe",
+            "Visé le",
+            "Auteur",
+            "Observation",
+          ],
+        ],
+        body: annexBody,
+        startY: 20,
+        theme: "grid",
+        margin: { top: 14, bottom: 14, left: margin, right: margin },
+        styles: {
+          fontSize: 8,
+          cellPadding: 1.5,
+          overflow: "linebreak",
+          valign: "top",
+          lineColor: BORDER_COLOR,
+          lineWidth: 0.1,
+        },
+        headStyles: { fillColor: [0, 58, 114], textColor: [255, 255, 255] },
+        columnStyles: {
+          0: { cellWidth: 20 },
+          1: { cellWidth: 70 },
+          2: { cellWidth: 35 },
+          3: { cellWidth: 20, halign: "center" },
+          4: { cellWidth: 40 },
+          5: { cellWidth: "auto" },
+        },
+      });
+    }
+
+    // ---------- Pied de page : "Page X / Y" sur toutes les pages ----------
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100);
+      doc.text(
+        `${projectName} – Export du suivi des visas – ${new Date().toLocaleDateString("fr-FR")}`,
+        margin,
+        pageHeight - 6,
+      );
+      doc.text(
+        `Page ${i} / ${totalPages}`,
+        pageWidth - margin,
+        pageHeight - 6,
+        {
+          align: "right",
+        },
+      );
+    }
 
     doc.save(filename);
   }
-
   // FONCTION POUR L'EXPORT EXCEL (CSV)
   async function handleExportExcel() {
     console.log("Export Excel demandé...");
@@ -2754,7 +3065,9 @@ function debounce(func, delay) {
     });
 
     allOriginalVisaDocuments.forEach((d) => {
-      const observationsText = (d.allObservations || []).join(" | "); // On joint avec un séparateur lisible
+      const observationsText = (d.allObservations || [])
+        .join(" | ")
+        .replace(/\n/g, " "); // texte sur une seule ligne dans la cellule Excel
       const escapedObservations = observationsText.replace(/"/g, '""'); // On échappe les guillemets internes
       const isLatest =
         (parseInt(d.version, 10) || 0) === latestVersionById.get(d.id);
