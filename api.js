@@ -265,6 +265,7 @@ async function fetchVisaDocuments(
       parentId: file.parentId,
       name: file.name,
       version: versionNumber,
+      versionId: file.versionId || null, // identifiant de version : téléchargement d'un indice précis
       lot: lot, //  utilisé pour nommer les dossiers VISA_<lot>
       lotParentName: lotParentName,
       lotParentId: lotParentId,
@@ -1194,11 +1195,50 @@ async function fetchFileAllVersions(fileId, accessToken) {
   }
   const versions = await response.json();
   // L'API renvoie des objets de version, on s'assure qu'ils ont bien un ID de fichier parent pour la cohérence
-  console.log("DIAG VERSION", JSON.stringify(versions[0], null, 2), versions.length);
+
   return versions.map((versionObject) => ({
     ...versionObject,
     parentId: versionObject.folderId,
   }));
+}
+// --- TÉLÉCHARGEMENT D'UN DOCUMENT ---
+
+// Retourne l'URL temporaire de téléchargement d'un fichier.
+// Si versionId est fourni, l'URL correspond à cette version précise (indice).
+// En cas d'erreur HTTP, lève une Error dont `status` contient le code (401, 403, 404…).
+async function fetchFileDownloadUrl(fileId, versionId, accessToken) {
+  const params = versionId ? `?version=${encodeURIComponent(versionId)}` : "";
+  const response = await fetch(
+    `https://app21.connect.trimble.com/tc/api/2.0/files/fs/${fileId}/downloadurl${params}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!response.ok) {
+    const error = new Error(
+      `Impossible d'obtenir l'URL de téléchargement (statut ${response.status}).`,
+    );
+    error.status = response.status;
+    throw error;
+  }
+  const info = await response.json();
+  if (!info || !info.url) {
+    const error = new Error("URL de téléchargement absente de la réponse.");
+    error.status = 0;
+    throw error;
+  }
+  return info.url;
+}
+
+// Télécharge le contenu d'un fichier depuis une URL temporaire (sans en-tête d'autorisation).
+async function downloadFileBlob(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    const error = new Error(
+      `Téléchargement du fichier échoué (statut ${response.status}).`,
+    );
+    error.status = response.status;
+    throw error;
+  }
+  return await response.blob();
 }
 
 //Définit les permissions d'accès complet à un dossier pour tous les utilisateurs du projet
@@ -1244,7 +1284,7 @@ async function setFolderFullAccessForAllUsers(folderId, accessToken) {
     throw error;
   }
 }
-// test
+
 // On exporte les fonctions pour qu'elles soientt utilisables dans main.js
 export {
   fetchVisaDocuments,
@@ -1271,5 +1311,8 @@ export {
   fetchUserProjectRole,
   calculateGeneralStatus,
   computeVisaDeadline,
+  fetchFileDownloadUrl,
+  downloadFileBlob,
+  mapWithConcurrency,
   setFolderFullAccessForAllUsers,
 };
