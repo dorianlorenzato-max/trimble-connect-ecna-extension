@@ -18,8 +18,11 @@ import {
   reconcileAssignments,
   autoSyncAssignmentsFile,
   fetchUserProjectRole,
-  computeVisaDeadline,
   setFolderFullAccessForAllUsers,
+  computeVisaDeadline,
+  fetchFileDownloadUrl,
+  downloadFileBlob,
+  mapWithConcurrency,
 } from "./api.js";
 import {
   renderLoading,
@@ -39,6 +42,8 @@ import {
   renderConfigSummaryTable,
   renderDashboardPage,
   renderObservationPopup,
+  renderSelectionBar,
+  renderDownloadReportPopup,
 } from "./ui.js";
 
 // Fonction Debounce
@@ -125,6 +130,17 @@ function describeDeadline(deadline, today = new Date()) {
   let visaAttachments = [];
   let currentAddFiles = null; // fonction d'ajout de fichiers de l'interface de visa actuellement ouverte
 
+  // Sélection pour téléchargement (onglets Documents et Missions)
+  let selectedDocKeys = new Set(); // trackingId des lignes cochées
+  let isDownloading = false; // true pendant un téléchargement
+  let downloadProgressLabel = ""; // texte du bouton pendant le téléchargement
+
+  // Gestion du jeton d'accès
+  const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000; // renouveler 5 min avant l'expiration
+  const TOKEN_UNKNOWN_EXPIRY_MAX_AGE_MS = 25 * 60 * 1000; // si l'expiration est illisible
+  let lastTokenUpdateAt = 0;
+  let tokenRefreshPromise = null;
+
   // Variables pour la page d'affectation
   let allProjectFlows = [];
   let selectedFolderInfo = null;
@@ -184,6 +200,81 @@ function describeDeadline(deadline, today = new Date()) {
       // Droits insuffisants, réseau... : sans conséquence, l'affichage reste correct
       console.warn("Synchronisation des affectations ignorée :", error);
     }
+  }
+
+  // --- GESTION DU JETON D'ACCÈS (renouvellement invisible pour l'utilisateur) ---
+
+  // Enregistre un nouveau jeton (refuse les valeurs vides et les réponses "pending" / "denied")
+  function setAccessToken(token) {
+    if (
+      typeof token !== "string" ||
+      !token ||
+      token === "pending" ||
+      token === "denied"
+    )
+      return false;
+    globalAccessToken = token;
+    lastTokenUpdateAt = Date.now();
+    return true;
+  }
+
+  // Date d'expiration (ms) lue dans le jeton s'il s'agit d'un JWT, sinon null
+  function getTokenExpiry(token) {
+    try {
+      const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      const payload = JSON.parse(
+        atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "=")),
+      );
+      return payload.exp ? payload.exp * 1000 : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function tokenNeedsRefresh() {
+    if (!globalAccessToken) return false;
+    const expiry = getTokenExpiry(globalAccessToken);
+    if (expiry) return expiry - Date.now() < TOKEN_REFRESH_MARGIN_MS;
+    return Date.now() - lastTokenUpdateAt > TOKEN_UNKNOWN_EXPIRY_MAX_AGE_MS;
+  }
+
+  // Redemande le jeton courant à Trimble Connect (sans fenêtre ni consentement).
+  // `force` ignore le contrôle d'expiration. Appels simultanés : une seule requête.
+  async function refreshAccessToken(force = false) {
+    if (!triconnectAPI) return globalAccessToken;
+    if (!force && !tokenNeedsRefresh()) return globalAccessToken;
+    if (tokenRefreshPromise) return tokenRefreshPromise;
+
+    tokenRefreshPromise = (async () => {
+      try {
+        const candidate =
+          await triconnectAPI.extension.requestPermission("accesstoken");
+        if (setAccessToken(candidate)) {
+          const expiry = getTokenExpiry(globalAccessToken);
+          console.info(
+            "Jeton d'accès renouvelé",
+            expiry ? `(expire à ${new Date(expiry).toLocaleTimeString()})` : "",
+          );
+        }
+      } catch (error) {
+        console.warn("Renouvellement du jeton impossible :", error);
+      } finally {
+        tokenRefreshPromise = null;
+      }
+      return globalAccessToken;
+    })();
+    return tokenRefreshPromise;
+  }
+
+  function startTokenWatcher() {
+    // Contrôle toutes les minutes
+    setInterval(() => {
+      refreshAccessToken(false);
+    }, 60 * 1000);
+    // Les minuteurs sont ralentis en arrière-plan : contrôle aussi au retour sur l'onglet
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) refreshAccessToken(false);
+    });
   }
 
   // Collage d'images (Ctrl+V) : écouteur unique pour toute la session.
@@ -264,15 +355,30 @@ function describeDeadline(deadline, today = new Date()) {
     mainContentDiv.innerHTML = `<p>Connexion à Trimble Connect...</p>`;
     triconnectAPI = await TrimbleConnectWorkspace.connect(
       window.parent,
-      (event, data) => {},
+      (event, data) => {
+        // DEBUG (à décommenter si besoin) : voir le format des événements reçus
+        // console.log("Événement Trimble :", event, data);
+
+        // Trimble Connect renouvelle le jeton en arrière-plan et nous l'envoie via cet événement
+        if (event === "extension.accessToken") {
+          const newToken = typeof data === "string" ? data : data && data.data;
+          if (setAccessToken(newToken)) {
+            console.info(
+              "Jeton d'accès renouvelé par Trimble Connect (événement).",
+            );
+          }
+        }
+      },
       30000,
     );
 
     mainContentDiv.innerHTML = `<p>Récupération des permissions...</p>`;
-    globalAccessToken =
+    const initialToken =
       await triconnectAPI.extension.requestPermission("accesstoken");
-    if (!globalAccessToken) throw new Error("L'Access Token est invalide.");
-    console.warn("Access Token récupéré au démarrage :", globalAccessToken);
+    if (!initialToken || !setAccessToken(initialToken))
+      throw new Error("L'Access Token est invalide.");
+    // DEBUG (à décommenter si besoin) : affiche le jeton d'accès dans la console
+    // console.warn("Access Token récupéré au démarrage :", globalAccessToken);
 
     mainContentDiv.innerHTML = `<p>Recherche ou création du dossier de configuration...</p>`;
 
@@ -381,6 +487,9 @@ function describeDeadline(deadline, today = new Date()) {
 
     // Synchronisation silencieuse des affectations (tâche de fond, non attendue)
     startAssignmentsAutoSync();
+
+    // Surveillance du jeton d'accès (renouvellement invisible)
+    startTokenWatcher();
   } catch (error) {
     console.error(
       "Erreur critique lors de l'initialisation de l'extension :",
@@ -393,8 +502,10 @@ function describeDeadline(deadline, today = new Date()) {
 
   async function handleTableDisplay(mode) {
     currentViewMode = mode;
+    selectedDocKeys.clear(); // sélection vidée à chaque (ré)ouverture d'un tableau (onglet, retour de visa)
     renderLoading(mainContentDiv);
     try {
+      await refreshAccessToken(); // renouvelle le jeton s'il approche de l'expiration
       const projectInfo = await triconnectAPI.project.getCurrentProject();
       currentProjectId = projectInfo.id;
 
@@ -483,6 +594,7 @@ function describeDeadline(deadline, today = new Date()) {
   async function handleDashboardDisplay() {
     renderLoading(mainContentDiv);
     try {
+      await refreshAccessToken();
       // --- 1. Récupération de toutes les données en parallèle ---
       const projectInfo = await triconnectAPI.project.getCurrentProject();
       currentProjectId = projectInfo.id;
@@ -770,6 +882,15 @@ function describeDeadline(deadline, today = new Date()) {
         return direction === "asc" ? comparison : -comparison;
       });
     }
+    // Sélection : on ne garde que les lignes encore visibles
+    // (filtres, recherche et "Anciens indices" désélectionnent les lignes masquées)
+    const visibleKeys = new Set(
+      processedVisaDocuments.map((d) => d.trackingId),
+    );
+    selectedDocKeys.forEach((key) => {
+      if (!visibleKeys.has(key)) selectedDocKeys.delete(key);
+    });
+
     // On cherche d'abord la version maximale pour chaque document (par son ID de base)
     const maxVersions = {};
     processedVisaDocuments.forEach((doc) => {
@@ -803,6 +924,7 @@ function describeDeadline(deadline, today = new Date()) {
       currentViseurGroups,
       allFluxDefinitions,
       currentProjectId, // On ajoute l'ID du projet
+      selectedDocKeys, // lignes cochées
     );
     attachVisaTableEvents(
       documentsForCurrentPage,
@@ -812,6 +934,7 @@ function describeDeadline(deadline, today = new Date()) {
 
     // 7. Mettre à jour les visuels (inchangé)
     updateVisuals();
+    updateSelectionUI(); // barre de sélection + état de la case d'en-tête
   }
 
   // FONCTION POUR METTRE À JOUR LES VISUELS
@@ -836,6 +959,229 @@ function describeDeadline(deadline, today = new Date()) {
     );
     if (activeSortIcon) {
       activeSortIcon.innerHTML = sortState.direction === "asc" ? "▲" : "▼";
+    }
+  }
+
+  // --- SÉLECTION ET TÉLÉCHARGEMENT DES DOCUMENTS ---
+
+  // Met à jour la barre de sélection et la case d'en-tête SANS re-rendre le tableau.
+  // En-tête : non cochée (rien) / indéterminée (une partie) / cochée (tout le filtre en cours).
+  function updateSelectionUI() {
+    const total = processedVisaDocuments.length;
+    const selectedCount = selectedDocKeys.size;
+
+    const headerCheckbox = document.querySelector(".select-all-checkbox");
+    if (headerCheckbox) {
+      headerCheckbox.disabled = total === 0 || isDownloading;
+      headerCheckbox.checked = total > 0 && selectedCount === total;
+      headerCheckbox.indeterminate = selectedCount > 0 && selectedCount < total;
+    }
+    document
+      .querySelectorAll(".visa-table td .select-checkbox")
+      .forEach((cb) => {
+        cb.disabled = isDownloading;
+      });
+
+    const bar = document.getElementById("selection-bar");
+    if (bar) {
+      renderSelectionBar(
+        bar,
+        selectedCount,
+        isDownloading,
+        downloadProgressLabel,
+      );
+    }
+  }
+
+  // Téléchargement d'un fichier par le navigateur (même principe que l'export Excel)
+  function triggerBrowserDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  // Noms des fichiers téléchargés : l'indice (_vN) n'est ajouté que pour les homonymes.
+  // Si deux fichiers restent identiques (même nom et même indice, dossiers différents) : suffixe _2, _3…
+  function buildDownloadFileNames(docs) {
+    const sanitize = (n) => String(n || "document").replace(/[\\/]/g, "_");
+    const splitName = (n) => {
+      const dot = n.lastIndexOf(".");
+      return dot > 0
+        ? { stem: n.slice(0, dot), ext: n.slice(dot) }
+        : { stem: n, ext: "" };
+    };
+
+    const countByName = new Map();
+    docs.forEach((d) => {
+      const key = sanitize(d.name).toLowerCase();
+      countByName.set(key, (countByName.get(key) || 0) + 1);
+    });
+
+    const used = new Set();
+    return docs.map((d) => {
+      const base = sanitize(d.name);
+      let name = base;
+      if (countByName.get(base.toLowerCase()) > 1) {
+        const { stem, ext } = splitName(base);
+        name = `${stem}_v${d.version}${ext}`;
+      }
+      let candidate = name;
+      let counter = 2;
+      while (used.has(candidate.toLowerCase())) {
+        const { stem, ext } = splitName(name);
+        candidate = `${stem}_${counter++}${ext}`;
+      }
+      used.add(candidate.toLowerCase());
+      return candidate;
+    });
+  }
+
+  // Raison affichée dans la fenêtre de rapport
+  function describeDownloadError(error) {
+    if (error.stage === "content") return "Échec du téléchargement du fichier";
+    switch (error.status) {
+      case 403:
+        return "Droits d'accès insuffisants";
+      case 401:
+        return "Session expirée : rechargez l'extension";
+      case 404:
+        return "Fichier ou version introuvable";
+      default:
+        return error.status
+          ? `Erreur technique (code ${error.status})`
+          : "Erreur technique (réseau)";
+    }
+  }
+
+  // Obtient l'URL puis le contenu d'un document (indice de la ligne).
+  // Un 401 déclenche un renouvellement du jeton et UN nouvel essai.
+  async function downloadDocumentBlobWithRetry(doc) {
+    let url;
+    try {
+      url = await fetchFileDownloadUrl(
+        doc.id,
+        doc.versionId,
+        globalAccessToken,
+      );
+    } catch (error) {
+      if (error.status !== 401) throw error;
+      await refreshAccessToken(true);
+      url = await fetchFileDownloadUrl(
+        doc.id,
+        doc.versionId,
+        globalAccessToken,
+      );
+    }
+    try {
+      return await downloadFileBlob(url);
+    } catch (error) {
+      error.stage = "content"; // échec au niveau du contenu (pas de l'autorisation)
+      throw error;
+    }
+  }
+
+  // Téléchargement des documents cochés : PDF seul s'il n'y en a qu'un, sinon archive .zip.
+  // Les documents inaccessibles sont ignorés et listés dans une fenêtre en fin de traitement.
+  async function handleDownloadSelected() {
+    if (isDownloading || selectedDocKeys.size === 0) return;
+
+    if (selectedDocKeys.size > 1 && typeof JSZip === "undefined") {
+      alert(
+        "La bibliothèque de compression (JSZip) n'a pas pu être chargée. Rechargez la page ou contactez l'administrateur.",
+      );
+      return;
+    }
+
+    const docsToDownload = processedVisaDocuments.filter((d) =>
+      selectedDocKeys.has(d.trackingId),
+    );
+    if (docsToDownload.length === 0) return;
+
+    if (
+      docsToDownload.length > 50 &&
+      !confirm(
+        `Vous avez sélectionné ${docsToDownload.length} documents. Le téléchargement peut être long. Voulez-vous continuer ?`,
+      )
+    ) {
+      return;
+    }
+
+    isDownloading = true;
+    downloadProgressLabel = "Préparation…";
+    updateSelectionUI();
+
+    const downloaded = []; // { index, name, blob }
+    const failures = []; // { index, doc, reason }
+
+    try {
+      await refreshAccessToken();
+      const fileNames = buildDownloadFileNames(docsToDownload);
+      let processedCount = 0;
+
+      await mapWithConcurrency(docsToDownload, 4, async (doc, index) => {
+        try {
+          const blob = await downloadDocumentBlobWithRetry(doc);
+          downloaded.push({ index, name: fileNames[index], blob });
+        } catch (error) {
+          console.warn(`Téléchargement impossible : ${doc.name}`, error);
+          failures.push({ index, doc, reason: describeDownloadError(error) });
+        }
+        processedCount++;
+        downloadProgressLabel = `Téléchargement ${processedCount}/${docsToDownload.length}…`;
+        updateSelectionUI();
+      });
+
+      downloaded.sort((a, b) => a.index - b.index);
+
+      if (downloaded.length === 1) {
+        triggerBrowserDownload(downloaded[0].blob, downloaded[0].name);
+      } else if (downloaded.length > 1) {
+        downloadProgressLabel = "Création de l'archive…";
+        updateSelectionUI();
+        const zip = new JSZip();
+        downloaded.forEach((f) => zip.file(f.name, f.blob));
+        // PDF déjà compressés : on stocke sans recompresser (plus rapide)
+        const zipBlob = await zip.generateAsync({
+          type: "blob",
+          compression: "STORE",
+        });
+        const projectInfo = await triconnectAPI.project.getCurrentProject();
+        const safeProjectName = String(projectInfo.name || "Projet").replace(
+          /[\\/:*?"<>|]/g,
+          "_",
+        );
+        triggerBrowserDownload(
+          zipBlob,
+          `${safeProjectName}_Documents_${getLocalISODate()}.zip`,
+        );
+      }
+    } catch (error) {
+      console.error("Erreur lors du téléchargement des documents :", error);
+      alert(`Le téléchargement a échoué : ${error.message || error}`);
+    } finally {
+      isDownloading = false;
+      downloadProgressLabel = "";
+      updateSelectionUI();
+    }
+
+    // Fenêtre de rapport : uniquement s'il y a au moins un document non téléchargé
+    if (failures.length > 0) {
+      failures.sort((a, b) => a.index - b.index);
+      renderDownloadReportPopup(
+        failures.map((f) => ({
+          name: f.doc.name,
+          version: f.doc.version,
+          lot: f.doc.lotFull || f.doc.lot,
+          reason: f.reason,
+        })),
+        downloaded.length,
+      );
     }
   }
 
@@ -864,6 +1210,57 @@ function describeDeadline(deadline, today = new Date()) {
         if (doc) handleDocumentRowClick(doc);
       });
     });
+
+    // --- Cases à cocher : sélection pour téléchargement ---
+    // Case d'une ligne
+    document
+      .querySelectorAll(".visa-table td .select-checkbox")
+      .forEach((checkbox) => {
+        checkbox.addEventListener("change", () => {
+          const key = checkbox.dataset.trackingId;
+          if (checkbox.checked) selectedDocKeys.add(key);
+          else selectedDocKeys.delete(key);
+          updateSelectionUI();
+        });
+      });
+
+    // Case d'en-tête : tous les documents du filtre en cours (toutes pages)
+    const selectAllCheckbox = document.querySelector(".select-all-checkbox");
+    if (selectAllCheckbox) {
+      selectAllCheckbox.addEventListener("change", () => {
+        const allKeys = processedVisaDocuments.map((d) => d.trackingId);
+        const allSelected =
+          allKeys.length > 0 && allKeys.every((k) => selectedDocKeys.has(k));
+        if (allSelected) allKeys.forEach((k) => selectedDocKeys.delete(k));
+        else allKeys.forEach((k) => selectedDocKeys.add(k));
+        // Mise à jour des cases de la page affichée (sans re-rendre le tableau)
+        document
+          .querySelectorAll(".visa-table td .select-checkbox")
+          .forEach((cb) => {
+            cb.checked = selectedDocKeys.has(cb.dataset.trackingId);
+          });
+        updateSelectionUI();
+      });
+    }
+
+    // Barre de sélection (délégation : son contenu est reconstruit à chaque mise à jour)
+    const selectionBar = document.getElementById("selection-bar");
+    if (selectionBar) {
+      selectionBar.addEventListener("click", (event) => {
+        if (isDownloading) return;
+        if (event.target.closest("#download-selected-btn")) {
+          handleDownloadSelected();
+        } else if (event.target.closest("#clear-selection-btn")) {
+          selectedDocKeys.clear();
+          document
+            .querySelectorAll(".visa-table td .select-checkbox")
+            .forEach((cb) => {
+              cb.checked = false;
+            });
+          updateSelectionUI();
+        }
+      });
+    }
 
     document.querySelectorAll(".filter-icon").forEach((icon) => {
       icon.addEventListener("click", (event) => {
@@ -1202,6 +1599,7 @@ function describeDeadline(deadline, today = new Date()) {
     renderSaving(mainContentDiv);
 
     try {
+      await refreshAccessToken();
       // --- ETAPE A : Séparer les captures des autres fichiers ---
       const captures = visaAttachments.filter((f) =>
         f.type.startsWith("image/"),
